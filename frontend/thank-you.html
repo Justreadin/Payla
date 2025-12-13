@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Payla Signature | Payment Confirmed</title>
+    <link rel="stylesheet" href="css/payla.css">
+    <link rel="stylesheet" href="css/thank-you.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;1400;800;900&family=Playfair+Display:wght@1400;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Black Void Entry -->
+    <div class="void-entry">
+        <div class="void-logo">P</div>
+    </div>
+
+    <!-- Header -->
+    <header class="header" id="header">
+        <a class="logo" href="#">
+            <div>PAYLA</div>
+        </a>
+        <div class="contact">hello@payla.vip</div>
+    </header>
+
+    <main class="container">
+        <section class="thank-you-section">
+            <!-- Success Animation -->
+            <div class="success-hero">
+                <div class="checkmark-container">
+                    <div class="checkmark-circle">
+                        <div class="checkmark"></div>
+                    </div>
+                    <div class="confetti">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-heart"></i>
+                        <i class="fas fa-sparkles"></i>
+                        <i class="fas fa-gem"></i>
+                    </div>
+                </div>
+                
+                <h1 class="thank-you-title">
+                    Payment Successful!
+                    <span class="emoji">🎉</span>
+                </h1>
+                
+                <p class="thank-you-subtitle">
+                    Your Payla Signature Identity has been reserved.
+                    <span class="highlight">Welcome to a new era of elegant, signature idenity
+
+                    </span>
+                </p>
+            </div>
+
+            <!-- Main Content Card -->
+            <div class="thank-you-card glass">
+                <!-- Confirmation Message -->
+                <div class="confirmation-badge">
+                    <i class="fas fa-envelope-open-text"></i>
+                    <div>
+                        <h3>Confirmation Sent</h3>
+                        <p>You will receive an email confirmation from Layla shortly.</p>
+                    </div>
+                </div>
+
+                <!-- Email Template Note -->
+                <!-- ⚠️ EMAIL TEMPLATE USAGE: The HTML template I provided earlier 
+                will be used as the actual email sent to users. 
+                You should implement it in your email service (SendGrid, AWS SES, etc.)
+                with dynamic data insertion. -->
+
+                <!-- Timeline -->
+                <div class="timeline">
+                    <h3><i class="fas fa-calendar-alt"></i> Your Launch Timeline</h3>
+                    <div class="timeline-steps">
+                        <div class="timeline-step active">
+                            <div class="step-indicator">1</div>
+                            <div class="step-content">
+                                <p class="step-title">Reservation Confirmed</p>
+                                <p class="step-date">Today</p>
+                            </div>
+                        </div>
+                        <div class="timeline-step">
+                            <div class="step-indicator">2</div>
+                            <div class="step-content">
+                                <p class="step-title">Onboarding & Setup</p>
+                                <p class="step-date">Within 14 days</p>
+                            </div>
+                        </div>
+                        <div class="timeline-step">
+                            <div class="step-indicator">3</div>
+                            <div class="step-content">
+                                <p class="step-title">Signature Link Activation</p>
+                                <p class="step-date">Launch Day (14 days from now)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Exclusivity Section -->
+                <div class="exclusivity-card">
+                    <i class="fas fa-crown"></i>
+                    <div>
+                        <h3>Exclusive Access Secured</h3>
+                        <p>Only 500 spots available — you're one of the first <span id="reserved-spots">127</span> creators to secure theirs.</p>
+                    </div>
+                </div>
+
+                <!-- Signature Preview -->
+                <div class="signature-preview">
+                    <h3><i class="fas fa-link"></i> Your Signature Link Preview</h3>
+                    <div class="link-display" id="signature-link">
+                        <span class="url-prefix">https://payla.vip/@</span>
+                        <span class="username" id="username-placeholder">yourusername</span>
+                    </div>
+                    <p class="note">(Will be active on launch day)</p>
+                </div>
+
+                <!-- Share Options -->
+                <div class="share-section">
+                    <p>Invite a fellow creator to secure their Payla Signature — they'll thank you!</p>
+                    <div class="share-buttons">
+                        <button class="share-btn twitter" id="share-twitter">
+                            <i class="fab fa-twitter"></i>
+                            Share on Twitter
+                        </button>
+                        <button class="share-btn copy" id="copy-link">
+                            <i class="fas fa-copy"></i>
+                            Copy Referral Link
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Social Media -->
+                <div class="social-links">
+                    <p>Stay updated on our journey</p>
+                    <div class="social-icons">
+                        <a href="#" class="social-icon">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="social-icon">
+                            <i class="fab fa-instagram"></i>
+                        </a>
+                        <a href="#" class="social-icon">
+                            <i class="fab fa-linkedin-in"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Final Message -->
+            <div class="final-message">
+                <p>Thank you for joining Payla — where your brand gets paid the way it deserves.</p>
+                <p class="signature">With gratitude,<br><span>The Payla Team</span></p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Sticky CTA -->
+    <div class="sticky-cta">
+        <div class="spots-left" id="spots">127</div>
+        <button class="btn paid" id="share-cta">
+            <i class="fas fa-share-alt"></i>
+            Share Your Spot
+        </button>
+    </div>
+
+    <!-- Success Toast -->
+    <div class="toast" id="success-toast">
+        <i class="fas fa-check-circle"></i>
+        <span>Link copied to clipboard!</span>
+    </div>
+
+    <script src="js/thank-you.js"></script>
+</body>
+</html>

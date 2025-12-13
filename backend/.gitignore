@@ -1,0 +1,24 @@
+# Python
+__pycache__/                     # fix typo
+*.pyc                            # compiled Python files
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables
+.env
+
+# Firebase credentials / service accounts
+*.json                           # optional if all json are sensitive
+!some-safe-config.json            # exclude safe configs if needed
+
+# Editor / IDE files (optional)
+.vscode/
+.idea/
+
+# OS files (optional)
+.DS_Store
+Thumbs.db
+
+.txt

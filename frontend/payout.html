@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payouts • Payla</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/payout.css">
+</head>
+<body>
+    <!-- Ultra Premium Background -->
+    <div class="premium-bg"></div>
+    <div class="premium-glow"></div>
+
+    <div class="glitter"></div>
+
+    <div class="topbar glass">
+        <div class="topbar-left">
+        <a href="/dashboard" class="back-arrow premium-arrow">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <a href="dashboard" class="logo">
+            <div>PAYLA</div>
+        </a>
+        </div>
+        <div class="page-title">Payouts</div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="premium-content">
+        <!-- Earnings Summary -->
+        <div class="earnings-summary ultra-glass">
+            <div class="section-title">Your Payouts</div>
+            <div class="earnings-figures">
+                <div class="total-earnings" id="total-earnings">Loading...</div>
+                <div class="available-earnings" id="available-earnings">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Next Payout Card -->
+        <div class="next-payout ultra-glass">
+            <div class="section-title">Next Automatic Payout</div>
+            <div class="payout-schedule" id="payout-schedule">Loading...</div>
+            <div class="payout-destination" id="payout-destination">Loading...</div>
+            <div class="progress-section">
+                <div class="elegant-progress" id="progress-circle">
+                    <div class="progress-percent" id="progress-percent">0%</div>
+                </div>
+                <div class="countdown-text" id="countdown-text">Calculating...</div>
+            </div>
+        </div>
+
+        <!-- Current Account Card - Crown Jewel -->
+        <div class="account-hero ultra-glass" id="account-card">
+            <div class="account-header">
+                <div class="account-title">Current Payout Account</div>
+                <button class="ghost-edit" id="edit-account-btn">Edit</button>
+            </div>
+            <div class="verified-status" id="verified-status" style="display: none;">
+                <i class="fas fa-shield-alt" style="color: var(--neon-lime); font-size: 14px;"></i>
+                <span class="verified-badge">Verified</span>
+            </div>
+            <div class="account-details">
+                <div class="account-name" id="account-name">No payout account set up</div>
+                <div class="account-info" id="account-info">Add your bank account to receive payments</div>
+            </div>
+            <div class="verification-footer" id="verification-footer" style="display: none;">
+                <i class="fas fa-shield-check" style="color: var(--neon-lime); font-size: 14px;"></i>
+                <span class="verification-text">Verified with Paystack</span>
+            </div>
+        </div>
+
+        <!-- Recent Payouts -->
+        <div class="recent-payouts ultra-glass">
+            <div class="payouts-header">
+                <div class="section-title">Recent Payouts</div>
+                 <a class="view-all-link" id="view-history-btn">View History</a>
+            </div>
+            <div class="payouts-grid" id="payouts-list">
+                <!-- Payout items will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Delayed Payout Button -->
+        <button class="instant-payout delayed-payout" id="delayed-payout-btn" style="display: none;">
+            <div class="payout-header">
+                <i class="fas fa-clock"></i>
+                <span>Delayed Instant Payout</span>
+            </div>
+            <span class="fee-note">Available in 2 hours 15 mins</span>
+        </button>
+
+        <!-- Add Account Button -->
+        <button class="action-btn action-secondary" id="add-account-btn">
+            Add Payout Account
+        </button>
+    </div>
+
+    <!-- Sticky CTA (Mobile Only) -->
+    <div class="sticky-actions">
+        <button class="action-btn action-secondary" id="mobile-save-btn">Save Changes</button>
+        <button class="action-btn action-primary delayed-payout" id="mobile-delayed-btn" style="display: none;">
+            <i class="fas fa-clock"></i>
+            Delayed Payout
+        </button>
+        <button class="action-btn action-primary" id="mobile-add-btn">Add Account</button>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div class="modal-overlay" id="account-modal">
+        <div class="modal-content ultra-glass">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Payout Account</h3>
+                <button class="modal-close" id="modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="bank-select">Select Bank</label>
+                    <select id="bank-select" class="premium-select">
+                        <option value="">Choose your bank...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="account-number">Account Number</label>
+                    <input 
+                        type="text" 
+                        id="account-number" 
+                        class="premium-input" 
+                        placeholder="10-digit account number"
+                        maxlength="10"
+                    >
+                    <div class="input-hint">Enter your 10-digit account number</div>
+                </div>
+                
+                <div class="account-preview" id="account-preview" style="display: none;">
+                    <div class="preview-header">
+                        <i class="fas fa-check-circle" style="color: var(--neon-lime);"></i>
+                        <span>Account Verified</span>
+                    </div>
+                    <div class="preview-details">
+                        <div class="preview-name" id="preview-name"></div>
+                        <div class="preview-bank" id="preview-bank"></div>
+                    </div>
+                </div>
+            </div>
+
+                        
+            <div class="modal-footer">
+                <button class="ghost-edit" id="cancel-btn">Cancel</button>
+                <button class="instant-payout-small" id="save-account-btn" disabled>
+                    Save Account
+                </button>
+            </div>
+        </div>
+    </div>
+
+       <!-- History Modal -->
+        <div id="history-modal" class="modal-overlay">
+            <div class="modal-content ultra-glass">
+                <div class="modal-header">
+                <h2 class="modal-title">Payout History</h2>
+                <button class="modal-close" id="history-modal-close">&times;</button>
+                </div>
+                <div class="modal-body" id="history-modal-body">
+                <!-- Payout items will be injected here -->
+                </div>
+            </div>
+        </div>
+
+
+    <!-- Success Toast -->
+    <div class="elegant-toast" id="success-toast">
+        <i class="fas fa-check"></i>
+        <span id="toast-message">Changes saved successfully</span>
+    </div>
+
+    <script src="js/payout.js"></script>
+</body>
+</html>

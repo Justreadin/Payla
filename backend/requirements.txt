@@ -1,0 +1,54 @@
+# -------------------------------
+# ⚙️ CORE BACKEND
+# -------------------------------
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-dotenv==1.0.0
+pydantic==2.5.0
+firebase-admin==6.2.0
+google-cloud-firestore==2.15.0
+
+# -------------------------------
+# 💳 PAYMENTS (Paystack + HTTP)
+# -------------------------------
+httpx==0.25.0
+requests==2.31.0
+
+# -------------------------------
+# 🔐 AUTH & SECURITY
+# -------------------------------
+PyJWT==2.8.0
+passlib[bcrypt]==1.7.4  # for password hashing (if not Firebase-only)
+python-multipart==0.0.6  # for form-data uploads
+itsdangerous==2.1.2      # for secure link signing (optional)
+
+# -------------------------------
+# 📧 EMAIL & NOTIFICATIONS
+# -------------------------------
+aiosmtplib==2.0.2        # async email sending
+Jinja2==3.1.2             # for templating beautiful email HTML
+email-validator==2.1.0.post1
+
+# -------------------------------
+# ⏰ REMINDERS & SCHEDULING
+# -------------------------------
+APScheduler==3.10.4       # for automated reminders
+asyncio==3.4.3            # ensures async scheduler stability
+
+# -------------------------------
+# 💰 CURRENCY & CONVERSIONS
+# -------------------------------
+forex-python==1.8         # for exchange rate conversions
+pytz==2023.3              # timezone support
+
+# -------------------------------
+# 🧠 LOGGING & MONITORING
+# -------------------------------
+loguru==0.7.2
+sentry-sdk==1.38.0        # optional: for error tracking in prod
+
+# -------------------------------
+# 🧪 TESTING (optional but useful)
+# -------------------------------
+pytest==7.4.3
+httpx[http2]==0.25.0

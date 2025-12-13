@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PAYLA: Get Paid Faster, Beautifully</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/payla.css" />
+    <!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <!-- Paystack Inline -->
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+</head>
+<body>
+    <!-- Black Void Entry -->
+    <div class="void-entry">
+        <div class="void-logo">P</div>
+    </div>
+
+    <!-- Header -->
+    <header class="header" id="header">
+        <a class="logo" href="#hero">
+            <div>PAYLA</div>
+        </a>
+        <div class="contact">hello@payla.vip</div>
+    </header>
+
+    <main class="container">
+        <section class="hero" id="hero">
+            <div class="hero-left">
+                <div class="kicker">PAYLA</div>
+                <h1 class="title">Your Unique Payment Identity</h1>
+                <p class="lead"><strong>Stop sharing account numbers.</strong><em> Get paid instantly with payla/@yourname, straight to your account.</em></p>
+                
+                <div class="cta-row">
+                    <button class="btn free" id="join-waitlist"></a>[CONTINUE] TO PAYLA</button>
+                    <button class="btn paid" id="lock-year">LOCK MY PAYLA YEAR (₦5,000)</button>
+                </div>
+
+                <div class="social-proof">
+                    <div class="joined-count">127 creators already joined</div>
+                    <div class="testimonial">“No more sending account number. payla/@janet just feels right.” — Janet, Brand Strategist</div>
+                </div>
+            </div>
+
+            <!-- iPhone Mockup -->
+            <div class="iphone-wrap">
+                <div class="iphone" id="iphone">
+                    <div class="notch"><div class="dynamic-island"></div></div>
+                    <div class="screen">
+                        <div class="status-bar">
+                            <div class="time">9:41</div>
+                            <div class="icons">Signal • Wi-Fi • Battery</div>
+                        </div>
+                        <div class="chat-container">
+                            <div class="chat">
+                                <div class="msg left delay1">Hi Layla, good morning. Could you share your paylink?</div>
+                                <div class="msg right delay2">Morning Ada! ₦712,000. One sec, let me send it.</div>
+                                <div class="msg right delay3">Here’s my paylink<br><a href="#" style="color:#007AFF; text-decoration:underline;">payla/@layla</a></div>
+                                <div class="invoice-card">
+                                    <h4>Layla DESIGNS</h4>
+                                   <div class="amount">Logo Design Package — ₦712,000</div>
+                                    <div class="due">payla/@layla</div>
+                                    <div class="pay">Transfer Now</div>
+                                </div>
+                                <div class="msg left delay4">Thanks! Just paid now.</div>
+                                <div class="msg right delay5">Just entered by account! Thanks Ada, appreciate the quick one</div>
+                            </div>
+                        </div>
+                        <div class="paid-overlay" id="paid-overlay">Paid in 12 sec</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Why Payla -->
+        <section class="why-payla">
+            <div class="why-header">
+                <h2>We built Payla because we were tired of:</h2>
+            </div>
+
+            <div class="pain-quotes">
+                <div class="pain-quotes">
+                <div class="quote">
+                    “Hi boss, haven't i sent the payment"
+                    <span>— Every client, every week</span>
+                </div>
+                <div class="quote">
+                    “Paid?” 😅 “Oh, I forgot!”,
+                    <span>— The silence after your 4th follow-ups</span>
+                </div>
+                <div class="quote">
+                    “Please, check your phone”<br>
+                    <span>— Your life before Payla</span>
+                </div>
+                <div class="quote">
+                    “Seen, Will pay tommorrow”<br>
+                    <span>— Tomorrow never comes</span>
+                </div>
+            </div>
+
+            <div class="solution">
+                <h3>With Payla, you get:</h3>
+                <div class="features-list">
+                    <div class="feature-ite"><strong>Paid instantly, no KYC, no delays</strong></div>
+                    <div class="feature-ite"><strong>Your own branded paylink → payla/@yourname</strong></div>
+                    <div class="feature-ite"><strong>Beautiful invoices/receipts your clients remember</strong></div>
+                    <div class="feature-ite"><strong>Instant payments directly to your account (no charges)</strong></div>
+                    <div class="feature-ite"><strong>Auto reminders via SMS, Email & WhatsApp.</strong></div>
+                    <div class="feature-ite"><strong>Zero follow-ups ever again</strong></div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Pre-launch Offer -->
+        <section class="offer">
+            <div class="offer-badge">Founding Creator Offer</div>
+                <h2>₦5,000 for 1 Full Year</h2>
+                <div class="price-break">Just <strong>₦400/month</strong>, 90% cheaper than competitors</div>
+            <div class="features">
+                <div class="feature">Unique @yourname (never expires)</div>
+                <div class="feature">Unlimited invoices & receipts</div>
+                <div class="feature">Auto payment reminders</div>
+                <div class="feature">Instant payouts to local & dom accounts</div>
+                <div class="feature">1 price-lock (first 500 only)</div>
+                <div class="feature">100% refund if we don’t launch in 14 days</div>
+                <div class="feature">Powered by Paystack</div>
+            </div>
+
+            <div class="social-proof">
+                    <div class="joined-count">
+                        <strong>127 creators</strong> already locked their names this week.
+                    </div>
+                    <div class="testimonial">
+                        “I got my first payment 11 minutes after sending payla/@mide. Never going back.” — Mide, Notion Creator
+                    </div>
+            </div>
+
+            <div class="launch-timer">Price becomes ₦7,500/month in <strong>after first 500</strong></div>
+            <div class="fomo" id="fomo-counter">Only 373 spots</div>
+        </section>
+
+        <footer class="footer">
+            <div>© 2025 Payla • <a href="mailto:hello@payla.vip">hello@payla.vip</a></div>
+        </footer>
+    </main>
+
+    <!-- Sticky CTA -->
+    <div class="sticky-cta">
+        <div class="spots-left" id="spots">127</div>
+        <button class="btn free" id="sticky-fre">[CONTINUE] TO PAYLA</button>
+        <button class="btn paid" id="sticky-paid">LOCK MY PAYLA YEAR</button>
+    </div>
+
+    <!-- Lock Payla Year Modal -->
+    <div class="lock-modal-overlay" id="lock-modal">
+        <div class="lock-modal">
+            <button class="lock-modal-close" id="lock-modal-close">✕</button>
+            <h2 class="lock-modal-title">Lock Your Payla Year</h2>
+            <p class="lock-modal-subtitle">Reserve payla/@yourname for ₦5,000/year</p>
+
+            <form id="lock-form" class="lock-form">
+                <div class="lock-form-group">
+                    <label for="lock-name">Full Name *</label>
+                    <input type="text" id="lock-name" required placeholder="Layla Johnson"/>
+                </div>
+
+                <div class="lock-form-group">
+                    <label for="lock-email">Email Address *</label>
+                    <input type="email" id="lock-email" required placeholder="you@company.com"/>
+                </div>
+
+                <div class="lock-form-group">
+                    <label for="lock-username">Payla Username *</label>
+                    <div class="lock-username-input">
+                        <span class="lock-username-prefix">payla/@</span>
+                        <input type="text" id="lock-username" required placeholder="yourname" 
+                            pattern="[a-zA-Z0-9_]+" 
+                            title="Letters, numbers & underscores only"
+                            minlength="3"
+                            maxlength="20"/>
+                    </div>
+                    <small class="lock-username-hint">Letters, numbers & underscores only (3-20 chars)</small>
+                </div>
+
+                <div class="lock-form-group">
+                    <label for="lock-expect">What are you expecting from Payla? (optional)</label>
+                    <textarea id="lock-expect" rows="2" placeholder="e.g. Faster payments, auto-reminders…"></textarea>
+                </div>
+
+                <div class="lock-form-agreement">
+                    <input type="checkbox" id="lock-agree" required />
+                    <label for="lock-agree">I understand this reservation only confirms after payment</label>
+                </div>
+
+                <button type="submit" class="lock-btn paid modal-submit" id="lock-submit-btn">
+                    <span class="lock-btn-text">LOCK MY PAYLA YEAR (₦5,000)</span>
+                    <span class="lock-btn-loading" style="display: none;">Processing...</span>
+                </button>
+                
+                <div class="lock-payment-note">
+                    <small>You'll be redirected to Paystack for secure payment</small>
+                </div>
+            </form>
+
+            <div class="lock-modal-success" id="lock-success" style="display:none;">
+                <p class="lock-success-text">Details saved! Redirecting to payment...</p>
+                <div class="lock-spinner"></div>
+            </div>
+        </div>
+    </div>
+    <script src="js/payla.js"></script>
+</body>
+</html>

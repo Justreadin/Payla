@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payla Paylink</title>
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/paylink.css">
+    <script>
+        const es = new EventSource("/reload");
+        es.onmessage = () => {
+            console.log("🔄 Frontend updated — reloading...");
+            location.reload();
+        };
+    </script>
+</head>
+<body>
+    <div class="glitter"></div>
+    <!-- Loading State -->
+    <div class="loading-state" id="loadingState">
+        <div class="loading-content">
+            <!-- Text Logo -->
+            <div class="loading-logo">
+                Payla
+            </div>
+
+            <!-- Username -->
+            <div class="loading-signature" id="loadingSignature">
+                @username
+            </div>
+
+            <!-- Subtext -->
+            <p class="loading-subtext">Secure Paylink Loading…</p>
+        </div>
+    </div>
+
+
+    <!-- Error State -->
+    <div class="error-state hidden" id="errorState">
+        <div class="error-content">
+            <div class="error-icon">
+                <i class="fas fa-exclamation-circle"></i>
+            </div>
+            <h2>This Payla link doesn't exist or is inactive.</h2>
+            <p>The payment link you're looking for cannot be found.</p>
+            <a href="/" class="secured-by">
+                <i class="fas fa-plus"></i>
+                Create New Paylink
+            </a>
+        </div>
+    </div>
+
+    <!-- Paylink Content -->
+    <div class="paylink-content hidden" id="paylinkContent">
+        <div class="paylink-container">
+            <!-- Paylink Preview Card -->
+            <div class="paylink-preview-card glass">
+                <!-- Silver Glow Effects -->
+                <div class="silver-glow-effect"></div>
+                <div class="silver-stripe"></div>
+                
+                <!-- Silver Plan Badge -->
+                <div class="silver-plan-badge" style="display:none">
+                    <div class="badge-glow"></div>
+                    <i class="fas fa-gem"></i>
+                    <span id="previewPlanName">Verified</span>
+                </div>
+
+                <!-- Header -->
+                <div class="preview-header">
+                    <div class="preview-logo" id="previewLogo">
+                        <span id="previewLogoInitials"></span>
+                        <div class="logo-glow"></div>
+                    </div>
+                </div>
+
+                <!-- Brand Section -->
+                <div class="preview-brand">
+                    <div class="preview-name" id="previewName"></div>
+                    <div class="preview-tagline" id="previewTagline"></div>
+                    <div class="preview-handle" id="previewHandle"></div>
+                </div>
+
+                <!-- Contact Cards -->
+                <div class="contact-cards">
+                    <div class="contact-card email-card">
+                        <div class="contact-header">
+                            <div class="contact-glow"></div>
+                        </div>
+                        <div class="contact-content">
+                            <div class="contact-value" id="previewEmail"></div>
+                        </div>
+                    </div>
+
+                    <div class="contact-card whatsapp-card">
+                        <div class="contact-header">
+                            <div class="contact-glow"></div>
+                        </div>
+                        <div class="contact-content">
+                            <div class="contact-value" id="previewWhatsapp"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CTA Section -->
+                <div class="cta-section">
+                    <button class="send-money-btn primary" id="transferBtn">
+                        <i class="fas fa-paper-plane"></i>
+                        Transfer
+                    </button>
+                <!-- Footer -->
+                <div class="preview-footer">
+                    <div class="powered-by" style="display:none">
+                        Elegantly powered by <span id="previewPowered"></span>
+                    </div>
+                    <a href="https://payla.ng" target="_blank" class="no-underline">
+                        <div class="secured-by">
+                            <i class="fas fa-gem"></i>
+                            Secured by Payla Silver
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paystack Modal -->
+    <div class="modal-overlay hidden" id="paystackModal">
+        <div class="modal premium-modal">
+            <button class="modal-close" id="modalClose">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <div class="modal-header">
+                <h2 class="modal-title">Complete Payment</h2>
+                <p class="modal-subtitle">Secure transaction via Paystack</p>
+            </div>
+
+            <div class="payment-form" id="paymentForm">
+                <div class="form-group">
+                    <label for="paymentAmount">Amount (NGN)</label>
+                    <input type="number" id="paymentAmount" placeholder="Enter amount" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="payerEmail">Email for Receipt</label>
+                    <input type="email" id="payerEmail" placeholder="your@email.com" required>
+                </div>
+
+                <div class="payment-security">
+                    <i class="fas fa-lock"></i>
+                    <span>Your payment details are encrypted and secure</span>
+                </div>
+
+                <button type="submit" class="submit-btn" id="processPayment">
+                    <i class="fas fa-lock"></i>
+                    Proceed to Paystack
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal-overlay hidden" id="successModal">
+        <div class="modal premium-modal">
+            <button class="modal-close" id="successClose">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <div class="modal-header">
+                <div class="success-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h2 class="modal-title">Payment Successful!</h2>
+                <p class="modal-subtitle">Your transaction has been completed</p>
+            </div>
+
+            <div class="success-details">
+                <div class="detail-row">
+                    <span>Amount Paid</span>
+                    <strong id="paidAmount"></strong>
+                </div>
+                <div class="detail-row">
+                    <span>Recipient</span>
+                    <strong id="recipientInfo"></strong>
+                </div>
+                <div class="detail-row">
+                    <span>Transaction ID</span>
+                    <strong id="transactionId"></strong>
+                </div>
+                <div class="detail-row">
+                    <span>Date & Time</span>
+                    <strong id="transactionDate"></strong>
+                </div>
+            </div>
+
+            <div class="success-actions">
+                <button class="btn-secondary" id="printReceipt">
+                    <i class="fas fa-print"></i>
+                    Print Receipt
+                </button>
+                <button class="btn-primary" id="closeSuccess">
+                    <i class="fas fa-check"></i>
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+    <script src="js/paylink.js"></script>
+    <script src="https://js.paystack.co/v2/inline.js"></script>
+</body>
+</html>

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Invoice - Payla</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Lora:wght@400;600&family=Cormorant+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/invoice.css">
+  <script>
+    const es = new EventSource("/reload");
+    es.onmessage = () => {
+        console.log("🔄 Frontend updated — reloading...");
+        location.reload();
+    };
+  </script>
+
+</head>
+<body>
+  <div class="glitter"></div>
+
+  <div class="topbar glass">
+    <div class="topbar-left">
+      <a href="/dashboard" class="back-arrow premium-arrow">
+        <i class="fas fa-arrow-left"></i>
+      </a>
+      <a href="dashboard" class="logo">
+        <div>PAYLA</div>
+      </a>
+    </div>
+    <div class="page-title">Create Invoice</div>
+  </div>
+
+  <div class="main-content">
+    <div class="form-container glass" id="form-section">
+      <div class="stepper">
+        <div class="step active"><span>1</span><div class="step-label">Details</div></div>
+        <div class="step"><span>2</span><div class="step-label">Reminders</div></div>
+        <div class="step"><span>3</span><div class="step-label">Review</div></div>
+      </div>
+
+      <form class="invoice-form">
+        <div class="step-content active" id="step-1">
+          <div class="form-group">
+            <label>Description *</label>
+            <input type="text" id="description" maxlength="70" placeholder="Description for the invoice" required>
+            <div id="description-counter">70 characters remaining</div>
+          </div>
+          <div class="field-row">
+            <div class="form-group">
+              <label>Amount *</label>
+              <div class="input-group">
+                <select id="currency"><option>NGN</option><option>USD</option><option>EUR</option></select>
+                <input type="number" id="amount" placeholder="150,000" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Due Date *</label>
+              <input type="date" id="due-date" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Client Phone / WhatsApp *</label>
+            <div class="phone-input-group">
+              <select id="country-code" class="country-select">
+                <option value="+234" selected>🇳🇬 +234</option>
+                <option value="+1">🇺🇸 +1</option>
+                <option value="+44">🇬🇧 +44</option>
+                <option value="+233">🇬🇧 +233</option>
+              </select>
+              <input type="tel" id="client-phone-local" placeholder="8012345678">
+            </div>
+            <small class="hint">We detect WhatsApp automatically</small>
+          </div>
+          <div class="form-group">
+            <label>Client Email</label>
+            <input type="email" id="client-email" placeholder="client@company.com">
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="notes" rows="3"></textarea>
+          </div>
+        </div>
+
+        <div class="step-content" id="step-2">
+          <!-- Main Toggle -->
+          <div class="toggle">
+            <label class="toggle-switch">
+              <input type="checkbox" id="auto-remind" checked>
+              <span class="slider"></span>
+            </label>
+            <label for="auto-remind" class="toggle-label">Auto-remind client when due</label>
+          </div>
+
+          <!-- Reminder Options (Only shown when toggle is ON) -->
+          <div class="reminder-options-container" id="reminder-options">
+            
+            <!-- Channel Priority -->
+            <div class="form-group">
+              <label>Send via (in order)</label>
+              <div class="channel-chips">
+                <button type="button" class="chip channel active" data-channel="whatsapp">
+                  <i class="fab fa-whatsapp"></i> WhatsApp
+                </button>
+                <button type="button" class="chip channel active" data-channel="sms">
+                  <i class="fas fa-sms"></i> SMS
+                </button>
+                <button type="button" class="chip channel active" data-channel="email">
+                  <i class="fas fa-envelope"></i> Email
+                </button>
+              </div>
+              <small class="hint">We try WhatsApp first, then SMS, then Email if previous fails</small>
+            </div>
+
+            <!-- Reminder Schedule Type -->
+            <div class="form-group">
+              <label>Reminder schedule</label>
+              <div class="schedule-tabs">
+                <button type="button" class="tab active" data-mode="auto">Auto (Recommended)</button>
+                <button type="button" class="tab" data-mode="manual">Manual Dates</button>
+              </div>
+            </div>
+
+            <!-- AUTO MODE: Smart presets -->
+            <div class="schedule-mode" id="auto-mode">
+              <div class="chips">
+                <button type="button" class="chip preset active" data-preset="gentle">
+                  Gentle (3 days before)
+                </button>
+                <button type="button" class="chip preset" data-preset="standard">
+                  Standard (1 day before + on due + 1 day after)
+                </button>
+                <button type="button" class="chip preset" data-preset="aggressive">
+                  Aggressive (Every day from 3 days before)
+                </button>
+              </div>
+            </div>
+
+            <!-- MANUAL MODE: Date picker -->
+            <div class="schedule-mode hidden" id="manual-mode">
+              <div class="manual-dates">
+                <div class="manual-date-row">
+                  <input type="datetime-local" class="manual-date-input" value="">
+                  <button type="button" class="remove-date"><i class="fas fa-times"></i></button>
+                </div>
+                <button type="button" class="add-date-btn">
+                  <i class="fas fa-plus"></i> Add another date
+                </button>
+              </div>
+            </div>
+
+            <!-- Custom Message -->
+            <div class="form-group">
+              <label>Custom message (optional)</label>
+              <textarea id="custom-reminder-message" rows="3" placeholder="Hi {name}, just a reminder — your ₦{amount} invoice is due on {due_date}. Pay here: {link} 💸"></textarea>
+              <div class="message-tags">
+                <small>Available tags: {name}, {amount}, {due_date}, {link}, {business}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-content" id="step-3">
+          <div class="summary">
+            <div class="summary-row"><span>Description:</span><span id="summary-description"></span></div>
+            <div class="summary-row"><span>Amount:</span><span id="summary-amount"></span></div>
+            <div class="summary-row"><span>Due Date:</span><span id="summary-due-date"></span></div>
+            <div class="summary-row"><span>Client:</span><span id="summary-client"></span></div>
+          </div>
+        </div>
+
+        <div class="form-nav">
+          <button type="button" class="btn btn-secondary" id="back-btn">Back</button>
+          <button type="button" class="btn btn-primary" id="next-btn">Next</button>
+        </div>
+      </form>
+    </div>
+
+  <button class="fab" id="send-fab">
+    <i class="fas fa-paper-plane"></i>
+  </button>
+  <div class="toast" id="draft-toast">Draft saved</div>
+
+  <div class="modal-overlay" id="share-modal">
+    <div class="modal">
+      <button class="modal-close" id="modal-close">X</button>
+      <h2>Invoice Sent!</h2>
+      <p>Your client can now pay instantly</p>
+      <div class="share-link" id="share-link"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="copy-link">Copy Link</button>
+        <button class="btn btn-primary" id="share-whatsapp">Share on WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reminder Settings Modal -->
+  <div class="modal-overlay" id="reminder-settings-modal">
+    <div class="modal premium-modal">
+      <button class="modal-close" id="reminder-modal-close">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="modal-header">
+        <h2 class="modal-title">Reminder Settings</h2>
+        <p class="modal-subtitle">Configure automated payment reminders for your clients</p>
+      </div>
+      
+      <div class="premium-feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-robot"></i>
+          </div>
+          <h3>Smart Automation</h3>
+          <p>Automatically remind clients based on your preferred schedule</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-layer-group"></i>
+          </div>
+          <h3>Multi-Channel</h3>
+          <p>Reach clients via WhatsApp, SMS, and Email in priority order</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-pen-fancy"></i>
+          </div>
+          <h3>Custom Messages</h3>
+          <p>Personalize reminder messages with dynamic tags</p>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="setting-group">
+          <label class="setting-label">Enable Auto-Reminders</label>
+          <div class="toggle premium-toggle">
+            <label class="toggle-switch">
+              <input type="checkbox" id="modal-auto-remind" checked>
+              <span class="slider premium-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">Channel Priority</label>
+          <div class="channel-priority">
+            <div class="priority-item active">
+              <i class="fab fa-whatsapp"></i>
+              <span>WhatsApp</span>
+              <div class="priority-badge">Primary</div>
+            </div>
+            <div class="priority-item active">
+              <i class="fas fa-sms"></i>
+              <span>SMS</span>
+              <div class="priority-badge">Secondary</div>
+            </div>
+            <div class="priority-item active">
+              <i class="fas fa-envelope"></i>
+              <span>Email</span>
+              <div class="priority-badge">Tertiary</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">Reminder Schedule</label>
+          <div class="schedule-presets">
+            <div class="preset-card active">
+              <div class="preset-icon">
+                <i class="fas fa-feather"></i>
+              </div>
+              <h4>Gentle</h4>
+              <p>3 days before due date</p>
+            </div>
+            <div class="preset-card">
+              <div class="preset-icon">
+                <i class="fas fa-balance-scale"></i>
+              </div>
+              <h4>Standard</h4>
+              <p>1 day before + due date + 1 day after</p>
+            </div>
+            <div class="preset-card">
+              <div class="preset-icon">
+                <i class="fas fa-bolt"></i>
+              </div>
+              <h4>Aggressive</h4>
+              <p>Daily from 3 days before</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">Custom Message Template</label>
+          <textarea class="premium-textarea" placeholder="Hi {name}, just a reminder — your {amount} invoice is due on {due_date}. Pay here: {link}">Hi {name}, just a reminder — your {amount} invoice is due on {due_date}. Pay here: {link}</textarea>
+          <div class="template-tags">
+            <span class="template-tag">{name}</span>
+            <span class="template-tag">{amount}</span>
+            <span class="template-tag">{due_date}</span>
+            <span class="template-tag">{link}</span>
+            <span class="template-tag">{business}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions premium-actions">
+        <button class="btn btn-outline" id="cancel-reminder">Cancel</button>
+        <button class="btn btn-primary" id="save-reminder">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/invoice.js"></script>
+</body>
+</html>

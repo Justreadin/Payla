@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile & Branding - Payla</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/profile.css">
+    <script>
+        const es = new EventSource("/reload");
+        es.onmessage = () => {
+            console.log("🔄 Frontend updated — reloading...");
+            location.reload();
+        };
+    </script>
+</head>
+<body>
+    <!-- Topbar -->
+    <div class="glitter"></div>
+
+    <div class="topbar glass">
+        <div class="topbar-left">
+            <a href="/dashboard" class="back-arrow premium-arrow">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <a href="dashboard" class="logo">
+                <div>PAYLA</div>
+            </a>
+        </div>
+        <div class="page-title">Branding</div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Profile Card -->
+        <div class="profile-card glass">
+            <div class="card-header">
+                <h2>Business Profile</h2>
+                <span class="badge verified" id="verifiedBadge">Verified</span>
+            </div>
+
+            <!-- Logo Upload -->
+            <div class="logo-upload">
+                <div class="logo-preview" id="logoPreview">
+                    <span id="logoInitials"></span>
+                </div>
+                <input type="file" id="logoUpload" accept="image/*">
+                <label for="logoUpload" class="btn-secondary">
+                    <i class="fas fa-camera"></i> Change Logo
+                </label>
+                <p class="hint">PNG, JPG, SVG • Max 2MB</p>
+            </div>
+
+            <!-- Profile Form -->
+            <form class="profile-form" id="profileForm">
+                <div class="form-group">
+                    <label class="required">Full Name</label>
+                    <input type="text" placeholder="Enter your full name" required id="fullName">
+                </div>
+
+                <div class="form-group">
+                    <label class="required">Business Name</label>
+                    <input type="text" maxlength="30" placeholder="Enter your business name" required id="businessName">
+                    <small id="businessNameCount" class="char-count">30 characters left</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Business Tagline</label>
+                    <input type="text" maxlength="45" placeholder="Premium web design & development" id="businessTagline">
+                    <p class="hint">Brief description of your services</p>
+                    <small id="taglineCount" class="char-count">45 characters left</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="required">WhatsApp Number</label>
+                    <input type="tel" placeholder="" required id="whatsappNumber">
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" value="username@payla.ng" readonly id="email">
+                    <div class="verified-tag">
+                        <i class="fas fa-check-circle"></i>
+                        Verified
+                    </div>
+                </div>
+
+                <!-- Username & Paylink -->
+                <div class="paylink-section">
+                    <label class="required">Your Paylink</label>
+                    <div class="paylink-input">
+                        <span>payla.ng/</span>
+                        <input type="text" placeholder="username" required id="username">
+                    </div>
+                    <p class="hint">Only letters, numbers, dashes and underscores (3-20 characters)</p>
+                    <button type="button" class="btn-secondary" id="copyPaylink">
+                        <i class="fas fa-copy"></i> Copy Link
+                    </button>
+                    <div id="usernameHint" class="hint" style="margin-top:8px;"></div>
+                </div>
+
+                <!-- Plan Card -->
+                <div class="plan-card">
+                    <div class="plan-glow"></div>
+                    <h3>Plan: <strong></strong></h3>
+                    <p></p> <!-- description goes here -->
+                    <div class="plan-badge">
+                        <i class="fas fa-gem"></i>
+                        <span></span> <!-- badge text goes here -->
+                    </div>
+                </div>
+            </form>
+        </div>
+    <!-- FAB Save Button -->
+    <button class="fab" id="saveFab">
+        <i class="fas fa-check"></i>
+    </button>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <i class="fas fa-check"></i>
+        <span id="toastMessage">Changes saved!</span>
+    </div>
+
+    <!-- Upgrade Modal (small) -->
+    <div id="upgradeModal" class="modal" style="display:none;">
+        <div class="modal-inner">
+            <h3>Upgrade required</h3>
+            <p id="upgradeMessage"></p>
+            <div class="modal-actions">
+                <a href="/subscription" class="btn-primary">Upgrade Now</a>
+                <button id="dismissUpgrade" class="btn-secondary">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/profile.js"></script>
+</body>
+</html>

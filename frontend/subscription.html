@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payla Premium Subscription</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/subscription.css">
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+</head>
+<body>
+    <!-- Animated Glitter Background -->
+    <div class="glitter"></div>
+
+    <!-- Topbar -->
+    <div class="topbar glass">
+        <div class="topbar-left">
+            <a href="/dashboard" class="back-arrow premium-arrow">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <a href="/dashboard" class="logo">
+                <div>PAYLA</div>
+            </a>
+        </div>
+        <div class="page-title">Subscriptions</div>
+        <div class="actions">
+            <button class="icon-btn tooltip">
+                <i class="fas fa-question"></i>
+                <span class="tooltip-text">No contracts. Cancel anytime.</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Hero Section -->
+        <div class="hero">
+            <div class="hero-content">
+                <h1 class="hero-title" id="hero-title">Elevate Your Payment Experience</h1>
+                <p class="hero-subtitle" id="hero-subtitle">Join the elite creators who invoice with style, power, and precision</p>
+                
+                <div class="exclusivity">
+                    <div class="scarcity">
+                        <i class="fas fa-crown"></i>
+                        <span>Your Money. Your Identity.</span>
+                    </div>
+                    <div class="social-proof">
+                        <i class="fas fa-users"></i>
+                        <span>200+ creators upgraded</span>
+                    </div>
+                </div>
+                
+                <div class="urgency">
+                    <div class="countdown" id="countdown">Loading trial status...</div>
+                </div>
+                
+                <button class="btn-primary" id="hero-upgrade">
+                    <i class="fas fa-rocket"></i>
+                    Upgrade to Silver
+                </button>
+            </div>
+        </div>
+
+        <!-- Pricing Grid -->
+        <div class="pricing-grid">
+            <!-- Silver – 7-day free trial -->
+            <div class="plan-card" data-plan="silver" id="silver-plan">
+                <div class="plan-glow silver-glow"></div>
+                <div class="plan-header">
+                    <h3>Payla Silver</h3>
+                    <div class="badge popular">Most Popular</div>
+                </div>
+                <p class="plan-tagline">"For creators who believe even invoices should have style."</p>
+                <div class="plan-price">
+                    <span class="price">₦7,500</span>
+                    <span class="period">/month</span>
+                </div>
+                <p class="free-trial">Start Instantly • Cancel Anytime</p>
+                <ul class="plan-features">
+                    <li><i class="fas fa-check"></i>Unlimited invoices</li>
+                    <li><i class="fas fa-check"></i>Custom logo & branding</li>
+                    <li><i class="fas fa-check"></i>Instant Payout</li>
+                    <li><i class="fas fa-check"></i>Verified Badge</li>
+                    <li><i class="fas fa-check"></i>Paylink Signature (Your Username)</li>
+                    <li><i class="fas fa-check"></i>Automated reminders (sms/whatsapp/email)</li>
+                    <li><i class="fas fa-check"></i>PDF receipts</li>
+                    <li><i class="fas fa-check"></i>Paylink analytics</li>
+                    <li><i class="fas fa-check"></i>Priority 1-hour support</li>
+                </ul>
+                <button class="btn-primary" id="silver-upgrade">
+                    <i class="fas fa-rocket"></i>
+                    Upgrade to Silver
+                </button>
+                <p class="status-hint">127 creators upgraded this week</p>
+            </div>
+
+            <!-- Gold (coming soon) -->
+            <div class="plan-card" data-plan="gold">
+                <div class="plan-glow gold-glow"></div>
+                <div class="plan-header">
+                    <h3>Payla Gold</h3>
+                    <div class="badge gold">COMING Q1 2026</div>
+                </div>
+                <p class="plan-tagline">"For professionals who treat their brand like a business."</p>
+                <div class="plan-price">
+                    <span class="price">₦20,000</span>
+                    <span class="period">/month</span>
+                </div>
+                <p class="free-trial">Launching 2026</p>
+                <ul class="plan-features">
+                    <li><i class="fas fa-check"></i>Everything in Silver</li>
+                    <li><i class="fas fa-check"></i>Custom domain</li>
+                    <li><i class="fas fa-check"></i>Remove "Secured by Payla" branding</li>
+                    <li><i class="fas fa-check"></i>Team Paylinks</li>
+                    <li><i class="fas fa-check"></i>Team access (up to 5)</li>
+                    <li><i class="fas fa-check"></i>White-label invoicing (invoice looks entirely yours)</li>
+                    <li><i class="fas fa-check"></i>Client insights dashboard</li>
+                    <li><i class="fas fa-check"></i>API + integrations with workflow</li>
+                    <li><i class="fas fa-check"></i>Priority whatsapp support</li>
+                    <li><i class="fas fa-check"></i>Custom thank-you pages</li>
+                    <li><i class="fas fa-check"></i>Exclusive design themes</li>
+                </ul>
+                <button class="btn-gold" disabled>
+                    <i class="fas fa-bell"></i>
+                    Notify Me
+                </button>
+                <p class="hint">Launch 2026</p>
+            </div>
+
+            <!-- Opal (coming soon) -->
+            <div class="plan-card" data-plan="opal">
+                <div class="plan-glow opal-glow"></div>
+                <div class="plan-header">
+                    <h3>Payla Opal</h3>
+                    <div class="badge opal">COMING SOON</div>
+                </div>
+                <p class="plan-tagline">"For brands that invoice with influence."</p>
+                <div class="plan-price">
+                    <span class="price">₦49,999</span>
+                    <span class="period">/month</span>
+                </div>
+                <p class="free-trial"></p>
+                <ul class="plan-features">
+                    <li><i class="fas fa-check"></i>Everything in Gold</li>
+                    <li><i class="fas fa-check"></i>Priority Support & Account Management</li>
+                    <li><i class="fas fa-check"></i>Unlimited Paylinks & Custom Subdomains</li>
+                    <li><i class="fas fa-check"></i>payla.vip domain</li>
+                    <li><i class="fas fa-check"></i>API Access & Automation</li>
+                    <li><i class="fas fa-check"></i>Automated Workflow & CRM Integration</li>
+                    <li><i class="fas fa-check"></i>Advanced analytics & reports</li>
+                    <li><i class="fas fa-check"></i>Team & Role Management (Unlimited team members)</li>
+                    <li><i class="fas fa-check"></i>Exclusive Themes & Premium Brand Styling</li>
+                    <li><i class="fas fa-check"></i>Early Access to New Features</li>
+                </ul>
+                <button class="btn-opal" disabled>
+                    <i class="fas fa-envelope"></i>
+                    NOTIFY ME
+                </button>
+                <p class="hint">COMING SOON</p>
+            </div>
+        </div>
+
+        <!-- Comparison Table -->
+        <div class="comparison-section">
+            <h2 class="section-title">Plan Comparison</h2>
+            <div class="comparison glass">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>
+                                <div>Silver</div>
+                                <span class="badge popular">Popular</span>
+                            </th>
+                            <th>
+                                <div>Gold</div>
+                                <span class="badge gold">Coming Soon</span>
+                            </th>
+                            <th>
+                                <div>Opal</div>
+                                <span class="badge opal">Coming Soon</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Invoice Limit</td>
+                            <td>Unlimited</td>
+                            <td>Unlimited</td>
+                            <td>Unlimited</td>
+                        </tr>
+                        <tr>
+                            <td>Custom Branding</td>
+                            <td><i class="fas fa-check"></i></td>
+                            <td><i class="fas fa-check"></i></td>
+                            <td><i class="fas fa-check"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Analytics Dashboard</td>
+                            <td><i class="fas fa-check"></i></td>
+                            <td><i class="fas fa-check"></i></td>
+                            <td><i class="fas fa-check"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Priority Support</td>
+                            <td>1-hour response</td>
+                            <td>WhatsApp</td>
+                            <td>Dedicated manager</td>
+                        </tr>
+                        <tr>
+                            <td>Team Members</td>
+                            <td><i class="fas fa-times"></i></td>
+                            <td>Up to 5</td>
+                            <td>Unlimited</td>
+                        </tr>
+                        <tr>
+                            <td>White-label</td>
+                            <td><i class="fas fa-times"></i></td>
+                            <td><i class="fas fa-times"></i></td>
+                            <td><i class="fas fa-check"></i></td>
+                        </tr>
+                        <tr>
+                            <td>API Access</td>
+                            <td><i class="fas fa-times"></i></td>
+                            <td><i class="fas fa-times"></i></td>
+                            <td><i class="fas fa-check"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Custom Domain</td>
+                            <td><i class="fas fa-times"></i></td>
+                            <td><i class="fas fa-check"></i></td>
+                            <td><i class="fas fa-check"></i></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- FAQ Section -->
+        <div class="faq-section">
+            <h2 class="section-title">Frequently Asked Questions</h2>
+            <div class="faq">
+                <details class="glass">
+                    <summary>
+                        <span>Can I cancel anytime?</span>
+                        <i class="fas fa-plus"></i>
+                    </summary>
+                    <p>Yes. No contracts. Cancel anytime from your account settings with one click.</p>
+                </details>
+                <details class="glass">
+                    <summary>
+                        <span>What payment methods do you accept?</span>
+                        <i class="fas fa-plus"></i>
+                    </summary>
+                    <p>We accept all major debit and credit cards through our secure Paystack integration.</p>
+                </details>
+                <details class="glass">
+                    <summary>
+                        <span>Will I lose access to my invoices if I cancel?</span>
+                        <i class="fas fa-plus"></i>
+                    </summary>
+                    <p>No, you'll retain access to all your existing invoices and data. You just won't be able to create new premium invoices.</p>
+                </details>
+                <details class="glass">
+                    <summary>
+                        <span>Is my payment information secure?</span>
+                        <i class="fas fa-plus"></i>
+                    </summary>
+                    <p>Yes, we use Paystack for payment processing. Your card details are never stored on our servers and all transactions are encrypted.</p>
+                </details>
+                <details class="glass">
+                    <summary>
+                        <span>When will Gold and Opal be available?</span>
+                        <i class="fas fa-plus"></i>
+                    </summary>
+                    <p>Payla Gold is launching in Q1 2026, while Payla Opal remains invite-only for elite brands and agencies.</p>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sticky CTA (Mobile Only) -->
+    <div class="sticky-cta">
+        <div class="sticky-info">
+            <div class="badge popular">14-Days ACCESS</div>
+            <div class="sticky-details">
+                <strong>Payla Silver</strong>
+                <span>₦7,500/month</span>
+            </div>
+        </div>
+        <button class="btn-primary" id="sticky-upgrade">
+            Upgrade Now
+        </button>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <i class="fas fa-check-circle"></i>
+        <span id="toast-message">Successfully upgraded!</span>
+    </div>
+
+    <script src="js/subscription.js"></script>
+</body>
+</html>

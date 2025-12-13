@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payla Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="css/dashboard.css" rel="stylesheet">
+    <link href="css/analytics.css" rel="stylesheet">
+    <script>
+        const es = new EventSource("/reload");
+        es.onmessage = () => {
+            console.log("🔄 Frontend updated — reloading...");
+            location.reload();
+        };
+    </script>
+
+</head>
+<body>
+    <div class="glitter"></div>
+
+    <!-- Topbar -->
+    <div class="topbar glass">
+        <a href="/dashboard" class="logo">
+            <div>PAYLA</div>
+        </a> <!---
+        <div class="paylink" id="user-paylink">
+            <!-- Will be populated from backend -
+        </div>-->
+        <div class="actions">
+            <button class="icon-btn" id="notifications-btn">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge hidden" id="notification-badge"></span>
+            </button>
+            <button class="avatar-btn" id="avatar-btn">
+                <i class="fas fa-user"></i>
+            </button>
+        </div>
+        
+        <!-- Dropdown -->
+        <div class="dropdown glass" id="dropdown">
+            <a href="/profile"><i class="fas fa-user-circle"></i> Profile & Branding</a>
+            <a href="/payout"><i class="fas fa-wallet"></i> Payouts</a>
+            <a href="/invoice"><i class="fas fa-file-invoice"></i> Create Invoice</a>
+            <a href="/subscription"><i class="fas fa-crown"></i> Subscription</a>
+            <hr>
+            <a href="#" id="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat glass">
+                <h3 id="total-earned">₦0</h3>
+                <p>Total Earned</p>
+                <span class="trend up" id="growth-trend"><i class="fas fa-arrow-up"></i> Loading...</span>
+            </div>
+            <div class="stat glass">
+                <h3 id="pending-amount">₦0</h3>
+                <p>Pending</p>
+                <span class="overdue-count" id="overdue-count">0 overdue</span>
+            </div>
+            <div class="stat glass">
+                <h3 id="total-invoices">0</h3>
+                <p>Invoices Sent</p>
+                <span class="trend" id="weekly-trend"><i class="fas fa-arrow-up"></i> Loading...</span>
+            </div>
+        </div>
+
+        <!-- Enhanced Invoice Cards Section -->
+        <div class="invoice-cards-container glass">
+            <div class="section-header">
+                <h1 class="section-title">Invoices</h1>
+                <div class="filter-controls">
+                    <button class="filter-btn" data-filter="paid">
+                        <span>Show Paid</span>
+                        <span class="filter-count">0</span>
+                    </button>
+                    <button class="filter-btn" data-filter="overdue">
+                        <span>Show Overdue</span>
+                        <span class="filter-count">0</span>
+                    </button>
+                    <button class="filter-btn" data-filter="pending">
+                        <span>Show Pending</span>
+                        <span class="filter-count">0</span>
+                    </button>
+                    <button class="filter-btn" data-filter="failed">
+                        <span>Show Failed</span>
+                        <span class="filter-count">0</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="invoice-cards" id="invoiceCards">
+                <!-- Cards will be dynamically loaded from backend -->
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading your invoices...</p>
+                </div>
+            </div>
+
+            <div class="view-more-section hidden" id="viewMoreSection">
+                <button class="view-more-btn" id="viewMoreBtn">
+                    <span>View All Invoices</span>
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Paylink Card -->
+        <div class="paylink-card glass">
+            <div class="paylink-header">
+                <h3>Your Paylink</h3>
+                <div class="status-toggle-container">
+                    <div class="paylink-badge active" id="status-badge">Active</div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="paylink-toggle" class="toggle-input" checked>
+                        <label for="paylink-toggle" class="toggle-slider">
+                            <span class="toggle-text active">ON</span>
+                            <span class="toggle-text inactive">OFF</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="link-container">
+                <div class="link-display">
+                    <i class="fas fa-link"></i>
+                    <span class="link" id="paylink-url">Loading...</span>
+                </div>
+                <button class="copy-link-btn" id="copy-link-btn">
+                    <i class="fas fa-copy"></i>
+                    Copy Link
+                </button>
+            </div>
+            <div class="paylink-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="paylink-received">₦0</div>
+                    <div class="stat-label">Total Received</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="paylink-transactions">0</div>
+                    <div class="stat-label">Transactions</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="paylink-success-rate">0%</div>
+                    <div class="stat-label">Success Rate</div>
+                </div>
+            </div>
+            <div class="paylink-actions">
+                <section class="btn-analytics" id="analytics-btn">
+                    <i class="fas fa-chart-line"></i>
+                    View Analytics
+                </section>
+                <a href="/profile">
+                    <button class="btn-link">
+                        <i class="fas fa-edit"></i>
+                        Edit Description
+                    </button>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAB -->
+    <button class="fab" id="fab">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <!-- Quick Invoice Modal -->
+    <div class="modal-overlay" id="quick-invoice-modal">
+        <div class="modal compact-modal">
+            <button class="modal-close" id="modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="modal-title">Quick Invoice</h2>
+            <p class="modal-subtitle">Send in 30 seconds</p>
+
+            <form class="modal-form" id="quick-invoice-form">
+                <div class="form-group">
+                    <label>Description *</label>
+                    <input type="text" id="invoice-description" placeholder="e.g., Website Design for Client X" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Amount *</label>
+                    <div class="input-group">
+                        <select id="invoice-currency">
+                            <option value="NGN">NGN</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                        <input type="number" id="invoice-amount" placeholder="150000" min="0.01" step="0.01" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Due Date *</label>
+                    <input type="date" id="due-date" required>
+                </div>
+
+                <button type="submit" class="submit-btn">
+                    <i class="fas fa-paper-plane"></i>
+                    Send Invoice Now
+                    <div class="btn-glow"></div>
+                </button>
+            </form>
+            
+            <div class="modal-actions">
+                <button type="button" class="btn-link" onclick="window.location.href='/invoice'">
+                    <i class="fas fa-cog"></i>
+                    Advanced Settings
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Invoices Modal -->
+    <div class="modal-overlay" id="all-invoices-modal">
+        <div class="modal large-modal">
+            <button class="modal-close" id="all-invoices-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="modal-title">All Invoices</h2>
+            <p class="modal-subtitle">Manage your complete invoice portfolio</p>
+
+            <div class="invoices-grid" id="invoicesGrid">
+                <!-- All invoices will be dynamically loaded -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoice Detail Modal -->
+    <div class="modal-overlay" id="invoice-detail-modal">
+        <div class="modal detail-modal">
+            <button class="modal-close" id="invoice-detail-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="invoice-detail-content" id="invoiceDetailContent">
+                <!-- Invoice details will be dynamically loaded -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div class="modal-overlay" id="notifications-modal">
+        <div class="modal compact-modal">
+            <button class="modal-close" id="notifications-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="modal-title">Notifications</h2>
+            <div class="notifications-list" id="notificationsList">
+                <!-- Notifications will be dynamically loaded -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Modal -->
+    <div class="modal-overlay" id="analytics-modal">
+        <div class="modal large-modal">
+            <button class="modal-close" id="analytics-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="modal-title">Paylink Analytics</h2>
+            <div class="analytics-content" id="analyticsContent">
+                <!-- Analytics will be dynamically loaded -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <i class="fas fa-check-circle"></i>
+        <span id="toast-message">Copied!</span>
+    </div>
+    <script type="module" src="js/presell.js"></script>
+    <script type="module" src="js/dashboard.js"></script>
+    <script type="module" src="js/dashboard-enhancements.js"></script>
+    <script>
+        // Logout handler
+    const logoutLink = document.getElementById("logout-link"); // add id="logout-link" to your <a>
+    if (logoutLink) {
+        logoutLink.addEventListener("click", async (e) => {
+            e.preventDefault();
+
+            try {
+                // 1️⃣ Sign out from Firebase
+                await auth.signOut();
+
+                // 2️⃣ Clear tokens & user data
+                localStorage.removeItem("idToken");
+                localStorage.removeItem("userData");
+
+                // 3️⃣ Optional: call backend logout endpoint
+                await fetch(`${BACKEND_URL}/auth/logout`, { method: "POST" });
+
+                // 4️⃣ Redirect to login page
+                window.location.href = "/payla"; // or your login page
+            } catch (err) {
+                console.error("Logout failed", err);
+            }
+        });
+    }
+    </script>
+
+</body>
+</html>

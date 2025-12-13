@@ -1,0 +1,44 @@
+payla-backend/
+├── main.py
+├── requirements.txt
+├── .env
+├── .gitignore
+├── render.yaml
+├── firebase_admin.json
+├── app/
+│   ├── __init__.py
+│   ├── core/
+│   │   ├── config.py
+│   │   ├── firebase.py
+│   │   ├── security.py
+│   │   ├── database.py
+│   │   └── logging_config.py
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── invoice.py
+│   │   ├── payment.py
+│   │   ├── reminder.py
+│   │   └── user.py
+│   ├── schemas/
+│   │   ├── user_schema.py
+│   │   ├── invoice_schema.py
+│   │   └── payment_schema.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── user.py
+│   │   ├── invoice.py
+│   │   └── reminder.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── paystack.py
+│   │   ├── payout.py
+│   │   └── reminder_service.py
+│   ├── utils/
+│   │   ├── email.py
+│   │   ├── whatsapp.py
+│   │   ├── sms.py
+│   │   └── pdf.py
+│   └── background/
+│       ├── reminder_worker.py
+│       └── email_worker.py

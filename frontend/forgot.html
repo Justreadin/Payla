@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Recovery • Payla</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/forgot.css">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="glitter"></div>
+
+    <!-- Topbar -->
+    <div class="topbar glass">
+        <a href="/" class="logo">
+            <div>PAYLA</div>
+        </a>
+        <div class="recovery-progress">
+            <div class="step active" data-step="1">
+                <span>1</span>
+                <div class="step-label">Identify</div>
+            </div>
+            <div class="step" data-step="2">
+                <span>2</span>
+                <div class="step-label">Verify</div>
+            </div>
+            <div class="step" data-step="3">
+                <span>3</span>
+                <div class="step-label">Reset</div>
+            </div>
+            <div class="step" data-step="4">
+                <span>4</span>
+                <div class="step-label">Complete</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Recovery Container -->
+    <div class="recovery-container">
+        <div class="recovery-card glass">
+            <!-- Step 1: Email Entry -->
+            <div class="recovery-step active" id="step-identify">
+                <div class="step-header">
+                    <div class="step-icon">
+                        <i class="fas fa-search"></i>
+                        <div class="icon-glow"></div>
+                    </div>
+                    <h1 class="step-title">Find Your Account</h1>
+                    <p class="step-subtitle">Enter your email to begin account recovery</p>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-group">
+                        <div class="input-wrapper">
+                            <i class="fas fa-envelope input-icon"></i>
+                            <input type="email" id="recovery-email" placeholder="you@company.com" autocomplete="email">
+                        </div>
+                        <p class="hint">We'll send a verification code to this email</p>
+                        <div class="error-message" id="email-error">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span>Please enter a valid email address</span>
+                        </div>
+                    </div>
+
+                    <div class="recovery-options">
+                        <div class="option-card glass">
+                            <div class="option-icon">
+                                <i class="fas fa-key"></i>
+                            </div>
+                            <div class="option-content">
+                                <h4>Reset Password</h4>
+                                <p>Forgot your password? We'll send a secure reset link</p>
+                            </div>
+                        </div>
+
+                        <div class="option-card glass">
+                            <div class="option-icon">
+                                <i class="fas fa-envelope-open"></i>
+                            </div>
+                            <div class="option-content">
+                                <h4>Resend Verification</h4>
+                                <p>Didn't receive verification email? Resend it here</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-footer">
+                    <button class="btn btn-secondary" id="back-to-login">
+                        <i class="fas fa-arrow-left"></i>
+                        Back to Login
+                    </button>
+                    <button class="btn btn-primary" id="continue-identify">
+                        <span class="btn-text">Continue</span>
+                        <div class="btn-loader">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Verification -->
+            <div class="recovery-step" id="step-verify">
+                <div class="step-header">
+                    <div class="step-icon">
+                        <i class="fas fa-shield-alt"></i>
+                        <div class="icon-glow"></div>
+                    </div>
+                    <h1 class="step-title">Verify Your Identity</h1>
+                    <p class="step-subtitle">We sent a 6-digit code to <span id="verify-email-display" class="highlight">you@company.com</span></p>
+                </div>
+
+                <div class="form-section">
+                    <div class="code-input-group">
+                        <div class="code-inputs">
+                            <input type="text" maxlength="1" class="code-input" data-index="0">
+                            <input type="text" maxlength="1" class="code-input" data-index="1">
+                            <input type="text" maxlength="1" class="code-input" data-index="2">
+                            <input type="text" maxlength="1" class="code-input" data-index="3">
+                            <input type="text" maxlength="1" class="code-input" data-index="4">
+                            <input type="text" maxlength="1" class="code-input" data-index="5">
+                        </div>
+                        <p class="hint">Enter the 6-digit verification code</p>
+                        <div class="error-message" id="code-error">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span>Invalid verification code</span>
+                        </div>
+                    </div>
+
+                    <div class="timer-section">
+                        <div class="timer">
+                            <i class="fas fa-clock"></i>
+                            <span id="countdown">02:00</span>
+                        </div>
+                        <button class="btn-link" id="resend-code">
+                            <i class="fas fa-redo"></i>
+                            <span>Resend Code</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="step-footer">
+                    <button class="btn btn-secondary" id="back-to-identify">
+                        <i class="fas fa-arrow-left"></i>
+                        Change Email
+                    </button>
+                    <button class="btn btn-primary" id="continue-verify">
+                        <span class="btn-text">Verify & Continue</span>
+                        <div class="btn-loader">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: Reset Password -->
+            <div class="recovery-step" id="step-reset">
+                <div class="step-header">
+                    <div class="step-icon">
+                        <i class="fas fa-lock"></i>
+                        <div class="icon-glow"></div>
+                    </div>
+                    <h1 class="step-title">Create New Password</h1>
+                    <p class="step-subtitle">Choose a strong password for your Payla account</p>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-group">
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" id="new-password" placeholder="New password" autocomplete="new-password">
+                            <button class="password-toggle" type="button">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="password-strength">
+                            <div class="strength-bar"></div>
+                            <div class="strength-labels">
+                                <span class="strength-label">Weak</span>
+                                <span class="strength-label">Fair</span>
+                                <span class="strength-label">Good</span>
+                                <span class="strength-label">Strong</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" id="confirm-password" placeholder="Confirm new password" autocomplete="new-password">
+                            <button class="password-toggle" type="button">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="error-message" id="password-error">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span>Passwords don't match</span>
+                        </div>
+                    </div>
+
+                    <div class="password-requirements">
+                        <h4>Password Requirements:</h4>
+                        <ul>
+                            <li class="requirement" data-requirement="length">
+                                <i class="fas fa-check-circle"></i>
+                                <span>At least 8 characters</span>
+                            </li>
+                            <li class="requirement" data-requirement="uppercase">
+                                <i class="fas fa-check-circle"></i>
+                                <span>One uppercase letter</span>
+                            </li>
+                            <li class="requirement" data-requirement="lowercase">
+                                <i class="fas fa-check-circle"></i>
+                                <span>One lowercase letter</span>
+                            </li>
+                            <li class="requirement" data-requirement="number">
+                                <i class="fas fa-check-circle"></i>
+                                <span>One number</span>
+                            </li>
+                            <li class="requirement" data-requirement="special">
+                                <i class="fas fa-check-circle"></i>
+                                <span>One special character</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-footer">
+                    <button class="btn btn-secondary" id="back-to-verify">
+                        <i class="fas fa-arrow-left"></i>
+                        Back
+                    </button>
+                    <button class="btn btn-primary" id="continue-reset">
+                        <span class="btn-text">Reset Password</span>
+                        <div class="btn-loader">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 4: Success -->
+            <div class="recovery-step" id="step-success">
+                <div class="step-header centered">
+                    <div class="step-icon success">
+                        <i class="fas fa-check"></i>
+                        <div class="icon-glow success-glow"></div>
+                    </div>
+                    <h1 class="step-title">Password Updated!</h1>
+                    <p class="step-subtitle">Your Payla account password has been successfully reset</p>
+                </div>
+
+                <div class="form-section centered">
+                    <div class="success-card glass">
+                        <div class="success-icon">
+                            <i class="fas fa-shield-check"></i>
+                        </div>
+                        <h3>Account Secured</h3>
+                        <p>You can now sign in with your new password</p>
+                    </div>
+
+                    <div class="security-tips">
+                        <h4>Security Tips:</h4>
+                        <ul>
+                            <li>
+                                <i class="fas fa-sync-alt"></i>
+                                <span>Use unique passwords for different services</span>
+                            </li>
+                            <li>
+                                <i class="fas fa-envelope"></i>
+                                <span>Keep your recovery email up to date</span>
+                            </li>
+                            <li>
+                                <i class="fas fa-mobile-alt"></i>
+                                <span>Enable two-factor authentication for extra security</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-footer centered">
+                    <button class="btn btn-primary" id="go-to-login">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Go to Login
+                    </button>
+                    <a href="/dashboard" class="btn-link">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Go to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Section -->
+        <div class="help-section glass">
+            <div class="help-header">
+                <i class="fas fa-question-circle"></i>
+                <h3>Need Help?</h3>
+            </div>
+            <div class="help-links">
+                <a href="#" class="help-link">
+                    <i class="fas fa-book"></i>
+                    <span>Account Recovery Guide</span>
+                </a>
+                <a href="#" class="help-link">
+                    <i class="fas fa-envelope"></i>
+                    <span>Contact Support</span>
+                </a>
+                <a href="#" class="help-link">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Security Tips</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/forgot.js" type="module"></script>
+</body>
+</html>

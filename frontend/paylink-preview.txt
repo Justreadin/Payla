@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>@{{username}} • Payla</title>
+  <meta name="description" content="Private payment link — Instant. Discreet. Global." />
+
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700;900&family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="css/paylink.css"/>
+
+  <!-- Paystack Inline JS -->
+  <script src="https://js.paystack.co/v2/inline.js"></script>
+</head>
+<body>
+  <div class="glitter"></div>
+  <div class="particles" id="particles"></div>
+
+  <div class="container">
+    <!-- Loading State -->
+    <div id="loading" class="loading-state">
+      <div class="quantum-loader">
+        <div class="loader-ring">
+          <div class="rose-glow"></div>
+          <div class="avatar-skeleton"></div>
+        </div>
+        <p class="loading-text">Loading private terminal...</p>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div id="error" class="error-state" style="display: none;">
+      <div class="error-icon">⚡</div>
+      <h1>Reserved</h1>
+      <p>This private link is not active.</p>
+      <p class="error-subline">Only distinguished members may access this terminal.</p>
+      <a href="https://payla.ng" class="create-portal-btn">
+        Request Access →
+      </a>
+    </div>
+
+    <!-- Paylink Content -->
+    <div id="paylink-content" style="display: none;">
+      <div class="supreme-payment-card glass">
+        <!-- Crown Badge -->
+        <div class="crown-badge">
+          <div class="badge-shimmer"></div>
+          <i class="fas fa-crown"></i>
+          <span>PAYLA SILVER</span>
+        </div>
+
+        <!-- Quantum Avatar -->
+        <div class="quantum-avatar">
+          <div class="avatar-ring-glow"></div>
+          <div class="avatar-initials" id="avatar-initials">P</div>
+          <div class="particle-orbits"></div>
+        </div>
+
+        <!-- Identity Display -->
+        <div class="identity-display">
+          <h1 class="sovereign-name" id="display-name">Loading...</h1>
+          <div class="royal-handle" id="username">@username</div>
+          <p class="portal-description" id="description">Private payments via Payla</p>
+        </div>
+
+        <!-- Transfer Action -->
+        <button class="supreme-transfer-btn" id="pay-btn">
+          <div class="btn-inner-glow"></div>
+          <i class="fas fa-shield-alt"></i>
+          TRANSFER NOW
+        </button>
+
+        <!-- Trust Seals -->
+        <div class="trust-seals">
+          <div class="seal">
+            <i class="fas fa-bolt"></i>
+            <span>Instant</span>
+          </div>
+          <div class="seal">
+            <i class="fas fa-fingerprint"></i>
+            <span>Secure</span>
+          </div>
+          <div class="seal">
+            <i class="fas fa-globe"></i>
+            <span>Global</span>
+          </div>
+        </div>
+
+        <!-- Sovereign Footer -->
+        <div class="sovereign-footer">
+          <span>Powered by <strong id="powered-name">Payla</strong></span>
+          <div class="security-badge">
+            <i class="fas fa-gem"></i>
+            Secured by Paystack
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/paylink.js"></script>
+</body>
+</html>

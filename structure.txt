@@ -1,0 +1,19 @@
+payla-frontend/
+├── index.html                 # Landing + Signup
+├── dashboard.html             # Main dashboard
+├── invoice/
+│   ├── create.html            
+│   ├── list.html             
+│   └── view.html              # payla.ng/i/:id (client view)
+├── assets/
+│   ├── css/
+│   │   ├── main.css
+│   │   ├── dashboard.css
+│   │   └── invoice.css
+│   ├── js/
+│   │   ├── main.js            # Firebase + auth
+│   │   ├── dashboard.js       # Invoices + status
+│   │   ├── paystack.js        # Payment
+│   │   ├── payout.js          # Bank setup
+│   │   └── reminder.js        # Set frequency + preview
+└── firebase-config.js
