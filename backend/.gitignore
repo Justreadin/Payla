@@ -12,7 +12,9 @@ venv/
 # Firebase credentials / service accounts
 *.json                           # optional if all json are sensitive
 !some-safe-config.json            # exclude safe configs if needed
-
+backend/payla-firebase-adminsdk.json
+backend/payla-elite-firebase-adminsdk.json
+backend/payla-nexa-firebase-adminsdk-fbsvc-*.json
 # Editor / IDE files (optional)
 .vscode/
 .idea/
