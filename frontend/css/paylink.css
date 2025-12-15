@@ -67,7 +67,7 @@ body {
 
 /* Glassmorphism effect */
 .glass {
-    background: var(--glass-bg);
+    background: rgba(15, 15, 15, 0.6);
     backdrop-filter: blur(24px);
     border: 1px solid var(--glass-border);
 }
@@ -174,12 +174,8 @@ body {
     padding: 40px 24px;
     position: relative;
     overflow: hidden;
-    background: var(--glass-bg);
+    background: rgba(15, 15, 15, 0.6);
     border: 1px solid var(--glass-border);
-    box-shadow: 
-        0 32px 80px rgba(0,0,0,0.5),
-        0 0 0 1px rgba(255,255,255,0.08),
-        inset 0 1px 0 rgba(255,255,255,0.1);
     text-align: center;
 }
 
@@ -190,9 +186,7 @@ body {
     left: -50%;
     width: 200%;
     height: 200%;
-    background: 
-        radial-gradient(circle at 20% 80%, rgba(192,192,192,0.1) 0%, transparent 40%),
-        radial-gradient(circle at 80% 20%, rgba(57,255,20,0.08) 0%, transparent 40%);
+    background: rgba(15, 15, 15, 0.6);
     opacity: 0.08;
     animation: shimmer 8s infinite alternate;
     pointer-events: none;
@@ -227,11 +221,6 @@ body {
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 1px;
-    box-shadow: 
-        0 8px 16px rgba(0,0,0,0.3),
-        0 0 0 4px rgba(255,255,255,0.1),
-        inset 0 1px 0 rgba(255,255,255,0.6),
-        inset 0 -1px 0 rgba(0,0,0,0.2);
     transform: perspective(500px) rotateX(15deg);
     z-index: 10;
     text-transform: uppercase;
@@ -267,8 +256,8 @@ body {
 }
 
 .preview-logo {
-    width: 80px;
-    height: 80px;
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
     padding: 6px;
     background: conic-gradient(from 0deg, var(--platinum), var(--chrome), var(--platinum));

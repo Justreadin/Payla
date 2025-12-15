@@ -27,27 +27,9 @@ router = APIRouter(prefix="/presell", tags=["Presell"])
 
 
 # ===== MODELS =====
-class WaitlistRequest(BaseModel):
-    name: str
-    email: EmailStr
-    expectations: Optional[str] = None
-    source: str = "presell_page"
-
-    @validator('name')
-    def validate_name(cls, v):
-        if len(v.strip()) < 2:
-            raise ValueError('Name must be at least 2 characters')
-        return v.strip()
-
-    @validator('email')
-    def validate_email(cls, v):
-        return v.lower().strip()
-
-
 class LockYearRequest(BaseModel):
     fullName: str
     email: EmailStr
-    username: str
     expectations: Optional[str] = None
     payment_reference: str
     amount: int = 5000
@@ -63,49 +45,24 @@ class LockYearRequest(BaseModel):
     def validate_email(cls, v):
         return v.lower().strip()
 
-    @validator('username')
-    def validate_username(cls, v):
-        username = v.lower().strip()
-        if not username.replace("_", "").isalnum():
-            raise ValueError('Username can only contain letters, numbers, and underscores')
-        if len(username) < 3:
-            raise ValueError('Username must be at least 3 characters')
-        if len(username) > 20:
-            raise ValueError('Username cannot exceed 20 characters')
-        
-        # Check for reserved names
-        reserved = ["admin", "support", "payla", "help", "system"]
-        if username in reserved:
-            raise ValueError('This username is reserved')
-        
-        return username
+
+class InitPresellPaymentRequest(BaseModel):
+    fullName: str
+    email: EmailStr
+    amount: int  # in kobo
+    reference: str
+
+    @validator("fullName")
+    def validate_name(cls, v):
+        return v.strip()
+
+    @validator("email")
+    def validate_email(cls, v):
+        return v.lower().strip()
+
 
 
 # ===== HELPER FUNCTIONS =====
-def save_to_waitlist_csv(data: Dict[str, Any]) -> None:
-    """Append waitlist entry to CSV file in Firebase Storage or local file"""
-    try:
-        # Get existing waitlist or create new
-        waitlist_ref = db.collection("presell_waitlist").document(data['email'])
-        
-        # Prepare data with timestamp
-        waitlist_data = {
-            **data,
-            "joined_at": datetime.now(timezone.utc),
-            "type": "waitlist",
-            "source": data.get('source', 'presell_page')
-        }
-        
-        # Save to Firestore
-        waitlist_ref.set(waitlist_data)
-        
-        logger.info(f"Waitlist entry saved: {data['email']}")
-        
-    except Exception as e:
-        logger.error(f"Failed to save waitlist entry: {e}")
-        raise
-
-
 def create_presell_user(data: Dict[str, Any]) -> Dict[str, Any]:
     """Create a presell user entry with special presell tag"""
     try:
@@ -115,7 +72,6 @@ def create_presell_user(data: Dict[str, Any]) -> Dict[str, Any]:
             "presell_id": presell_id,
             "full_name": data['fullName'],
             "email": data['email'],
-            "username": data['username'],
             "expectations": data.get('expectations'),
             "payment_reference": data['payment_reference'],
             "amount": data['amount'],
@@ -135,11 +91,10 @@ def create_presell_user(data: Dict[str, Any]) -> Dict[str, Any]:
         # Also save reference by email for easy lookup
         db.collection("presell_emails").document(data['email']).set({
             "presell_id": presell_id,
-            "username": data['username'],
             "joined_at": datetime.now(timezone.utc)
         })
         
-        logger.info(f"Presell user created: {data['email']} -> @{data['username']}")
+        logger.info(f"Presell user created: {data['email']}")
         
         return user_data
         
@@ -214,8 +169,6 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
         
         # Get metadata specific to presell
         presell_type = metadata.get("presell_type")
-        username = metadata.get("payla_username")
-        full_name = metadata.get("full_name")
         
         # Check if this is a presell payment
         if presell_type != "founding_creator_2025":
@@ -243,7 +196,7 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
         # PAYMENT SUCCESS
         # ========================================
         if status_str == "success":
-            logger.info(f"Presell payment SUCCESS → {ref} | ₦{amount:,.0f} | Username: {username}")
+            logger.info(f"Presell payment SUCCESS → {ref} | ₦{amount:,.0f} | Email: {payment_details['email']}")
             
             try:
                 # Create presell user
@@ -266,19 +219,18 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
                 create_notification(
                     user_id=presell_user["_id"],
                     title="Welcome to Payla Founding Creators!",
-                    message=f"Your username @{username} has been reserved. You'll get 1 year free when we launch!",
+                    message="You've successfully reserved your spot! You'll get 1 year free when we launch!",
                     type="success",
                     link="/presell/welcome"
                 )
                 
-                # Send welcome email (you can implement this)
+                # Send welcome email
                 background_tasks.add_task(
                     send_layla_email,
                     "presell_success",
                     payment_details['email'],
                     {
-                        "name": payment_details['fullName'].split()[0],
-                        "username": payment_details['username']
+                        "name": payment_details['fullName'].split()[0]
                     }
                 )
                 
@@ -292,7 +244,7 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
         # PAYMENT FAILED
         # ========================================
         else:
-            logger.warning(f"Presell payment FAILED → {ref} | Username: {username}")
+            logger.warning(f"Presell payment FAILED → {ref} | Email: {payment_details['email']}")
             
             # Update pending record with failure
             db.collection("presell_pending").document(pending_id).update({
@@ -300,9 +252,6 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
                 "failed_at": datetime.now(timezone.utc),
                 "failure_reason": data.get("gateway_response", "Payment failed")
             })
-            
-            # Send failure notification (optional)
-            # You could email the user to try again
             
     # ========================================
     # Handle Subscription Events (if any)
@@ -321,179 +270,58 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
     return {"status": "success"}
 
 
-# ===== EMAIL FUNCTION =====
-def send_presell_welcome_email(email: str, username: str, full_name: str):
-    """Send welcome email to presell user"""
-    # Implement your email sending logic here
-    # You can use your existing email service
-    logger.info(f"Would send welcome email to {email} for @{username}")
-    pass
-
-
 # ===== API ENDPOINTS =====
 @router.get("/counter")
 async def get_presell_counter():
-    """Get current presell counter (paid users count)"""
+    """Get current presell counter (paid users count) - Starting from 127"""
     try:
-        # Count paid users
-        paid_users = db.collection("presell_users")\
+        # Count verified presell users
+        verified_users = db.collection("presell_users")\
             .where("payment_status", "==", "verified")\
             .count()\
             .get()
         
-        # Count waitlist users
-        waitlist_count = db.collection("presell_waitlist")\
-            .count()\
-            .get()
+        # Get the count from Firestore (0 if no users)
+        firestore_count = verified_users[0][0].value if verified_users else 0
+        
+        # Add 127 as base count
+        paid_count = firestore_count + 127
+        
+        # Calculate spots left (500 total spots)
+        TOTAL_SPOTS = 500
+        spots_left = max(TOTAL_SPOTS - paid_count, 0)
         
         return {
-            "paid_count": paid_users[0][0].value if paid_users else 0,
-            "waitlist_count": waitlist_count[0][0].value if waitlist_count else 0,
-            "total_count": (paid_users[0][0].value if paid_users else 0) + 
-                          (waitlist_count[0][0].value if waitlist_count else 0),
-            "spots_left": 500 - (paid_users[0][0].value if paid_users else 0),
+            "paid_count": paid_count,
+            "total_count": paid_count,  # For JS compatibility
+            "spots_left": spots_left,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
         logger.error(f"Failed to get counter: {e}")
+        # Return default values starting from 127
         return {
-            "paid_count": 127,  # Default fallback
-            "waitlist_count": 0,
+            "paid_count": 127,
             "total_count": 127,
             "spots_left": 373,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
 
-@router.post("/waitlist")
-async def join_waitlist(request: WaitlistRequest, background_tasks: BackgroundTasks):
-    """Join the presell waitlist"""
-    try:
-        # Check if already in waitlist
-        existing = db.collection("presell_waitlist").document(request.email).get()
-        if existing.exists:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You're already on the waitlist!"
-            )
-        
-        # Prepare waitlist data
-        waitlist_data = {
-            "name": request.name,
-            "email": request.email,
-            "expectations": request.expectations,
-            "source": request.source,
-            "joined_at": datetime.now(timezone.utc),
-            "type": "waitlist"
-        }
-        
-        # Save to waitlist
-        background_tasks.add_task(save_to_waitlist_csv, waitlist_data)
-        background_tasks.add_task(
-            send_layla_email, 
-            "waitlist_welcome", 
-            request.email, 
-            {"name": request.name.split()[0]}
-        )
-
-        return {
-            "success": True,
-            "message": "You're on the waitlist! We'll notify you when we launch.",
-            "email": request.email,
-            "joined_at": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Waitlist join failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to join waitlist. Please try again."
-        )
-
-
-@router.post("/check-username")
-async def check_presell_username(request: dict):
-    """Check if username is available for presell"""
-    username = request.get("username", "").lower().strip()
-    
-    if not username:
-        raise HTTPException(status_code=400, detail="Username is required")
-    
-    if not username.replace("_", "").isalnum():
-        raise HTTPException(status_code=400, detail="Username: letters, numbers, _ only")
-    
-    if len(username) < 3:
-        raise HTTPException(status_code=400, detail="Username too short")
-    
-    if len(username) > 20:
-        raise HTTPException(status_code=400, detail="Username too long")
-    
-    # Check if username exists in paylinks (existing users)
-    paylink_query = db.collection("paylinks").where("username", "==", username).limit(1).get()
-    
-    # Check if username exists in presell users (already reserved)
-    presell_query = db.collection("presell_users").where("username", "==", username).limit(1).get()
-    
-    # Check if username exists in pending presell
-    pending_query = db.collection("presell_pending").where("username", "==", username).limit(1).get()
-    
-    if paylink_query or presell_query or pending_query:
-        return {
-            "available": False,
-            "message": f"@{username} is already taken"
-        }
-    
-    # Check for reserved usernames
-    reserved_usernames = ["admin", "support", "payla", "help", "system"]
-    if username in reserved_usernames:
-        return {
-            "available": False,
-            "message": "This username is reserved"
-        }
-    
-    # Check for inappropriate usernames
-    inappropriate_words = ["fuck", "shit", "ass", "bitch", "nigga", "nigger", "cunt"]
-    if any(word in username for word in inappropriate_words):
-        return {
-            "available": False,
-            "message": "Username contains inappropriate content"
-        }
-    
-    return {
-        "available": True,
-        "username": username,
-        "message": f"@{username} is available!"
-    }
-
-
 @router.post("/save-pending")
 async def save_pending_payment(request: LockYearRequest):
     """Save pending payment before Paystack redirect, with retry logic."""
     try:
-        # =======================================
-        # 1. Double-check username availability
-        # =======================================
-        check_response = await check_presell_username({"username": request.username})
-        if not check_response["available"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=check_response["message"]
-            )
-
         email = request.email.lower().strip()
         now_ts = datetime.now(timezone.utc).timestamp()
 
         # =======================================
-        # 2. Fetch existing pending for this email
+        # 1. Fetch existing pending for this email
         # =======================================
         pending_docs = db.collection("presell_pending")\
             .where("email", "==", email)\
             .get()
-
-        matching_pending = None
 
         for doc in pending_docs:
             data = doc.to_dict()
@@ -521,17 +349,17 @@ async def save_pending_payment(request: LockYearRequest):
             db.collection("presell_pending").document(doc.id).delete()
 
         # =======================================
-        # 3. Prevent duplicate paid user
+        # 2. Prevent duplicate paid user
         # =======================================
         email_paid = db.collection("presell_emails").document(email).get()
         if email_paid.exists:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You've already reserved a username"
+                detail="You've already reserved your spot"
             )
 
         # =======================================
-        # 4. Create NEW pending record
+        # 3. Create NEW pending record
         # =======================================
         pending_id = f"pending_{int(now_ts)}_{uuid.uuid4().hex[:8]}"
 
@@ -539,7 +367,6 @@ async def save_pending_payment(request: LockYearRequest):
             "_id": pending_id,
             "fullName": request.fullName,
             "email": email,
-            "username": request.username,
             "expectations": request.expectations,
             "payment_reference": request.payment_reference,
             "amount": request.amount,
@@ -552,17 +379,16 @@ async def save_pending_payment(request: LockYearRequest):
         db.collection("presell_pending").document(pending_id).set(pending_data)
 
         # =======================================
-        # 5. Reference lookup
+        # 4. Reference lookup
         # =======================================
         db.collection("presell_references").document(request.payment_reference).set({
             "pending_id": pending_id,
             "email": email,
-            "username": request.username,
             "created_at": datetime.now(timezone.utc)
         })
 
         # =======================================
-        # 6. Response
+        # 5. Response
         # =======================================
         return {
             "success": True,
@@ -582,9 +408,67 @@ async def save_pending_payment(request: LockYearRequest):
         )
 
 
+@router.post("/init-payment")
+async def init_presell_payment(request: InitPresellPaymentRequest):
+    """
+    Initializes a Paystack hosted checkout with prefilled email & metadata.
+    Frontend will redirect to the returned authorization_url.
+    """
+    try:
+        headers = {
+            "Authorization": f"Bearer {settings.PAYSTACK_SECRET_PAYLA}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "email": request.email,
+            "amount": request.amount,  # already in kobo
+            "reference": request.reference,
+            "currency": "NGN",
+            "metadata": {
+                "full_name": request.fullName,
+                "presell_type": "founding_creator_2025",
+            },
+            # optional but recommended
+            "callback_url": f"{settings.FRONTEND_URL}/thank-you"
+        }
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            ps = await client.post(
+                "https://api.paystack.co/transaction/initialize",
+                json=payload,
+                headers=headers,
+            )
+
+        result = ps.json()
+
+        if ps.status_code != 200 or not result.get("status"):
+            logger.error(f"Paystack init failed: {result}")
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("message", "Unable to initialize payment")
+            )
+
+        return {
+            "authorization_url": result["data"]["authorization_url"],
+            "reference": result["data"]["reference"],
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(f"Init payment error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Payment initialization failed"
+        )
+
+
+
 @router.get("/user/{email}")
 async def get_presell_user_status(email: str):
-    """Check if a user has joined presell or waitlist"""
+    """Check if a user has paid for presell"""
     try:
         email = email.lower().strip()
         
@@ -599,7 +483,6 @@ async def get_presell_user_status(email: str):
                 return {
                     "status": "paid",
                     "user": {
-                        "username": user_data.get("username"),
                         "presell_tag": user_data.get("presell_tag"),
                         "presell_reward": user_data.get("presell_reward"),
                         "joined_at": user_data.get("joined_at"),
@@ -607,23 +490,9 @@ async def get_presell_user_status(email: str):
                     }
                 }
         
-        # Check if waitlist user
-        waitlist_user = db.collection("presell_waitlist").document(email).get()
-        if waitlist_user.exists:
-            waitlist_data = waitlist_user.to_dict()
-            return {
-                "status": "waitlist",
-                "user": {
-                    "name": waitlist_data.get("name"),
-                    "email": waitlist_data.get("email"),
-                    "joined_at": waitlist_data.get("joined_at"),
-                    "expectations": waitlist_data.get("expectations")
-                }
-            }
-        
         return {
             "status": "not_found",
-            "message": "User not found in presell or waitlist"
+            "message": "User not found in presell"
         }
         
     except Exception as e:
@@ -634,111 +503,11 @@ async def get_presell_user_status(email: str):
         )
 
 
-@router.get("/export/waitlist")
-async def export_waitlist_csv():
-    """Export waitlist as CSV (admin only)"""
-    try:
-        # Get all waitlist entries
-        waitlist_docs = db.collection("presell_waitlist").stream()
-        
-        # Prepare CSV data
-        output = StringIO()
-        writer = csv.writer(output)
-        
-        # Write header
-        writer.writerow(["Name", "Email", "Expectations", "Source", "Joined At", "Type"])
-        
-        # Write data
-        for doc in waitlist_docs:
-            data = doc.to_dict()
-            writer.writerow([
-                data.get("name", ""),
-                data.get("email", ""),
-                data.get("expectations", ""),
-                data.get("source", ""),
-                data.get("joined_at", "").isoformat() if data.get("joined_at") else "",
-                data.get("type", "")
-            ])
-        
-        output.seek(0)
-        
-        # Create streaming response
-        filename = f"payla_waitlist_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
-        
-        return StreamingResponse(
-            output,
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
-        
-    except Exception as e:
-        logger.error(f"Failed to export waitlist: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to export waitlist"
-        )
-
-
-@router.get("/export/presell-users")
-async def export_presell_users_csv():
-    """Export presell users as CSV (admin only)"""
-    try:
-        # Get all presell users
-        user_docs = db.collection("presell_users").stream()
-        
-        # Prepare CSV data
-        output = StringIO()
-        writer = csv.writer(output)
-        
-        # Write header
-        writer.writerow([
-            "Presell ID", "Full Name", "Email", "Username", 
-            "Payment Reference", "Amount", "Currency", "Payment Status",
-            "Presell Tag", "Presell Reward", "Joined At", "Status"
-        ])
-        
-        # Write data
-        for doc in user_docs:
-            data = doc.to_dict()
-            writer.writerow([
-                data.get("presell_id", ""),
-                data.get("full_name", ""),
-                data.get("email", ""),
-                data.get("username", ""),
-                data.get("payment_reference", ""),
-                data.get("amount", ""),
-                data.get("currency", ""),
-                data.get("payment_status", ""),
-                data.get("presell_tag", ""),
-                data.get("presell_reward", ""),
-                data.get("joined_at", "").isoformat() if data.get("joined_at") else "",
-                data.get("status", "")
-            ])
-        
-        output.seek(0)
-        
-        # Create streaming response
-        filename = f"payla_presell_users_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
-        
-        return StreamingResponse(
-            output,
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
-        
-    except Exception as e:
-        logger.error(f"Failed to export presell users: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to export presell users"
-        )
-    
-
 @router.post("/verify-payment")
 async def verify_payment(payload: dict):
     """Instant, idempotent, real-time Paystack verification."""
     reference = payload.get("reference")
-    username = payload.get("username")
+    email = payload.get("email")
     
     if not reference:
         raise HTTPException(400, "Missing payment reference")
@@ -767,15 +536,13 @@ async def verify_payment(payload: dict):
                 "user": {
                     "fullName": pending["fullName"],
                     "email": pending["email"],
-                    "username": pending["username"],
                 }
             }
 
-        email = pending["email"]
         amount_expected = pending["amount"]
 
         # ======================================================
-        # 2. CALL PAYSTACK VERIFY API  (REAL-TIME CONFIRMATION)
+        # 2. CALL PAYSTACK VERIFY API (REAL-TIME CONFIRMATION)
         # ======================================================
         headers = {
             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
@@ -829,14 +596,19 @@ async def verify_payment(payload: dict):
             }
         )
 
-        # B. Create final paid user record
+        # B. Get counter to calculate current spot
+        counter_response = await get_presell_counter()
+        current_spot = counter_response["paid_count"] + 1  # +1 because this user hasn't been counted yet
+        spots_left = max(500 - current_spot, 0)
+
+        # C. Create final paid user record with spot information
         batch.set(
-            db.collection("presell_emails").document(email),
+            db.collection("presell_emails").document(pending["email"]),
             {
-                "email": email,
-                "username": pending["username"],
+                "email": pending["email"],
                 "fullName": pending["fullName"],
                 "reference": reference,
+                "current_spot": current_spot,
                 "created_at": datetime.now(timezone.utc)
             }
         )
@@ -844,16 +616,29 @@ async def verify_payment(payload: dict):
         batch.commit()
 
         # ======================================================
-        # 6. RESPONSE
+        # 6. Generate access token for thank-you page
+        # ======================================================
+        try:
+            # Create Firebase custom token
+            firebase_token = firebase_auth.create_custom_token(pending["email"])
+            access_token = firebase_token.decode() if isinstance(firebase_token, bytes) else firebase_token
+        except Exception as token_error:
+            logger.error(f"Failed to create Firebase token: {token_error}")
+            # Fallback to simple token
+            access_token = f"presell_{uuid.uuid4().hex}"
+
+        # ======================================================
+        # 7. RESPONSE
         # ======================================================
         return {
             "success": True,
             "status": "success",
             "message": "Payment verified",
+            "access_token": access_token,
+            "spots_left": spots_left,
             "user": {
                 "fullName": pending["fullName"],
-                "email": email,
-                "username": pending["username"],
+                "email": pending["email"],
             }
         }
 
@@ -864,23 +649,29 @@ async def verify_payment(payload: dict):
         logger.error(f"PAYSTACK VERIFY ERROR: {e}")
         raise HTTPException(500, "Verification error occurred")
 
+
 @router.get("/thank-you")
-async def get_thank_you_info(username: str):
+async def get_thank_you_info(email: str):
     """
     Returns the user's current spot and remaining spots for the thank-you page.
     """
     try:
-        if not username:
-            raise HTTPException(status_code=400, detail="Username is required")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email is required")
 
-        # Query user by username
-        user_docs = db.collection("presell_users").where("username", "==", username.lower()).limit(1).get()
+        # Query user by email
+        user_docs = db.collection("presell_users").where("email", "==", email.lower()).limit(1).get()
         if not user_docs:
             raise HTTPException(status_code=404, detail="User not found")
 
         user_doc = user_docs[0]
         user_data = user_doc.to_dict()
 
+        # Get counter to get current spot
+        counter_response = await get_presell_counter()
+        paid_count = counter_response["paid_count"]
+        
+        # Since the counter starts from 127, we need to calculate the user's actual position
         # Get all verified presell users sorted by joined_at
         all_users = db.collection("presell_users")\
             .where("payment_status", "==", "verified")\
@@ -888,21 +679,26 @@ async def get_thank_you_info(username: str):
             .stream()
 
         all_users_list = list(all_users)
-
-        # Determine user's current spot (1-based)
-        current_spot = next(
-            (idx + 1 for idx, u in enumerate(all_users_list) if u.id == user_doc.id),
+        
+        # Find user's position in the list (0-based)
+        user_position = next(
+            (idx for idx, u in enumerate(all_users_list) if u.id == user_doc.id),
             None
         )
-        if current_spot is None:
-            current_spot = len(all_users_list)  # fallback
+        
+        if user_position is not None:
+            # Add 128 because counter starts from 127 and position is 0-based
+            current_spot = user_position + 128
+        else:
+            # Fallback: use the current paid count
+            current_spot = paid_count
 
         # Calculate spots left
         TOTAL_SPOTS = 500
-        spots_left = max(TOTAL_SPOTS - len(all_users_list), 0)
+        spots_left = max(TOTAL_SPOTS - current_spot, 0)
 
         return {
-            "username": user_data.get("username"),
+            "email": user_data.get("email"),
             "full_name": user_data.get("full_name"),
             "current_spot": current_spot,
             "spots_left": spots_left,

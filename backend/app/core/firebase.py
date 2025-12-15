@@ -1,5 +1,5 @@
-import os
 import json
+import base64
 import logging
 from firebase_admin import credentials, initialize_app, get_app, firestore, storage
 from app.core.config import settings  # ✅ import your config
@@ -8,7 +8,7 @@ logger = logging.getLogger("payla")
 
 
 def init_firebase():
-    """Initialize Firebase Admin SDK and Firestore/Storage clients."""
+    """Initialize Firebase Admin SDK and Firestore/Storage clients using PAYLA_FIREBASE_KEY."""
     try:
         get_app()
         logger.info("✅ Firebase Admin SDK already initialized")
@@ -16,24 +16,28 @@ def init_firebase():
     except ValueError:
         pass
 
-    cred_path = settings.GOOGLE_APPLICATION_CREDENTIALS
-    if not cred_path:
-        raise RuntimeError("❌ GOOGLE_APPLICATION_CREDENTIALS not set in settings")
+    if not settings.PAYLA_FIREBASE_KEY:
+        raise RuntimeError("❌ PAYLA_FIREBASE_KEY not set in settings")
 
-    cred_path = os.path.abspath(cred_path)
-    if not os.path.exists(cred_path):
-        raise FileNotFoundError(f"❌ Firebase credentials not found: {cred_path}")
+    try:
+        decoded_json = base64.b64decode(settings.PAYLA_FIREBASE_KEY).decode("utf-8")
+        service_account_info = json.loads(decoded_json)
+        logger.info("🔑 Loaded Firebase credentials from PAYLA_FIREBASE_KEY")
+    except Exception as e:
+        raise RuntimeError(f"❌ Failed to decode PAYLA_FIREBASE_KEY: {e}")
 
-    with open(cred_path, "r") as f:
-        service_account_info = json.load(f)
-
+    # -------------------------------
+    # Validate service account
+    # -------------------------------
     project_id = service_account_info.get("project_id")
     if not project_id:
         raise ValueError("❌ project_id missing in Firebase service account JSON")
 
+    # -------------------------------
+    # Initialize Firebase
+    # -------------------------------
     cred = credentials.Certificate(service_account_info)
 
-    # Initialize Firebase app with Firestore and Storage
     initialize_app(cred, {
         "projectId": project_id,
         "databaseURL": f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)",

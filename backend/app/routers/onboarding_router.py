@@ -6,6 +6,7 @@ from app.core.auth import get_current_user, onboarding_guard
 from app.core.firebase import db
 from app.models.user_model import User
 from datetime import datetime, timedelta
+from app.routers.payout_router import resolve_account_name
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
@@ -59,10 +60,26 @@ async def complete_onboarding(
         raise HTTPException(status_code=400, detail="Username already taken")
 
     now = datetime.utcnow()
+
+    # 🔐 RE-VERIFY payout account (never trust frontend)
+    try:
+        resolved = await resolve_account_name(
+            payload.payout_bank,
+            payload.payout_account_number
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid payout account details"
+        )
+
     update_data = {
         "username": username,
         "payout_bank": payload.payout_bank,
         "payout_account_number": payload.payout_account_number,
+        "payout_account_name": resolved["account_name"],
+        "payout_bank_name": resolved.get("bank_name", "Unknown Bank"),
+        "payout_verified": True,
         "business_name": payload.business_name or user.full_name,
         "onboarding_complete": True,
         "updated_at": now

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # 2. FRONTEND
     # ────────────────────────────────
     FRONTEND_URL: AnyUrl = Field(
-        default="http://localhost:5500",
+        default="https://payla.ng",
         env="FRONTEND_URL",
         description="Base URL for client app (e.g. https://payla.ng)"
     )
@@ -32,12 +32,20 @@ class Settings(BaseSettings):
         env="GOOGLE_APPLICATION_CREDENTIALS",
         description="Path to Firebase service account JSON"
     )
+    # Base64-encoded Firebase service account JSON
+    PAYLA_FIREBASE_KEY: Optional[str] = Field(
+        default=None,
+        env="PAYLA_FIREBASE_KEY",
+        description="Base64-encoded Firebase service account JSON"
+    )
 
     # ────────────────────────────────
     # 4. PAYSTACK
     # ────────────────────────────────
     PAYSTACK_SECRET_KEY: str = Field(..., env="PAYSTACK_SECRET_KEY")
     PAYSTACK_PUBLIC_KEY: str = Field(..., env="PAYSTACK_PUBLIC_KEY")
+    PAYSTACK_SECRET_PAYLA: str = Field(..., env="PAYSTACK_SECRET_PAYLA")
+    PAYSTACK_PUBLIC_PAYLA: str = Field(..., env="PAYSTACK_PUBLIC_PAYLA")
     PAYSTACK_WEBHOOK_URL: AnyUrl = Field(
         default_factory=lambda: f"{os.getenv('BACKEND_URL', 'http://localhost:8000')}/webhook/paystack"
     )

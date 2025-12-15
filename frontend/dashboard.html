@@ -8,6 +8,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link href="css/dashboard.css" rel="stylesheet">
     <link href="css/analytics.css" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
     <script>
         const es = new EventSource("/reload");
         es.onmessage = () => {
@@ -154,10 +160,10 @@
                     <i class="fas fa-chart-line"></i>
                     View Analytics
                 </section>
-                <a href="/profile">
+                <a href="mailto:support@payla.vip">
                     <button class="btn-link">
-                        <i class="fas fa-edit"></i>
-                        Edit Description
+                        <i class="fas fa-message"></i>
+                        support@payla.vip
                     </button>
                 </a>
             </div>
@@ -278,32 +284,26 @@
     <script type="module" src="js/presell.js"></script>
     <script type="module" src="js/dashboard.js"></script>
     <script type="module" src="js/dashboard-enhancements.js"></script>
-    <script>
-        // Logout handler
-    const logoutLink = document.getElementById("logout-link"); // add id="logout-link" to your <a>
-    if (logoutLink) {
-        logoutLink.addEventListener("click", async (e) => {
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const logoutLink = document.getElementById("logout-link");
+
+        if (!logoutLink) return;
+
+        logoutLink.addEventListener("click", (e) => {
             e.preventDefault();
 
-            try {
-                // 1️⃣ Sign out from Firebase
-                await auth.signOut();
+            // 1️⃣ Clear auth data
+            localStorage.removeItem("idToken");
+            localStorage.removeItem("userData");
+            sessionStorage.clear();
 
-                // 2️⃣ Clear tokens & user data
-                localStorage.removeItem("idToken");
-                localStorage.removeItem("userData");
-
-                // 3️⃣ Optional: call backend logout endpoint
-                await fetch(`${BACKEND_URL}/auth/logout`, { method: "POST" });
-
-                // 4️⃣ Redirect to login page
-                window.location.href = "/payla"; // or your login page
-            } catch (err) {
-                console.error("Logout failed", err);
-            }
+            // 2️⃣ Hard redirect (no back button)
+            window.location.replace("/entry");
         });
-    }
+    });
     </script>
+
 
 </body>
 </html>
