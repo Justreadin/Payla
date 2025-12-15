@@ -290,7 +290,7 @@ h1, h2, h3, .logo-main {
 }
 
 .logo-upload label:hover {
-    background: #E5E5E5;
+    background: var(--midnight-void);
     transform: translateY(-2px);
 }
 
