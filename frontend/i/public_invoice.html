@@ -6,15 +6,16 @@
     <title>Invoice • Payla</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/public_invoice.css">
     <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon.png">
     <link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="icon" href="../assets/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="../css/public_invoice.css">
     <script src="https://js.paystack.co/v2/inline.js"></script>
 </head>
 <body>
@@ -39,11 +40,10 @@
     <div class="loading-state" id="loadingState">
         <div class="loading-content">
             <div class="loading-logo">
-                <i class="fas fa-gem"></i>
-                <span>Payla</span>
+                <span>Invoice</span>
             </div>
             <div class="loading-signature">
-                <h2 id="loadingSignature">Invoice</h2>
+                <h2 id="loadingSignature"></h2>
                 <p class="loading-subtext">Loading invoice details…</p>
             </div>
         </div>
@@ -111,19 +111,19 @@
                 <div class="invoice-header-section">
                     <div class="brand-info">
                         <div class="brand-logo" id="previewLogo">
-                            <div class="logo-initials" id="previewLogoInitials">TD</div>
-                            <img id="logoImg" src="" alt="" style="display: none;">
+                            <div class="logo-initials" id="previewLogoInitials"></div>
+                            <img id="logoImg" src="" alt="" style="display: none">
                             <div class="logo-glow"></div>
                         </div>
                         <div class="brand-details">
                             <h2 class="brand-name" id="previewName">Loading...</h2>
-                            <p class="brand-handle" id="previewHandle">payla.ng/@username</p>
+                            <p class="brand-handle" id="previewHandle"></p>
                         </div>
                     </div>
                     
                     <div class="invoice-id">
-                        <span class="label">Invoice #</span>
-                        <strong id="invoiceNumber">INV-0000</strong>
+                        <span class="label">Invoice</span>
+                        <strong id="invoiceNumber"></strong>
                     </div>
                 </div>
 
@@ -324,408 +324,6 @@
         </div>
     </div>
 
-    <script>
-        const shortId = window.location.pathname.split('/').pop();
-        const invoiceId = shortId.startsWith('inv_') ? shortId : `inv_${shortId}`;
-        const API_URL = "http://127.0.0.1:8000";
-
-        // Elements
-        const loadingState = document.getElementById('loadingState');
-        const errorState = document.getElementById('errorState');
-        const paidState = document.getElementById('paidState');
-        const invoiceContent = document.getElementById('invoiceContent');
-        const paystackModal = document.getElementById('paystackModal');
-        const successModal = document.getElementById('successModal');
-        const modalClose = document.getElementById('modalClose');
-        const processPayment = document.getElementById('processPayment');
-        const payBtn = document.getElementById('payBtn');
-        const payerEmailInput = document.getElementById('payerEmail');
-        const modalAmount = document.getElementById('modalAmount');
-        const modalRecipient = document.getElementById('modalRecipient');
-        const modalDescription = document.getElementById('modalDescription');
-        const downloadReceipt = document.getElementById('downloadReceipt');
-        const downloadSuccessReceipt = document.getElementById('downloadSuccessReceipt');
-        const closeSuccessModal = document.getElementById('closeSuccessModal');
-
-        let currentInvoice = null;
-        let paystackHandler = null;
-
-        // Show/Hide functions
-        function showLoading() {
-            hideAll();
-            loadingState.classList.remove('hidden');
-        }
-
-        function showError() {
-            hideAll();
-            errorState.classList.remove('hidden');
-        }
-
-        function showPaid() {
-            hideAll();
-            paidState.classList.remove('hidden');
-        }
-
-        function showInvoice() {
-            hideAll();
-            invoiceContent.classList.remove('hidden');
-        }
-
-        function hideAll() {
-            loadingState.classList.add('hidden');
-            errorState.classList.add('hidden');
-            paidState.classList.add('hidden');
-            invoiceContent.classList.add('hidden');
-            paystackModal.classList.remove('open');
-            successModal.classList.remove('open');
-        }
-
-       function openModal(modalId) {
-            const modal = document.getElementById(modalId);
-            modal.classList.remove('hidden');
-            modal.classList.add('open');
-        }
-
-        function closeModal(modalId) {
-            const modal = document.getElementById(modalId);
-            modal.classList.remove('open');
-            modal.classList.add('hidden');
-        }
-
-
-        // Format currency
-        function formatCurrency(amount, currency) {
-            const symbol = currency === 'NGN' ? '₦' : '$';
-            return `${symbol}${amount.toLocaleString()}`;
-        }
-
-        // Format date
-        function formatDate(dateString) {
-            if (!dateString) return 'N/A';
-            const date = new Date(dateString);
-            return date.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric',
-                year: 'numeric'
-            });
-        }
-
-        // Format date with time
-        function formatDateTime(dateString) {
-            if (!dateString) return 'N/A';
-            const date = new Date(dateString);
-            return date.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
-
-        // Calculate days left
-        function getDaysLeft(dueDate) {
-            const due = new Date(dueDate);
-            const today = new Date();
-            const diffTime = due - today;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays;
-        }
-
-        // Update UI with invoice data
-        function updateInvoiceUI(invoice) {
-            // Business info
-            document.getElementById('previewName').textContent = 
-                invoice.sender_business_name || 'Business';
-            
-            document.getElementById('previewHandle').textContent = 
-                `payla.ng/@${invoice.sender_username || 'username'}`;
-
-            // Logo
-            const logoInitials = document.getElementById('previewLogoInitials');
-            const logoImg = document.getElementById('logoImg');
-            
-            if (invoice.sender_logo) {
-                const logoUrl = invoice.sender_logo.startsWith('http') 
-                    ? invoice.sender_logo 
-                    : `${API_URL}${invoice.sender_logo}`;
-                
-                logoImg.src = logoUrl;
-                logoImg.style.display = 'block';
-                logoInitials.style.display = 'none';
-            } else {
-                const name = invoice.sender_business_name || 'TD';
-                logoInitials.textContent = name.substring(0, 2).toUpperCase();
-            }
-
-            // Status & Amount
-            const daysLeft = getDaysLeft(invoice.due_date);
-            const dueStatus = document.getElementById('dueStatus');
-            const dueText = document.getElementById('dueText');
-            const statusElement = document.getElementById('statusText');
-            
-            if (invoice.status === "overdue" || daysLeft < 0) {
-                dueText.textContent = 'OVERDUE';
-                statusElement.textContent = 'OVERDUE';
-                dueStatus.className = 'status-display overdue';
-            } else if (daysLeft === 0) {
-                dueText.textContent = 'DUE TODAY';
-                statusElement.textContent = 'DUE TODAY';
-                dueStatus.className = 'status-display due-today';
-            } else if (daysLeft === 1) {
-                dueText.textContent = 'DUE TOMORROW';
-                statusElement.textContent = 'DUE TOMORROW';
-                dueStatus.className = 'status-display due-future';
-            } else {
-                dueText.textContent = `DUE IN ${daysLeft} DAYS`;
-                statusElement.textContent = `DUE IN ${daysLeft} DAYS`;
-                dueStatus.className = 'status-display due-future';
-            }
-
-            // Amount
-            const amountElement = document.getElementById('invoiceAmount');
-            amountElement.textContent = formatCurrency(invoice.amount, invoice.currency);
-            document.getElementById('invoiceCurrency').textContent = invoice.currency;
-            
-            // Invoice number
-            document.getElementById('invoiceNumber').textContent = 
-                invoice.invoice_number || `INV-${shortId.substring(0, 8).toUpperCase()}`;
-
-            // Description
-            document.getElementById('invoiceDescription').textContent = 
-                invoice.description || 'No description provided';
-
-            // Dates
-            document.getElementById('invoiceDueDate').textContent = 
-                formatDate(invoice.due_date);
-            document.getElementById('createdDate').textContent = 
-                formatDate(invoice.created_at);
-            
-            document.getElementById('senderEmail').textContent = 
-                invoice.sender_email || 'Not provided';
-            
-            document.getElementById('senderName').textContent = 
-                invoice.sender_business_name || invoice.sender_name || 'Not provided';
-
-            // Notes
-            const notesBox = document.getElementById('notesBox');
-            const invoiceNotes = document.getElementById('invoiceNotes');
-            
-            if (invoice.notes && invoice.notes.trim()) {
-                invoiceNotes.textContent = invoice.notes;
-                notesBox.classList.remove('hidden');
-            } else {
-                notesBox.classList.add('hidden');
-            }
-
-            // Powered by
-            document.getElementById('poweredBy').textContent = 
-                invoice.sender_business_name || 'Payla';
-
-            // Modal data
-            modalAmount.textContent = formatCurrency(invoice.amount, invoice.currency);
-            modalRecipient.textContent = invoice.sender_business_name || 'Recipient';
-            modalDescription.textContent = invoice.description || 'Invoice payment';
-
-            // Pre-fill email if available
-            if (invoice.sender_email) {
-                payerEmailInput.value = invoice.sender_email;
-            }
-        }
-
-        // Update paid state
-        function updatePaidUI(invoice) {
-            document.getElementById('paidDate').textContent = 
-                `Paid on ${formatDateTime(invoice.paid_at)}`;
-            
-            document.getElementById('paidAmount').textContent = 
-                formatCurrency(invoice.amount, invoice.currency);
-            
-            document.getElementById('invoiceId').textContent = 
-                invoice.invoice_number || `INV-${shortId.substring(0, 8).toUpperCase()}`;
-            
-            document.getElementById('paidTo').textContent = 
-                invoice.sender_business_name || 'Recipient';
-        }
-
-        // Load invoice data
-        async function loadInvoice() {
-            showLoading();
-            
-            try {
-                const res = await fetch(`${API_URL}/api/invoices/${invoiceId}`);
-                if (!res.ok) throw new Error("Invoice not found");
-                const inv = await res.json();
-                
-                currentInvoice = inv;
-
-                // Check status
-                if (inv.status === "paid") {
-                    updatePaidUI(inv);
-                    showPaid();
-                    return;
-                }
-
-                // Update UI with invoice data
-                updateInvoiceUI(inv);
-
-                // Initialize Paystack
-                initializePaystack(inv);
-
-                showInvoice();
-
-            } catch (err) {
-                console.error('Invoice loading error:', err);
-                showError();
-            }
-        }
-
-        function initializePaystack(invoice) {
-            function addPaystackFee(amount) {
-                // amount in NGN
-                const fee = Math.ceil(amount * 0.015 + 100); // 1.5% + ₦100
-                return amount + fee;
-            }
-
-            // Open payment modal
-            payBtn.onclick = () => {
-                openModal('paystackModal');
-            };
-
-            processPayment.onclick = async () => {
-                const email = payerEmailInput.value.trim();
-
-                if (!email || !email.includes('@')) {
-                    alert('Please enter a valid email address');
-                    return;
-                }
-
-                // Button loading state
-                const btnText = processPayment.querySelector('.btn-text');
-                const btnLoader = processPayment.querySelector('.btn-loader');
-                btnText.style.opacity = '0';
-                btnLoader.style.display = 'flex';
-
-                // 🔑 Unique transaction reference
-                const transactionRef = `inv_${invoice._id}_${Date.now()}`;
-
-                try {
-                    // Calculate amount with fee included
-                    let totalAmount = invoice.amount;
-                    if (invoice.currency === 'NGN') {
-                        totalAmount = addPaystackFee(invoice.amount);
-                    }
-                    // Convert to kobo
-                    const amountKobo = Math.round(totalAmount * 100);
-
-                    // Setup Paystack
-                    paystackHandler = PaystackPop.setup({
-                        key: 'pk_live_08d94c9ce325c315bc96557543e0eec40b5d372c',
-                        email: email,
-                        amount: amountKobo,
-                        currency: invoice.currency || 'NGN',
-                        ref: transactionRef,
-                        chargesBearer: 'customer', // customer pays fee
-
-                        metadata: {
-                            invoice_id: invoice._id,
-                            invoice_number: invoice.invoice_number,
-                            sender_id: invoice.sender_id,
-                            payer_email: email,
-                            type: 'invoice_payment'
-                        },
-
-                        callback: async function (response) {
-                            // ✅ UI SUCCESS
-                            document.getElementById('successAmount').textContent =
-                                formatCurrency(totalAmount, invoice.currency);
-
-                            document.getElementById('successInvoiceId').textContent =
-                                invoice.invoice_number || `INV-${shortId.substring(0, 8).toUpperCase()}`;
-
-                            document.getElementById('successDate').textContent =
-                                formatDateTime(new Date());
-
-                            closeModal('paystackModal');
-                            openModal('successModal');
-
-                            // ✅ BACKEND UPDATE
-                            try {
-                                await fetch(`${API_URL}/api/invoices/${invoiceId}/status`, {
-                                    method: 'PATCH',
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
-                                    body: JSON.stringify({
-                                        status: 'paid',
-                                        transaction_reference: response.reference,
-                                        payer_email: email
-                                    })
-                                });
-                            } catch (err) {
-                                console.error('Invoice update failed:', err);
-                            }
-                        },
-
-                        onClose: function () {
-                            btnText.style.opacity = '1';
-                            btnLoader.style.display = 'none';
-                            alert('Payment cancelled. You can try again.');
-                        }
-                    });
-
-                    paystackHandler.openIframe();
-
-                } catch (error) {
-                    console.error('Paystack init error:', error);
-                    alert('Payment failed. Please try again.');
-
-                    btnText.style.opacity = '1';
-                    btnLoader.style.display = 'none';
-                }
-            };
-        }
-
-        // Download receipt
-        function setupReceiptDownload() {
-            downloadReceipt.onclick = () => {
-                if (currentInvoice) {
-                    window.open(`${API_URL}/api/receipt/invoice/${currentInvoice._id}.pdf`, '_blank');
-                }
-            };
-
-            downloadSuccessReceipt.onclick = () => {
-                if (currentInvoice) {
-                    window.open(`${API_URL}/api/receipt/invoice/${currentInvoice._id}.pdf`, '_blank');
-                }
-            };
-        }
-
-        // Event listeners
-        modalClose.onclick = () => closeModal('paystackModal');
-        paystackModal.onclick = (e) => {
-            if (e.target === paystackModal) {
-                closeModal('paystackModal');
-            }
-        };
-
-        closeSuccessModal.onclick = () => {
-            closeModal('successModal');
-            setTimeout(() => location.reload(), 500); // Reload to show paid state
-        };
-
-        successModal.onclick = (e) => {
-            if (e.target === successModal) {
-                closeModal('successModal');
-                setTimeout(() => location.reload(), 500);
-            }
-        };
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            loadInvoice();
-            setupReceiptDownload();
-        });
-    </script>
+    <script type="module" src="../js/public_invoice.js"></script>
 </body>
 </html>

@@ -22,6 +22,10 @@ from app.core.analytics import (
 from fastapi import BackgroundTasks
 from app.routers.payout_router import queue_payout
 
+from app.tasks.payout import initiate_payout
+import asyncio
+from app.tasks.payout_celery import payout_task
+
 from app.core.subscription import require_silver  # ← Subscription enforcement
 
 logger = logging.getLogger("payla")
@@ -441,14 +445,13 @@ async def update_paylink_transaction_status(
     # Queue payout if transaction succeeded
     if status == "success" and txn.get("payout_status") != "queued":
         amount = txn.get("amount_paid") or txn.get("amount_requested")
-
-        # Mark transaction as queued
+        await queue_payout(
+            user_id=txn["user_id"],
+            amount=amount,
+            reference=reference,
+            payout_type="paylink"
+        )
         update_data["payout_status"] = "queued"
-
-        # Use the initiate_payout task directly
-        from app.tasks.payout import initiate_payout
-        import asyncio
-        asyncio.create_task(initiate_payout(txn["user_id"], amount, reference))
 
     doc_ref.update(update_data)
     return {"success": True, "status": status}

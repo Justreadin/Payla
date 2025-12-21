@@ -1,3 +1,4 @@
+from app.utils.firebase import firestore_run
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from typing import Dict, Any, Optional
@@ -32,55 +33,72 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
     now = datetime.now(timezone.utc)
 
     # === Fetch invoices ===
-    invoices_query = (
+    invoices_query = await firestore_run(
         db.collection("invoices")
         .where("sender_id", "==", user_id)
-        .stream()
+        .stream
     )
 
     invoices = []
     total_earned = 0.0
     pending_amount = 0.0
+    overdue_amount = 0.0  # ← ADD THIS
     overdue_count = 0
 
     for doc in invoices_query:
         inv_data = doc.to_dict()
 
-        # 🔥 CRITICAL FIX: Skip ALL drafts (dashboard must never show drafts)
+        # 🚫 Skip drafts entirely
         if inv_data.get("status") == "draft":
             continue
 
+        # ✅ Inject Firestore document ID
+        inv_data["id"] = doc.id
+        inv_data["_id"] = doc.id  # ← ADD THIS for frontend compatibility
+
         inv = Invoice(**inv_data)
 
-        # Ensure due_date has timezone
+        # Ensure due_date is timezone-aware
         if inv.due_date and inv.due_date.tzinfo is None:
             inv.due_date = inv.due_date.replace(tzinfo=timezone.utc)
 
-        # Auto-update overdue invoices
-        if inv.status == "pending" and inv.due_date and inv.due_date < now:
-            db.collection("invoices").document(inv.id).update({
-                "status": "overdue",
-                "updated_at": now
-            })
+        # ⏰ Auto-mark overdue invoices
+        if (
+            inv.status == "pending"
+            and inv.due_date
+            and inv.due_date < now
+        ):
+            await firestore_run(
+                db.collection("invoices")
+                .document(inv.id)
+                .update,
+                {
+                    "status": "overdue",
+                    "updated_at": now
+                }
+            )
             inv.status = "overdue"
 
-        # === Stats ===
+        # === Stats aggregation ===
         if inv.status == "paid":
             total_earned += inv.amount
 
-        elif inv.status in ("pending", "overdue"):
+        elif inv.status == "pending":
             pending_amount += inv.amount
-            if inv.status == "overdue":
-                overdue_count += 1
+            
+        elif inv.status == "overdue":
+            overdue_amount += inv.amount  # ← ADD THIS
+            pending_amount += inv.amount
+            overdue_count += 1
 
         invoices.append(inv)
 
     # === Sort invoices ===
-    # pending → overdue → paid → failed (most recent first)
+    # overdue → pending → paid → failed (most recent first)
     invoices.sort(
         key=lambda x: (
-            0 if x.status == "pending" else
-            1 if x.status == "overdue" else
+            0 if x.status == "overdue" else  # ← CHANGED: overdue first
+            1 if x.status == "pending" else
             2 if x.status == "paid" else
             3 if x.status == "failed" else 4,
             -(x.created_at.timestamp() if x.created_at else 0)
@@ -88,7 +106,9 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
     )
 
     # === Paylink ===
-    paylink_doc = db.collection("paylinks").document(user_id).get()
+    paylink_doc = await firestore_run(
+        db.collection("paylinks").document(user_id).get
+    )
     paylink = paylink_doc.to_dict() if paylink_doc.exists else None
     paylink_url = (
         paylink["link_url"]
@@ -100,20 +120,23 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
         "stats": {
             "total_earned": round(total_earned, 2),
             "pending_amount": round(pending_amount, 2),
+            "overdue_amount": round(overdue_amount, 2),  # ← ADD THIS
             "total_invoices": len(invoices),
             "overdue_count": overdue_count,
-            "draft_count": 0,  # Drafts are intentionally hidden
-            "growth_trend": "0%"
+            "draft_count": 0,
+            "growth_trend": "0%",
+            "has_earnings": total_earned > 0  # ← ADD THIS
         },
         "invoices": [
             {
-                **i.dict(by_alias=True),
+                **inv.dict(by_alias=True),
                 "invoice_url": (
-                    f"{settings.BACKEND_URL}{i.invoice_url}"
-                    if i.invoice_url else None
+                    f"{settings.BACKEND_URL}{inv.invoice_url}"
+                    if inv.invoice_url
+                    else None
                 )
             }
-            for i in invoices[:20]
+            for inv in invoices[:50]  # ← INCREASED from 20 to show more
         ],
         "paylink": {
             "url": paylink_url
@@ -162,7 +185,7 @@ async def create_quick_invoice(
         currency=payload.get("currency", "NGN"),
         due_date=due_date,
         client_email="client@payla.vip",
-        is_quick=True  # <-- ensures invisible in dashboard
+        is_quick=True
     )
 
     draft_invoice = await create_invoice_draft(draft, current_user)

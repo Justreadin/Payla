@@ -4,13 +4,40 @@ from app.core.config import settings
 from firebase_admin import firestore
 from datetime import datetime, timezone
 from app.routers.payment_router import create_notification
+from app.core.celery_app import celery_app
 
 logger = logging.getLogger("payla")
 db = firestore.client()
 
 
+def update_payout_status(reference: str, status: str):
+    # Try paylink first
+    ref = db.collection("paylink_transactions").document(reference)
+    if ref.get().exists:
+        ref.update({
+            "payout_status": status,
+            "last_update": datetime.utcnow()
+        })
+        return
+
+    # Try invoice
+    ref = db.collection("invoices").document(reference)
+    if ref.get().exists:
+        ref.update({
+            "payout_status": status,
+            "updated_at": datetime.utcnow()
+        })
+        return
+
+    logger.error(f"Payout reference not found anywhere: {reference}")
+
+@celery_app.task
 async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
     logger.info(f"Attempting payout → {reference} | ₦{amount_ngn:,.0f}")
+    if reference.startswith("draft_"):
+        logger.info(f"Skipping payout for draft invoice: {reference}")
+        return
+
 
     try:
         user_doc = db.collection("users").document(user_id).get()
@@ -19,6 +46,17 @@ async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
             return
 
         user = user_doc.to_dict()
+        
+        if user.get("business_type") == "starter":
+            logger.warning("Payout blocked — starter business")
+            update_payout_status(reference, "blocked")
+
+            create_notification(
+                user_id,
+                title="Payout Pending Upgrade",
+                message="Your payment was received, but payouts require a registered business. Upgrade to enable withdrawals."
+            )
+            return
 
         # SAFE access fields
         account_name = user.get("payout_account_name")
@@ -30,12 +68,10 @@ async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
             logger.error(f"Missing payout details for user {user_id}")
             
             # Mark transaction as failed
-            db.collection("paylink_transactions").document(reference).update({
-                "payout_status": "failed",
-                "last_update": datetime.utcnow()
-            })
+            update_payout_status(reference, "failed")
+            logger.info(f"Payout {reference} marked as failed")
 
-            # Notify user
+                # Notify user
             create_notification(
                 user_id,
                 title="Payout Failed",
@@ -47,10 +83,12 @@ async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
         # Hold small payouts
         if amount_ngn < 1000:
             logger.info(f"Amount below ₦1000 → held")
-            db.collection("paylink_transactions").document(reference).update({
-                "payout_status": "held",
-                "last_update": datetime.utcnow()
-            })
+            update_payout_status(reference, "held")
+            return
+
+        payout_ref = db.collection("payouts").document(reference)
+        if payout_ref.get().exists:
+            logger.warning(f"Payout already processed: {reference}")
             return
 
         # Resolve recipient code
@@ -69,10 +107,8 @@ async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
                 })
             else:
                 logger.error("Recipient creation failed.")
-                db.collection("paylink_transactions").document(reference).update({
-                    "payout_status": "failed",
-                    "last_update": datetime.utcnow()
-                })
+                update_payout_status(reference, "failed")
+                logger.info(f"Payout {reference} marked as failed")
                 return
 
         # Create transfer
@@ -87,23 +123,17 @@ async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
                 "paid_at": datetime.utcnow()
             })
 
-            db.collection("paylink_transactions").document(reference).update({
-                "payout_status": "success",
-                "last_update": datetime.utcnow()
-            })
+            update_payout_status(reference, "success")
+            logger.info(f"Payout {reference} marked as success")
         else:
             logger.error(f"Transfer failed: {error_msg}")
-            db.collection("paylink_transactions").document(reference).update({
-                "payout_status": "failed",
-                "last_update": datetime.utcnow()
-            })
+            update_payout_status(reference, "failed")
+            logger.info(f"Payout {reference} marked as failed")
 
     except Exception as e:
         logger.error(f"Payout failed → {reference}: {e}", exc_info=True)
-        db.collection("paylink_transactions").document(reference).update({
-            "payout_status": "failed",
-            "last_update": datetime.utcnow()
-        })
+        update_payout_status(reference, "failed")
+        logger.info(f"Payout {reference} marked as failed")
 
 
 async def create_recipient(account_number: str, bank_code: str, account_name: str):
@@ -120,7 +150,7 @@ async def create_recipient(account_number: str, bank_code: str, account_name: st
     async with httpx.AsyncClient(timeout=20.0) as client:
         try:
             resp = await client.post(url, json=payload, headers=headers)
-            data = resp.json()
+            data = await resp.json()
             logger.debug(f"Recipient creation response: {data}")
             if data.get("status"):
                 return data["data"]["recipient_code"]
@@ -136,14 +166,14 @@ async def create_transfer(recipient_code: str, amount_ngn: float, reason: str):
         "source": "balance",
         "amount": int(amount_ngn * 100),
         "recipient": recipient_code,
-        "reason": f"Payla Instant Payout - {reason}"
+        "reason": f"Payla Instant Payout - {reason or 'No reference'}"
     }
     headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             resp = await client.post(url, json=payload, headers=headers)
-            data = resp.json()
+            data = await resp.json()
             logger.debug(f"Transfer response: {data}")
             if data.get("status"):
                 return True, data["data"]["reference"], ""

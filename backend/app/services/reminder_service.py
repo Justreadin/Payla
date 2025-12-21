@@ -6,13 +6,20 @@ import logging
 from app.models.reminder_model import Reminder, ReminderCreate
 from app.core.firebase import db
 from app.services.channels import send_via_whatsapp, send_via_sms, send_via_email
-from app.utils.email import generate_email_content, get_sender
+from app.utils.email import generate_email_content
 from app.utils.whatsapp_layla import WHATSAPP_MESSAGES
 from app.utils.sms_layla import SMS_LAYLA
+from app.core.reminder_config import get_delivery_hour_utc, get_quiet_hours_utc
 
 logger = logging.getLogger("payla")
+logger.setLevel(logging.INFO)
 
+DELIVERY_HOUR_UTC = get_delivery_hour_utc("WAT")
+QUIET_START_UTC, QUIET_END_UTC = get_quiet_hours_utc("WAT")
 
+# ---------------------------
+# Template helpers
+# ---------------------------
 def get_layla_whatsapp(key: str, context: Dict[str, Any]) -> str:
     return WHATSAPP_MESSAGES.get(key, WHATSAPP_MESSAGES["gentle_nudge"]).format(**context)
 
@@ -25,11 +32,22 @@ def get_layla_email(email_type: str, context: dict, use_html: bool = True) -> st
     return generate_email_content(email_type, context, use_html=use_html)
 
 
-def is_within_quiet_hours(now: datetime, start_hour: int = 22, end_hour: int = 7) -> bool:
-    current_hour = now.hour
-    return start_hour <= current_hour or current_hour < end_hour
+def is_within_quiet_hours(now: datetime, start_hour: int = None, end_hour: int = None) -> bool:
+    """Check if current time is within quiet hours (uses WAT timezone by default)"""
+    if start_hour is None:
+        start_hour = QUIET_START_UTC
+    if end_hour is None:
+        end_hour = QUIET_END_UTC
+    
+    # Handle case where quiet hours span midnight
+    if start_hour > end_hour:
+        return now.hour >= start_hour or now.hour < end_hour
+    else:
+        return start_hour <= now.hour < end_hour
 
-
+# ---------------------------
+# Send messages with retry
+# ---------------------------
 async def send_if_allowed(
     methods: List[str],
     invoice: dict,
@@ -41,185 +59,318 @@ async def send_if_allowed(
 ):
     now = datetime.utcnow().replace(tzinfo=timezone.utc)
     if is_within_quiet_hours(now):
-        logger.info("Currently in quiet hours – delaying immediate send.")
+        logger.info(f"[{now.isoformat()}] Quiet hours: delaying sends for invoice {invoice.get('invoice_id')}")
         return
 
-    if "whatsapp" in methods and invoice.get("client_phone"):
+    for method in methods:
         try:
-            logger.info(f"Sending WhatsApp to {invoice['client_phone']}")
-            await send_via_whatsapp(invoice["client_phone"], whatsapp_msg)
+            if method == "whatsapp" and invoice.get("client_phone"):
+                logger.info(f"[{now.isoformat()}] Sending WhatsApp to {invoice['client_phone']}")
+                await send_via_whatsapp(invoice["client_phone"], whatsapp_msg)
+
+            elif method == "sms" and invoice.get("client_phone"):
+                logger.info(f"[{now.isoformat()}] Sending SMS to {invoice['client_phone']}")
+                await send_via_sms(invoice["client_phone"], sms_msg)
+
+            elif method == "email" and invoice.get("client_email"):
+                logger.info(f"[{now.isoformat()}] Sending Email to {invoice['client_email']} type: {email_type}")
+                result = await send_via_email(invoice["client_email"], email_subject, email_html, email_type=email_type)
+                logger.info(f"[{now.isoformat()}] Email send result: {result}")
+
         except Exception as e:
-            logger.error(f"WhatsApp send failed: {e}")
-
-    if "sms" in methods and invoice.get("client_phone"):
-        try:
-            logger.info(f"Sending SMS to {invoice['client_phone']}")
-            await send_via_sms(invoice["client_phone"], sms_msg)
-        except Exception as e:
-            logger.error(f"SMS send failed: {e}")
-
-    if "email" in methods and invoice.get("client_email"):
-        try:
-            logger.info(f"Sending Email to {invoice['client_email']} with type '{email_type}'")
-            result = await send_via_email(
-                invoice["client_email"],
-                email_subject,
-                email_html,
-                email_type=email_type
-            )
-            logger.info(f"Email send result: {result}")
-        except Exception as e:
-            logger.error(f"Email send failed: {e}")
+            logger.error(f"[{now.isoformat()}] Failed to send {method} for invoice {invoice.get('invoice_id')}: {e}")
 
 
-async def schedule_reminders_for_invoice(
-    invoice_id: str,
-    payload: ReminderCreate,
-    user_id: str
-) -> List[Reminder]:
-    """
-    Elite reminder scheduling with Layla voice across WhatsApp/SMS/Email.
-    Ensures published invoice is used (never draft).
-    """
+# ---------------------------
+# Map trigger → templates
+# ---------------------------
+def map_templates(trigger: datetime, due_date: datetime, context: dict):
+    now = datetime.utcnow().replace(tzinfo=timezone.utc)
+    days_diff = (due_date.date() - trigger.date()).days
+    days_over = (trigger.date() - due_date.date()).days
 
-    # --------------------------------------------------------
-    # 1. Load invoice FIRST
-    # --------------------------------------------------------
+    whatsapp_key = "gentle_nudge"
+    sms_key = "gentle"
+    email_type = "reminder"
+
+    if days_diff == 3:
+        whatsapp_key, sms_key, email_type = "gentle_nudge", "gentle", "reminder"
+    elif days_diff == 1:
+        whatsapp_key, sms_key, email_type = "tomorrow", "tomorrow", "reminder_2"
+    elif days_diff == 0:
+        whatsapp_key, sms_key, email_type = "due_today_morning", "due_today", "reminder_2"
+    elif days_over == 1:
+        whatsapp_key, sms_key, email_type = "one_day_over", "one_day_over", "overdue_gentle"
+    elif days_over >= 3:
+        whatsapp_key, sms_key, email_type = "few_days_over", "few_days_over", "overdue_firm"
+    elif days_over < 0 and abs(days_over) > 7:
+        whatsapp_key, sms_key, email_type = "final_nudge", "final_nudge", "overdue_firm"
+
+    return whatsapp_key, sms_key, email_type
+
+# ---------------------------
+# Send reminder to all user-selected channels with retries
+# ---------------------------
+async def send_reminder_to_all_channels(rem: Reminder, invoice: dict, context: dict, channels: list):
+    whatsapp_key, sms_key, email_type = map_templates(
+        rem.next_send, context.get("due_date_dt", datetime.utcnow()), context
+    )
+
+    async def try_send(ch: str):
+        if ch in rem.channel_used:
+            logger.info(f"Channel {ch} already sent for reminder {rem.id}, skipping")
+            return
+
+        retry_count = 0
+        max_retries = 5
+        wait_seconds = 15 * 60
+        success = False
+
+        while not success and retry_count < max_retries:
+            now = datetime.utcnow().replace(tzinfo=timezone.utc)
+            if is_within_quiet_hours(now):
+                logger.info(f"[{now.isoformat()}] Quiet hours active, waiting to send {ch}")
+                await asyncio.sleep(60)
+                continue
+
+            try:
+                if ch == "whatsapp" and invoice.get("client_phone"):
+                    msg = rem.message or get_layla_whatsapp(whatsapp_key, context)
+                    logger.info(f"[{now.isoformat()}] Sending WhatsApp to {invoice['client_phone']}")
+                    await send_via_whatsapp(invoice["client_phone"], msg)
+
+                elif ch == "sms" and invoice.get("client_phone"):
+                    msg = rem.message or get_layla_sms(sms_key, context)
+                    logger.info(f"[{now.isoformat()}] Sending SMS to {invoice['client_phone']}")
+                    await send_via_sms(invoice["client_phone"], msg)
+
+                elif ch == "email" and invoice.get("client_email"):
+                    subject = f"Reminder: {context['amount']} due on {context['due_date']}"
+                    html = rem.message or get_layla_email(email_type, context)
+                    logger.info(f"[{now.isoformat()}] Sending Email to {invoice['client_email']}")
+                    await send_via_email(invoice["client_email"], subject, html, email_type=email_type)
+
+                success = True
+                rem.channel_used.append(ch)
+                status = "sent" if set(rem.channel_used) == set(channels) else "pending"
+                db.collection("reminders").document(rem.id).update({
+                    "channel_used": rem.channel_used,
+                    "status": status,
+                    "sent_at": datetime.utcnow().replace(tzinfo=timezone.utc)
+                })
+
+            except Exception as e:
+                logger.error(f"[{now.isoformat()}] Failed to send {ch} for reminder {rem.id} (retry {retry_count}): {e}")
+                retry_count += 1
+                await asyncio.sleep(wait_seconds)
+
+    # Run all channels independently in parallel
+    await asyncio.gather(*(try_send(ch) for ch in channels))
+
+# ---------------------------
+# Schedule reminders for invoice (user-selected channels only)
+# ---------------------------
+async def schedule_reminders_for_invoice(invoice_id: str, payload: ReminderCreate, user_id: str) -> List[Reminder]:
+    logger.info(f"[{datetime.utcnow().isoformat()}] Scheduling reminders for invoice {invoice_id}")
+
     inv_doc = db.collection("invoices").document(invoice_id).get()
     if not inv_doc.exists:
+        logger.error(f"Invoice {invoice_id} not found in DB")
         raise ValueError("Invoice not found")
-
     invoice = inv_doc.to_dict()
 
-    # --------------------------------------------------------
-    # 2. If invoice is still draft, wait for Firestore propagation
-    # --------------------------------------------------------
     if invoice.get("status") == "draft":
-        logger.warning(f"Invoice {invoice_id} still draft — waiting for published data...")
         await asyncio.sleep(0.5)
-
-        # Reload after waiting
         invoice = db.collection("invoices").document(invoice_id).get().to_dict()
-
         if invoice.get("status") == "draft":
+            logger.warning(f"Cannot schedule reminders for draft invoice {invoice_id}")
             raise ValueError("Cannot schedule reminders for draft invoice")
 
-    # --------------------------------------------------------
-    # Now invoice is guaranteed published — continue
-    # --------------------------------------------------------
-
-    # Normalize client email
-    invoice["client_email"] = (
-        invoice.get("client_email") or
-        invoice.get("email") or
-        invoice.get("clientEmail")
-    )
-    logger.info(f"Invoice email: {invoice['client_email']}")
-
     due_date = invoice["due_date"]
-    if isinstance(due_date, datetime):
+    if isinstance(due_date, str):
+        due_date = datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc)
+    elif isinstance(due_date, datetime):
         due_date = due_date.replace(tzinfo=timezone.utc)
 
-    client_name = (invoice.get("client_name") or "there").split()[0]
-    amount = invoice.get("amount", 0)
-    amount_str = f"₦{amount:,}"
-    link = invoice["invoice_url"]
-    business_name = invoice.get("business_name") or "Payla user"
-    invoice_ref = invoice.get("invoice_id", invoice_id.split("_")[-1])
+    phone = invoice.get("client_phone")
+    email = invoice.get("client_email")
 
-    # Load user settings
-    settings_doc = db.collection("reminder_settings").document(user_id).get()
-    settings = settings_doc.to_dict() if settings_doc.exists else {}
-    methods = payload.method_priority or settings.get("methods", ["whatsapp", "sms", "email"])
-    logger.info(f"Methods for sending: {methods}")
+    # ---------------------------
+    # Determine channels strictly from user selection
+    # ---------------------------
+    channels: List[str] = []
+    if payload.method_priority:
+        for ch in payload.method_priority:
+            if ch in ["whatsapp", "sms"] and phone:
+                channels.append(ch)
+            elif ch == "email" and email:
+                channels.append("email")
 
+    if not channels:
+        logger.warning(f"No valid channels selected for invoice {invoice_id}, skipping reminder scheduling.")
+        return []
+
+    # ---------------------------
+    # 🔥 FIXED: Determine reminder triggers based on user selection
+    # ---------------------------
+    triggers: List[datetime] = []
     now = datetime.utcnow().replace(tzinfo=timezone.utc)
-    triggers = []
 
-    # Manual dates
     if payload.manual_dates:
+        # User provided specific dates
+        logger.info(f"Using manual dates: {payload.manual_dates}")
         for dt_str in payload.manual_dates:
             try:
-                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00")).astimezone(timezone.utc)
-                triggers.append(dt)
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                if dt > now:  # Only future dates
+                    triggers.append(dt)
+                else:
+                    logger.warning(f"Manual date {dt_str} is in the past, skipping")
             except Exception as e:
-                logger.warning(f"Invalid manual date {dt_str}: {e}")
+                logger.warning(f"Invalid manual date {dt_str} for invoice {invoice_id}: {e}")
     else:
-        # Presets
-        preset = payload.preset or settings.get("preset", "standard")
+        # Use preset
+        preset = payload.preset or "standard"
+        logger.info(f"Using preset: {preset}")
+        
+        # Calculate time until due date
+        days_until_due = (due_date.date() - now.date()).days
+        
         if preset == "gentle":
-            triggers.append(due_date - timedelta(days=3))
+            # Single reminder 3 days before (or ASAP if less than 3 days)
+            if days_until_due >= 3:
+                reminder_date = due_date - timedelta(days=3)
+                reminder_date = reminder_date.replace(hour=DELIVERY_HOUR_UTC, minute=0, second=0, microsecond=0)
+                triggers.append(reminder_date)
+            else:
+                # Invoice due soon, send immediately
+                triggers.append(now + timedelta(minutes=1))
+                
         elif preset == "aggressive":
-            for i in range(5):
-                triggers.append(due_date - timedelta(days=4 - i))
-        else:
-            triggers.extend([
-                due_date - timedelta(days=3),
-                due_date - timedelta(days=1),
-                due_date,
-                due_date + timedelta(days=1)
-            ])
+            # Multiple reminders: 4, 3, 2, 1 days before, and on due date
+            for days_before in [4, 3, 2, 1, 0]:
+                reminder_date = due_date - timedelta(days=days_before)
+                reminder_date = reminder_date.replace(hour=DELIVERY_HOUR_UTC, minute=0, second=0, microsecond=0)
+                
+                if reminder_date > now:
+                    triggers.append(reminder_date)
+                elif days_before == 0 and reminder_date.date() >= now.date():
+                    # Due date is today but time has passed, send immediately
+                    triggers.append(now + timedelta(minutes=1))
+                    
+        else:  # standard
+            # 3 days before, 1 day before, due date, 1 day after
+            standard_offsets = [3, 1, 0, -1]  # negative = days AFTER due
+            
+            for offset in standard_offsets:
+                reminder_date = due_date - timedelta(days=offset)
+                # Set to 10 AM WAT (9 AM UTC)
+                reminder_date = reminder_date.replace(hour=DELIVERY_HOUR_UTC, minute=0, second=0, microsecond=0)
+                
+                # Only schedule if it's in the future
+                if reminder_date > now:
+                    triggers.append(reminder_date)
+                elif offset <= 0 and reminder_date.date() >= now.date():
+                    # Due date or overdue reminders - if today, send immediately
+                    triggers.append(now + timedelta(minutes=1))
 
-    reminders = []
+    # Remove duplicates and sort
+    triggers = sorted(list(set(triggers)))
+    
+    if not triggers:
+        logger.warning(f"No valid reminder triggers generated for invoice {invoice_id}")
+        return []
+
+    logger.info(f"Generated {len(triggers)} reminder triggers: {[t.isoformat() for t in triggers]}")
+    logger.info(f"🕐 Reminders will be delivered at 10:00 AM WAT (9:00 AM UTC)")
+    logger.info(f"🌙 Quiet hours: 10:00 PM - 7:00 AM WAT (9:00 PM - 6:00 AM UTC)")
+
+    reminders: List[Reminder] = []
+    client_name = (invoice.get("client_name") or "there").split()[0]
+    amount_str = f"₦{invoice.get('amount', 0):,}"
+    link = invoice.get("invoice_url")
+    business_name = invoice.get("business_name") or "Payla user"
+
     context_base = {
         "name": client_name,
         "amount": amount_str,
         "due_date": due_date.strftime("%b %d"),
+        "due_date_dt": due_date,
         "link": link,
         "business_name": business_name,
-        "invoice_id": invoice_ref
+        "invoice_id": invoice.get("invoice_id", invoice_id)
     }
 
+    # ---------------------------
+    # Create reminders
+    # ---------------------------
     for trigger in triggers:
-        if trigger < now - timedelta(days=30) or trigger > due_date + timedelta(days=7):
-            continue
-
-        days_until = (due_date - trigger).days
-        days_over = (trigger - due_date).days
-
-        # Select message type
-        if days_over > 0:
-            whatsapp_key = "few_days_over" if days_over >= 3 else "one_day_over"
-            sms_key = "few_days_over" if days_over >= 3 else "one_day_over"
-            email_type = "overdue_firm" if days_over >= 3 else "overdue_gentle"
-        elif days_until == 0:
-            whatsapp_key = "due_today_morning"
-            sms_key = "due_today"
-            email_type = "reminder_2"
-        elif days_until == 1:
-            whatsapp_key = "tomorrow"
-            sms_key = "tomorrow"
-            email_type = "reminder_2"
-        else:
-            whatsapp_key = "gentle_nudge"
-            sms_key = "gentle"
-            email_type = "reminder"
-
-        context = context_base.copy()
-        context["days"] = abs(days_over) if days_over > 0 else days_until
-
-        whatsapp_msg = get_layla_whatsapp(whatsapp_key, context)
-        sms_msg = get_layla_sms(sms_key, context)
-        email_html = get_layla_email(email_type, context)
-        email_subject = f"Reminder: {amount_str} due on {due_date.strftime('%b %d')}"
-
-        # Save reminder
         rem = Reminder(
             _id=f"{invoice_id}_{int(trigger.timestamp())}",
             invoice_id=invoice_id,
-            user_id=user_id,
-            method=methods[0],
-            message=sms_msg,
+            user_id=user_id, 
+            channels_selected=channels,
+            channel_used=[],
+            message=getattr(payload, "custom_message", "") or "",
             next_send=trigger,
             status="pending",
-            active=True,
-            channel_used=None
+            active=True
         )
+
+        # Save reminder
         db.collection("reminders").document(rem.id).set(rem.dict(by_alias=True))
         reminders.append(rem)
 
-        # Immediate send if trigger is now/past
-        if trigger <= now + timedelta(minutes=5):
-            await send_if_allowed(methods, invoice, whatsapp_msg, sms_msg, email_subject, email_html)
-
+    logger.info(f"✅ Scheduled {len(reminders)} reminders for invoice {invoice_id} with channels: {channels}")
     return reminders
+
+# ---------------------------
+# Payment success notification to the user
+# ---------------------------
+async def send_payment_success_notification(user: dict, invoice: dict):
+    """
+    Send payment success notification to the user (owner of the invoice)
+    via WhatsApp and Email when a payment is received.
+    """
+    if not user:
+        logger.warning("User info not provided, cannot send payment notification.")
+        return
+
+    name = user.get("name", "there")
+    phone = user.get("phone")
+    email = user.get("email")
+    amount_str = f"₦{invoice.get('amount', 0):,}"
+    invoice_id = invoice.get("invoice_id", "N/A")
+
+    context = {
+        "name": name,
+        "amount": amount_str,
+        "invoice_id": invoice_id
+    }
+
+    whatsapp_msg = get_layla_whatsapp("payment_received", context)
+    sms_msg = get_layla_sms("paid", context)
+    email_html = get_layla_email("payment_received", context)
+    email_subject = f"Payment Received: {amount_str} for Invoice {invoice_id}"
+
+    channels = []
+    if phone:
+        channels.append("whatsapp")
+    if email:
+        channels.append("email")
+
+    if not channels:
+        logger.warning(f"No valid channels for user {name}, skipping payment notification.")
+        return
+
+    logger.info(f"Sending payment success notification to user {name} for invoice {invoice_id}")
+    
+    # Send via each channel
+    for method in channels:
+        try:
+            if method == "whatsapp":
+                await send_via_whatsapp(phone, whatsapp_msg)
+            elif method == "email":
+                await send_via_email(email, email_subject, email_html, email_type="payment_received")
+        except Exception as e:
+            logger.error(f"Failed to send {method} payment notification: {e}")

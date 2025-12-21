@@ -8,7 +8,7 @@ class ReminderSettings(BaseModel):
     id: str = Field(..., alias="_id")
     user_id: str
 
-    methods: list[Literal["whatsapp", "sms", "email"]] = ["whatsapp", "sms"]  # Priority order
+    methods: list[Literal["whatsapp", "sms", "email"]] = ["whatsapp", "sms"]
     frequency: Literal["daily", "every_two_days", "weekly", "on_due_date"] = "every_two_days"
     days_before_due: int = 3
     days_after_due: int = 1
@@ -25,17 +25,14 @@ class ReminderSettings(BaseModel):
 
 
 class ReminderCreate(BaseModel):
-    # User-selected priority channel ordering
     method_priority: Optional[List[str]] = None
+    channels: Optional[List[Literal["whatsapp", "sms", "email"]]] = None
     
-    # Custom message overrides
     custom_message: Optional[str] = None
     custom_email_subject: Optional[str] = None
 
-    # What your service actually expects
-    manual_dates: Optional[List[str]] = None   # ISO strings
+    manual_dates: Optional[List[str]] = None
     preset: Optional[str] = None     
-
 
 
 class Reminder(BaseModel):
@@ -43,13 +40,32 @@ class Reminder(BaseModel):
     invoice_id: str
     user_id: str
 
-    method: Literal["whatsapp", "sms", "email"]
-    channel_used: Optional[Literal["whatsapp", "sms", "email"]] = None
+    # SOURCE OF TRUTH
+    channels_selected: List[Literal["whatsapp", "sms", "email"]]
+
+    # TRACK PROGRESS
+    channel_used: List[Literal["whatsapp", "sms", "email"]] = []
+
     message: str
-    status: Literal["pending", "sent", "failed", "delivered"] = "pending"
+    status: Literal["pending", "sent", "failed", "cancelled", "delivered"] = "pending"
 
     next_send: datetime
     last_sent: Optional[datetime] = None
-    delivery_sid: Optional[str] = None  # Twilio SID
+    delivery_sid: Optional[str] = None
+    
+    # ✅ ADD THIS - matches your schedule_reminders_for_invoice
+    active: bool = True
+    
+    # ✅ ADD THESE - for lock mechanism
+    locked: bool = False
+    locked_at: Optional[datetime] = None
+    
+    # ✅ ADD THESE - for tracking failures/cancellations
+    failed_reason: Optional[str] = None
+    cancelled_reason: Optional[str] = None
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        populate_by_name = True
+        from_attributes = True

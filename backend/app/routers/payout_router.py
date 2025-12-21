@@ -10,6 +10,7 @@ from firebase_admin import firestore
 from datetime import datetime
 from app.tasks.payout import initiate_payout
 import logging
+from app.tasks.payout_celery import payout_task
 
 from app.core.config import settings
 
@@ -100,9 +101,14 @@ async def get_payout_account(current_user: User = Depends(get_current_user)):
     data = doc.to_dict()
     if not data.get("payout_account_number"):
         return None
-    return PayoutAccountOut(bank_code=data.get("payout_bank", ""), account_number=data.get("payout_account_number", ""),
-                            account_name=data.get("payout_account_name", ""), bank_name=data.get("payout_bank_name", "Unknown Bank"),
-                            updated_at=data.get("updated_at", datetime.utcnow()))
+    return PayoutAccountOut(
+        bank_code=data.get("payout_bank", ""),
+        account_number=data.get("payout_account_number", ""),
+        account_name=data.get("payout_account_name", ""),
+        bank_name=data.get("payout_bank_name", "Unknown Bank"),
+        updated_at=data.get("updated_at", datetime.utcnow())
+    )
+
 
 @router.delete("/account", response_model=DeleteResponse)
 async def remove_payout_account(current_user: User = Depends(get_current_user)):
@@ -189,12 +195,20 @@ async def payout_history(current_user: User = Depends(get_current_user)):
     return {"history": history}
 
 # ------------------- Helper: Queue Payout -------------------
+
+
 async def queue_payout(user_id: str, amount: float, reference: str, payout_type: str = "paylink"):
+    """
+    Queue a payout for a user (Paylink or Invoice).
+    Only enqueues via Celery; does NOT trigger direct async payout.
+    """
+    # Reference in 'payouts' collection
     payout_ref = db.collection("payouts").document(reference)
     if payout_ref.get().exists:
         logger.info(f"Payout already queued: {reference}")
         return
 
+    # Create payout entry
     payout_entry = {
         "user_id": user_id,
         "reference": reference,
@@ -205,17 +219,26 @@ async def queue_payout(user_id: str, amount: float, reference: str, payout_type:
         "paid_at": None
     }
     payout_ref.set(payout_entry)
+    logger.info(f"Payout queued → {reference} | ₦{amount:,.0f}")
 
-    # Update payout_status in source
+    # Update source transaction status
     if payout_type == "paylink":
-        db.collection("paylink_transactions").document(reference).update({"payout_status": "pending"})
+        try:
+            db.collection("paylink_transactions").document(reference).update({"payout_status": "pending"})
+        except Exception as e:
+            logger.warning(f"Failed to update paylink transaction {reference}: {e}")
     elif payout_type == "invoice":
-        db.collection("invoices").document(reference).update({"payout_status": "pending"})
+        try:
+            db.collection("invoices").document(reference).update({"payout_status": "pending"})
+        except Exception as e:
+            logger.warning(f"Failed to update invoice {reference}: {e}")
 
-    logger.info(f"Payout queued for {user_id} | {payout_type} | {amount}")
-
-    # Trigger actual payout task asynchronously
-    asyncio.create_task(initiate_payout(user_id, amount, reference))
+    # Enqueue payout in Celery
+    try:
+        payout_task.delay(user_id, amount, reference)
+        logger.info(f"Celery payout task enqueued → {reference}")
+    except Exception as e:
+        logger.error(f"Failed to enqueue payout task for {reference}: {e}", exc_info=True)
 
 
 @router.get("/transaction/{reference}/payout_status")

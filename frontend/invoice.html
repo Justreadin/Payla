@@ -56,7 +56,8 @@
             <div class="form-group">
               <label>Amount *</label>
               <div class="input-group">
-                <select id="currency"><option>NGN</option><option>USD</option><option>EUR</option></select>
+                <select id="currency"><option>NGN</option>
+                  <!---<option>USD</option><option>EUR</option---></select>
                 <input type="number" id="amount" placeholder="150,000" required>
               </div>
             </div>
@@ -70,9 +71,9 @@
             <div class="phone-input-group">
               <select id="country-code" class="country-select">
                 <option value="+234" selected>🇳🇬 +234</option>
-                <option value="+1">🇺🇸 +1</option>
+                <!---option value="+1">🇺🇸 +1</option>
                 <option value="+44">🇬🇧 +44</option>
-                <option value="+233">🇬🇧 +233</option>
+                <option value="+233">🇬🇧 +233</option--->
               </select>
               <input type="tel" id="client-phone-local" placeholder="8012345678">
             </div>
@@ -242,7 +243,7 @@
           <label class="setting-label">Enable Auto-Reminders</label>
           <div class="toggle premium-toggle">
             <label class="toggle-switch">
-              <input type="checkbox" id="modal-auto-remind" checked>
+              <input type="checkbox" id="modal-auto-remind">
               <span class="slider premium-slider"></span>
             </label>
           </div>

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Payla"
     ENVIRONMENT: str = Field(default="development", env="ENVIRONMENT")
     DEBUG: bool = Field(default=True, env="DEBUG")
-    BACKEND_URL: str = 'http://127.0.0.1:8000'
+    BACKEND_URL: str = 'https://payla.ng'
 
     # ────────────────────────────────
     # 2. FRONTEND
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     PAYSTACK_SECRET_PAYLA: str = Field(..., env="PAYSTACK_SECRET_PAYLA")
     PAYSTACK_PUBLIC_PAYLA: str = Field(..., env="PAYSTACK_PUBLIC_PAYLA")
     PAYSTACK_WEBHOOK_URL: AnyUrl = Field(
-        default_factory=lambda: f"{os.getenv('BACKEND_URL', 'http://localhost:8000')}/webhook/paystack"
+        default_factory=lambda: f"{os.getenv('BACKEND_URL', 'https://payla.ng').rstrip('/')}/api/webhook/paystack"
     )
 
     # ────────────────────────────────

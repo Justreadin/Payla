@@ -266,7 +266,6 @@ h1, h2, h3, .logo-main {
     font-size: 24px;
     font-weight: 900;
     color: var(--midnight-void);
-    box-shadow: 0 8px 32px #E5E5E5;
     border: 3px solid rgba(227, 227, 227, 0.8);
     transition: all 0.3s ease;
 }

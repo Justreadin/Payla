@@ -177,8 +177,12 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
                 logger.info(f"Payout already processed for {ref}")
             else:
                 try:
-                    from tasks.payout import initiate_payout
-                    background_tasks.add_task(initiate_payout, user_id, amount, ref)
+                    from tasks.payout_celery import payout_task
+
+                    # enqueue payout task
+                    payout_task.delay(user_id, amount, ref)
+                    logger.info(f"Payout task queued via Celery → {ref}")
+
                     logger.info(f"Payout task queued → {ref}")
                 except Exception as e:
                     logger.error(f"Payout task failed to start: {e}", exc_info=True)

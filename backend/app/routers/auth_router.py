@@ -1,5 +1,6 @@
 # routers/auth.py
 from typing import Optional
+from app.utils.firebase import firestore_run
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from firebase_admin import auth
@@ -60,9 +61,13 @@ class VerifyCodeRequest(BaseModel):
 @router.post("/check-email")
 async def check_email(data: CheckEmailRequest):
     email = data.email.lower().strip()
-    user_doc = db.collection("users").where("email", "==", email).get()
+    user_doc = await firestore_run(
+        db.collection("users").where("email", "==", email).get  # <- note: no ()
+    )
     exists = len(user_doc) > 0
-    return {"exists": exists, "waitlist": db.collection("waitlist").document(email).get().exists}
+    waitlist_doc = await firestore_run(db.collection("waitlist").document(email).get)
+    return {"exists": exists, "waitlist": waitlist_doc.exists}
+
 
 @router.post("/signup-email")
 async def signup_email(data: SignupRequest):
@@ -103,7 +108,10 @@ async def signup_email(data: SignupRequest):
             plan="silver",
             created_at=datetime.now(timezone.utc)
         )
-        db.collection("users").document(fb_user.uid).set(new_user.dict(by_alias=True))
+        await firestore_run(
+            db.collection("users").document(fb_user.uid).set,
+            new_user.dict(by_alias=True)
+        )
         logger.info(f"✅ Firestore user document created for {email}")
 
         # ----------------------------
@@ -127,22 +135,37 @@ async def signup_email(data: SignupRequest):
 
 @router.post("/login-email", response_model=AuthResponse)
 async def login(payload: LoginRequest):
+    #logger.info(f"🔑 Attempting to verify ID token for payload: {payload.dict()}")
+    
     try:
         decoded = auth.verify_id_token(payload.id_token)
-    except Exception:
+        logger.info(f"✅ Token verified successfully | UID: {decoded['uid']} | Email: {decoded.get('email')}")
+    except auth.InvalidIdTokenError as e:
+        logger.error(f"❌ Invalid ID token: {e}")
         raise HTTPException(status_code=401, detail="Invalid Firebase token")
+    except auth.ExpiredIdTokenError as e:
+        logger.error(f"❌ Expired ID token: {e}")
+        raise HTTPException(status_code=401, detail="Token expired")
+    except auth.RevokedIdTokenError as e:
+        logger.error(f"❌ Revoked ID token: {e}")
+        raise HTTPException(status_code=401, detail="Token revoked")
+    except auth.CertificateFetchError as e:
+        logger.error(f"❌ Failed to fetch certificates: {e}")
+        raise HTTPException(status_code=401, detail="Certificate fetch failed")
+    except Exception as e:
+        logger.error(f"❌ Unexpected error verifying token: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=401, detail="Token verification failed")
 
     uid = decoded["uid"]
     fb_user = auth.get_user(uid)
     email = fb_user.email.lower()
 
-    user_doc = db.collection("users").document(uid).get()
+    user_doc = await firestore_run(db.collection("users").document(uid).get)
     if not user_doc.exists:
         raise HTTPException(401, "User not found. Please signup first.")
 
     user = User(**user_doc.to_dict())
 
-    # If user is not verified, return special response for frontend modal
     if not user.email_verified:
         return AuthResponse(
             user=user,
@@ -150,7 +173,6 @@ async def login(payload: LoginRequest):
             message="Email not verified. Please check your inbox."
         )
 
-    # VERIFIED USER: CREATE LOGIN NOTIFICATION
     create_notification(
         user_id=user.id,
         title="Welcome Back!",
@@ -164,7 +186,9 @@ async def login(payload: LoginRequest):
 @router.get("/verify-email")
 async def verify_email(token: str):
     """Verify user's email and redirect to the next step."""
-    users = db.collection("users").where("verify_token", "==", token).stream()
+    users = await firestore_run(
+        db.collection("users").where("verify_token", "==", token).stream
+    )
     matched_user = None
     for u in users:
         matched_user = u
@@ -175,10 +199,10 @@ async def verify_email(token: str):
 
     # Update Firestore: mark email verified and clear token
     user_data = matched_user.to_dict()
-    db.collection("users").document(matched_user.id).update({
-        "email_verified": True,
-        "verify_token": None
-    })
+    await firestore_run(
+        db.collection("users").document(matched_user.id).update,
+        {"email_verified": True, "verify_token": None}
+    )
 
     # Decide redirect based on onboarding
     onboarding_done = user_data.get("onboarding_complete", False)
@@ -204,7 +228,7 @@ async def confirm_email(oobCode: str = Query(..., alias="oobCode")):
         fb_user = auth.get_user_by_email(email)
 
         # Prevent duplicates
-        existing = db.collection("users").document(fb_user.uid).get()
+        existing = await firestore_run(db.collection("users").document(fb_user.uid).get)
         if existing.exists:
             return JSONResponse({"message": "Already verified", "redirect": "onboarding"})
 
@@ -219,7 +243,10 @@ async def confirm_email(oobCode: str = Query(..., alias="oobCode")):
             created_at=datetime.utcnow()
         )
 
-        db.collection("users").document(fb_user.uid).set(user.dict(by_alias=True))
+        await firestore_run(
+            db.collection("users").document(fb_user.uid).set,
+            user.dict(by_alias=True)
+        )
 
         return JSONResponse({
             "message": "Email verified successfully",
@@ -237,7 +264,7 @@ async def resend_verification(data: CheckEmailRequest):
     email = data.email.lower().strip()
 
     # Fetch the user from Firestore
-    user_doc = db.collection("users").where("email", "==", email).get()
+    user_doc = await firestore_run(db.collection("users").where("email", "==", email).get)
     if not user_doc:
         raise HTTPException(404, "User not found")
 
@@ -248,7 +275,7 @@ async def resend_verification(data: CheckEmailRequest):
 
     # Generate a new verification token
     verify_token = str(uuid.uuid4())
-    db.collection("users").document(user.id).update({"verify_token": verify_token})
+    await firestore_run(db.collection("users").document(user.id).update({"verify_token": verify_token}))
 
     # Send verification email via SMTP
     send_verification_email(email, verify_token)
@@ -261,7 +288,7 @@ async def resend_verification(data: CheckEmailRequest):
 async def check_email_verified(email: EmailStr = Query(...)):
     """Returns whether the user's email is verified and onboarding status."""
     email = email.lower().strip()
-    user_docs = db.collection("users").where("email", "==", email).get()
+    user_docs = await firestore_run(db.collection("users").where("email", "==", email).get)
     if not user_docs:
         raise HTTPException(404, "User not found")
 
@@ -293,12 +320,15 @@ async def update_profile(
             raise HTTPException(status_code=400, detail="Username: letters, numbers, -, _ only")
         if len(username) < 3:
             raise HTTPException(status_code=400, detail="Username too short")
-        if db.collection("paylinks").where("username", "==", username).get():
+        existing_username = await firestore_run(
+            db.collection("paylinks").where("username", "==", username).get
+        )
+        if existing_username:
             raise HTTPException(status_code=400, detail="Username taken")
         update_data["username"] = username
 
     update_data["updated_at"] = datetime.utcnow()
-    db.collection("users").document(user.id).update(update_data)
+    await firestore_run(db.collection("users").document(user.id).update(update_data))
 
     # Notify user of profile update
     create_notification(
@@ -309,7 +339,7 @@ async def update_profile(
         link="/dashboard/profile"
     )
 
-    updated = db.collection("users").document(user.id).get()
+    updated = await firestore_run(db.collection("users").document(user.id).get)
     return User(**updated.to_dict())
 
 
@@ -318,7 +348,7 @@ async def forgot_password(data: ForgotPasswordRequest):
     email = data.email.lower().strip()
 
     # Check if user exists
-    user_docs = db.collection("users").where("email", "==", email).get()
+    user_docs = await firestore_run(db.collection("users").where("email", "==", email).get)
     if not user_docs:
         raise HTTPException(404, "No account found with this email")
 
@@ -329,14 +359,17 @@ async def forgot_password(data: ForgotPasswordRequest):
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
 
     # Store reset code
-    db.collection("password_resets").document(user.id).set({
-        "user_id": user.id,
-        "email": email,
-        "code": code,
-        "expires_at": expires_at,
-        "used": False,
-        "created_at": datetime.utcnow()
-    })
+    await firestore_run(
+        db.collection("password_resets").document(user.id).set,
+        {
+            "user_id": user.id,
+            "email": email,
+            "code": code,
+            "expires_at": expires_at,
+            "used": False,
+            "created_at": datetime.utcnow()
+        }
+    )
 
     # Email the code to the user
     send_reset_password_email(email, code)  # your email service
@@ -350,10 +383,10 @@ async def forgot_password(data: ForgotPasswordRequest):
 
 @router.post("/reset-password")
 async def reset_password_with_code(req: ResetPasswordCodeRequest):
-    docs = db.collection("password_resets") \
+    docs = await firestore_run(db.collection("password_resets") \
              .where("email", "==", req.email) \
              .where("code", "==", req.code) \
-             .get()
+             .get)
 
     if not docs:
         raise HTTPException(400, "Invalid reset code")
@@ -376,20 +409,26 @@ async def reset_password_with_code(req: ResetPasswordCodeRequest):
     auth.update_user(fb_user.uid, password=req.new_password)
 
     # Mark code as used
-    db.collection("password_resets").document(docs[0].id).update({
-        "used": True,
-        "used_at": datetime.utcnow()
-    })
+    await firestore_run(
+        db.collection("password_resets")
+            .document(docs[0].id)
+            .update,
+        {
+            "used": True,
+            "used_at": datetime.utcnow()
+        }
+    )
+
 
     return {"message": "Password reset successful"}
 
 
 @router.post("/verify-reset-code")
 async def verify_reset_code(req: VerifyCodeRequest):
-    docs = db.collection("password_resets") \
+    docs = await firestore_run(db.collection("password_resets") \
              .where("email", "==", req.email) \
              .where("code", "==", req.code) \
-             .get()
+             .get)
 
     if not docs:
         raise HTTPException(400, "Invalid code")

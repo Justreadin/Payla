@@ -153,15 +153,17 @@ body {
 }
 
 .loading-logo i {
-  font-size: 20px;
+  font-size: 25px;
 }
-
+.
 .loading-signature h2 {
-  font-family: var(--font-cormorant);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 8px;
+    font-family: 'Great Vibes', 'Playfair Display', cursive; 
+    font-weight: 400;
+    font-size: 32px;
+    color: var(--platinum);
+    text-align: center;
+    letter-spacing: 0.5px; /* optional for spacing */
+    margin-top: 12px;
 }
 
 .loading-subtext {
@@ -371,6 +373,9 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: 900;
+  background-size: cover;      /* ensures image covers the rim */
+  background-position: center; /* centers the image */
+  background-repeat: no-repeat;
   color: var(--obsidian);
   font-size: 18px;
   border: 2px solid var(--rose-gold);

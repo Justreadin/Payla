@@ -38,6 +38,25 @@ body {
   min-height: 100vh;
 }
 
+/* Scrollbar – 4px rose pink for Payla modal */
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #E8B4B8; /* rose pink */
+    border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #d3a0a7;
+}
+
+
 /* === ANIMATED GLITTER BACKGROUND === */
 .glitter {
   position: fixed;

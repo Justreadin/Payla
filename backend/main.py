@@ -9,11 +9,18 @@ import uvicorn
 from firebase_admin import credentials, firestore
 from app.scripts.migrate_waitlist import migrate
 from app.tasks.launch_emails import auto_start_launch_emails
+from app.tasks.reminder_cleanup import cleanup_loop
+from app.scripts.flusher import flush_logs
 from fastapi_utils.tasks import repeat_every
 from app.tasks.reminder_service_loop import reminder_loop
 from fastapi.responses import StreamingResponse
 import time
 import threading
+import subprocess
+# main.py
+import multiprocessing
+from app.core.celery_app import celery_app
+from celery.bin import beat
 
 # ------------------------------------------------------------
 # 1. CONFIG & LOGGING
@@ -326,10 +333,49 @@ async def startup_event():
     auto_start_launch_emails()
 
 
+
 @app.on_event("startup")
-async def start_reminder_loop():
+async def start_background_tasks():
+    """
+    Start all background async tasks
+    """
+    # Start reminder processing loop
     asyncio.create_task(reminder_loop())
-    logger.info("Async reminder loop started.")
+    logger.info("✅ Async reminder loop started")
+    
+    # Start reminder cleanup loop
+    asyncio.create_task(cleanup_loop())
+    logger.info("✅ Async cleanup loop started")
+
+
+"""
+def start_celery_worker():
+    subprocess.Popen([
+        "celery",
+        "-A", "app.core.celery_app.celery_app",
+        "worker",
+        "--concurrency=30",
+        "--loglevel=INFO",
+    ])
+
+
+def start_celery_beat():
+    subprocess.Popen([
+        "celery",
+        "-A", "app.core.celery_app.celery_app",
+        "beat",
+        "--loglevel=INFO",
+    ])
+
+
+@app.on_event("startup")
+def startup_celery():
+    # Worker
+    threading.Thread(target=start_celery_worker, daemon=True).start()
+    # Beat
+    threading.Thread(target=start_celery_beat, daemon=True).start()
+    logger.info("Celery worker and beat started in background threads.")
+"""
 
 
 # ------------------------------------------------------------
