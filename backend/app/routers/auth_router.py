@@ -78,6 +78,8 @@ async def signup_email(data: SignupRequest):
     logger.info(f"🚀 Signup attempt started for email: {email}")
 
     try:
+        now = datetime.now(timezone.utc)
+        trial_end = now + timedelta(days=14)
         # ----------------------------
         # Step 1: Create Firebase Auth user
         # ----------------------------
@@ -105,14 +107,27 @@ async def signup_email(data: SignupRequest):
             email=email,
             email_verified=False,
             verify_token=verify_token,
-            plan="silver",
-            created_at=datetime.now(timezone.utc)
+            plan="free",  # Defaulting to silver
+            plan_start_date=now,         # Set this!
+            trial_end_date=trial_end,    # Set this!
+            subscription_end=trial_end,   # Trial is the first "end" date
+            created_at=now,
+            updated_at=now
         )
         await firestore_run(
             db.collection("users").document(fb_user.uid).set,
             new_user.dict(by_alias=True)
         )
         logger.info(f"✅ Firestore user document created for {email}")
+
+        # ------------------------------------------------------------
+        # NEW STEP: Check for Presell Eligibility
+        # ------------------------------------------------------------
+        # We call this right after the user document is created.
+        presell_granted = await auto_grant_presell_on_signup(fb_user.uid, email)
+        
+        if presell_granted:
+            logger.info(f"🎁 Presell benefits applied for {email}")
 
         # ----------------------------
         # Step 4: Send verification email
@@ -163,6 +178,17 @@ async def login(payload: LoginRequest):
     user_doc = await firestore_run(db.collection("users").document(uid).get)
     if not user_doc.exists:
         raise HTTPException(401, "User not found. Please signup first.")
+    
+    # We check if they are already upgraded to avoid redundant database writes.
+    user_data = user_doc.to_dict()
+    if not user_data.get("presell_claimed"):
+        # If they haven't claimed it yet, check eligibility now
+        was_granted = await auto_grant_presell_on_signup(uid, email)
+        if was_granted:
+            # Refresh user_doc so the AuthResponse contains the updated 'silver' plan
+            user_doc = await firestore_run(db.collection("users").document(uid).get)
+            user_data = user_doc.to_dict()
+            logger.info(f"🎁 Presell benefits applied for {email} during login")
 
     user = User(**user_doc.to_dict())
 
@@ -239,8 +265,9 @@ async def confirm_email(oobCode: str = Query(..., alias="oobCode")):
             full_name=fb_user.display_name or email.split("@")[0],
             email=email,
             email_verified=True,
-            plan="silver",
-            created_at=datetime.utcnow()
+            plan="free",  # Change silver to free
+            trial_end_date=datetime.now(timezone.utc) + timedelta(days=14), # Add this
+            created_at=datetime.now(timezone.utc)
         )
 
         await firestore_run(
@@ -275,7 +302,11 @@ async def resend_verification(data: CheckEmailRequest):
 
     # Generate a new verification token
     verify_token = str(uuid.uuid4())
-    await firestore_run(db.collection("users").document(user.id).update({"verify_token": verify_token}))
+    
+    await firestore_run(
+        db.collection("users").document(user.id).update, 
+        {"verify_token": verify_token}
+    )
 
     # Send verification email via SMTP
     send_verification_email(email, verify_token)
@@ -461,3 +492,64 @@ async def logout():
     Logout endpoint: frontend should also clear Firebase and localStorage.
     """
     return {"message": "Logged out successfully"}
+
+
+
+# ============================================================
+# 5. AUTO-GRANT ON SIGNUP (call this in your signup endpoint)
+# ============================================================
+async def auto_grant_presell_on_signup(user_id: str, email: str):
+    """
+    Call this function RIGHT AFTER creating a new user
+    Automatically grants 1-year subscription if they paid presell
+    """
+    try:
+        email = email.lower().strip()
+        
+        # Check eligibility
+        presell_doc = await firestore_run(db.collection("presell_emails").document(email).get)
+        
+        if not presell_doc.exists:
+            logger.info(f"User {email} did not pay for presell")
+            return False
+        
+        presell_data = presell_doc.to_dict()
+        
+        if not presell_data.get("payment_verified"):
+            logger.warning(f"User {email} presell payment not verified")
+            return False
+        
+        # Grant 1-year subscription
+        now = datetime.now(timezone.utc)
+        one_year_later = now + timedelta(days=365)
+        
+        await firestore_run(
+            db.collection("users").document(user_id).update,
+            {
+                "plan": "silver",
+                "plan_start_date": now,
+                "subscription_end": one_year_later,
+                "presell_end_date": one_year_later,
+                "next_billing_date": one_year_later, # They pay again in 1 year
+                "presell_claimed": True,
+                "presell_eligible": True,
+                "presell_id": presell_data.get("presell_id"),
+                "updated_at": now
+            }
+        )
+        
+        logger.info(f"✅ Auto-granted 1-year subscription to {user_id}")
+        
+        create_notification(
+            user_id=user_id,
+            title="Welcome, Founding Creator! 🎉",
+            message="Your 1-year Payla Silver subscription is now active!",
+            type="success",
+            link="/dashboard"
+        )
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to auto-grant presell: {e}")
+        return False

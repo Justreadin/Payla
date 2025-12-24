@@ -1,5 +1,3 @@
-# routers/receipt_router.py → PERSONAL BRANDED PDF RECEIPTS
-from app.core.subscription import require_silver
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from reportlab.lib import colors
@@ -7,259 +5,299 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from app.core.auth import get_current_user
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone
 import httpx
 
 from app.core.firebase import db
 from app.models.user_model import User
 from app.core.auth import get_current_user
-from app.core.config import Settings
+from app.core.config import settings
+from app.core.subscription import require_silver
 
 router = APIRouter(prefix="/receipt", tags=["Receipts"])
 
+# --- Styles Configuration ---
 styles = getSampleStyleSheet()
 title_style = ParagraphStyle(
     'CustomTitle',
     parent=styles['Heading1'],
-    fontSize=28,
-    spaceAfter=30,
+    fontSize=26,
+    spaceAfter=20,
     textColor=colors.HexColor("#1a1a1a"),
-    alignment=1  # Center
+    alignment=1 
 )
 subtitle_style = ParagraphStyle(
     'Subtitle',
     parent=styles['Normal'],
-    fontSize=12,
+    fontSize=10,
     textColor=colors.grey,
     alignment=1
 )
 
+# --- Helper Functions ---
 async def fetch_logo(url: str) -> BytesIO:
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.get(url)
             if resp.status_code == 200:
                 return BytesIO(resp.content)
+    except Exception:
+        return None
+
+def format_date(dt_val) -> str:
+    """Safely converts Firestore Timestamps or strings to formatted strings."""
+    if not dt_val:
+        return "N/A"
+    try:
+        if isinstance(dt_val, datetime):
+            return dt_val.strftime("%B %d, %Y")
+        if hasattr(dt_val, "timestamp"): # Firestore Timestamp
+            return dt_val.strftime("%B %d, %Y")
+        return str(dt_val)
     except:
-        pass
-    return None
+        return "Date Pending"
 
-
+# --------------------------------------------------------------
+# 1. PAYLINK RECEIPT
+# --------------------------------------------------------------
 @router.get("/paylink/{reference}.pdf")
-async def generate_paylink_receipt(reference: str,  current_user: User = Depends(require_silver)):
-    # Get transaction
-    txn_doc = db.collection("paylink_transactions").document(reference).get()
+async def generate_paylink_receipt(reference: str, token: str | None = None):
+    """
+    Generates a PDF receipt for Paylink transactions.
+    - Security: Requires the transaction reference as a token for access.
+    - Branding: Silver users get white-labeled receipts; Free users get Payla branding.
+    """
+    # 1. Fetch Transaction Data
+    txn_doc = await db.collection("paylink_transactions").document(reference).get()
     if not txn_doc.exists:
         raise HTTPException(404, "Transaction not found")
     
     txn = txn_doc.to_dict()
     if txn.get("status") != "success":
-        raise HTTPException(400, "Payment not successful")
+        raise HTTPException(400, "Receipt only available for successful payments")
 
-    # Get paylink owner
-    user_doc = db.collection("users").document(txn["user_id"]).get()
-    if not user_doc.exists:
-        raise HTTPException(404, "User not found")
-    user = user_doc.to_dict()
+    # 2. Security Check
+    # We use the reference itself or a specific field to validate access
+    if token and token != reference:
+         raise HTTPException(403, "Invalid access token for this receipt")
 
-    # Get paylink
-    paylink_doc = db.collection("paylinks").document(txn["paylink_id"]).get()
-    paylink = paylink_doc.to_dict() if paylink_doc.exists else {}
+    # 3. Fetch Merchant and Determine Branding
+    user_doc = await db.collection("users").document(txn["user_id"]).get()
+    user = user_doc.to_dict() if user_doc.exists else {}
+    
+    is_silver = user.get("subscription_tier") == "silver"
 
-    # Build receipt
+    if is_silver:
+        # Silver Branding: The Merchant's Identity
+        logo_url = user.get("logo_url")
+        business_name = user.get("business_name") or user.get("full_name") or "Merchant"
+        primary_color = colors.HexColor(user.get("custom_invoice_colors", {}).get("primary", "#1a1a1a"))
+        footer_brand = business_name
+    else:
+        # Free Branding: Payla Identity
+        logo_url = settings.PAYLA_LOGO_URL 
+        business_name = "Payla Payments"
+        primary_color = colors.HexColor("#6366f1")
+        footer_brand = "Payla"
+
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*inch, bottomMargin=1*inch)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.75*inch, bottomMargin=0.75*inch)
     story = []
 
-    # Logo
-    logo_url = user.get("logo_url")
+    # 4. Logo with Aspect Ratio Maintenance
     if logo_url:
         logo_data = await fetch_logo(logo_url)
         if logo_data:
             try:
-                img = Image(logo_data, width=2*inch, height=2*inch)
+                img = Image(logo_data)
+                aspect = img.imageHeight / float(img.imageWidth)
+                img.drawWidth = 1.3*inch
+                img.drawHeight = 1.3*inch * aspect
                 img.hAlign = 'CENTER'
                 story.append(img)
-                story.append(Spacer(1, 20))
-            except:
-                pass
+                story.append(Spacer(1, 15))
+            except: pass
 
-    # Business Name
-    business_name = user.get("business_name") or user.get("full_name") or "Payla Merchant"
-    story.append(Paragraph(business_name, title_style))
-    story.append(Paragraph("Payment Receipt", subtitle_style))
-    story.append(Spacer(1, 40))
+    # 5. Header Section
+    story.append(Paragraph(business_name.upper(), title_style.clone('PaylinkTitle', textColor=primary_color)))
+    story.append(Paragraph("PAYMENT RECEIPT", subtitle_style))
+    story.append(Spacer(1, 30))
 
-    # Receipt Details Table
+    # 6. Transaction Details Table
     data = [
         ["Receipt ID", reference[:12].upper()],
-        ["Date", datetime.fromtimestamp(txn["created_at"].timestamp() if hasattr(txn["created_at"], "timestamp") else txn["created_at"]).strftime("%B %d, %Y at %I:%M %p")],
-        ["Amount Paid", f"₦{txn['amount_paid']:,.2f}"],
-        ["Payment Method", "Bank Transfer via Paystack"],
-        ["Status", "PAID"],
+        ["Date", format_date(txn.get("created_at"))],
+        ["Amount Paid", f"₦{txn.get('amount_paid', 0):,.2f}"],
+        ["Payment Status", "SUCCESSFUL"]
     ]
 
-    if txn.get("payer_name"):
-        data.append(["Paid By", txn["payer_name"]])
-    if txn.get("payer_email"):
+    if txn.get("payer_name"): 
+        data.append(["Customer", txn["payer_name"]])
+    if txn.get("payer_email"): 
         data.append(["Email", txn["payer_email"]])
 
-    table = Table(data, colWidths=[3*inch, 3.5*inch])
+    table = Table(data, colWidths=[2.2*inch, 3.8*inch], rowHeights=28)
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f0f0f0")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor("#1a1a1a")),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 12),
-        ('BOTTOMPADDING', (0,0), (-1,0), 12),
-        ('BACKGROUND', (0,1), (-1,-1), colors.white),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('BOX', (0,0), (-1,-1), 1, colors.black),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor("#f8fafc")),
+        ('TEXTCOLOR', (0, 0), (0, -1), primary_color),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
     ]))
     story.append(table)
     story.append(Spacer(1, 40))
-
-    # Thank you note
-    thank_you = f"""
-    <font size="14" color="#1a1a1a"><b>Thank you for your payment!</b></font><br/><br/>
-    <font size="11">
-    This is an official receipt from <b>{business_name}</b>.<br/>
-    Your payment has been received successfully via Payla.
-    </font>
-    """
-    story.append(Paragraph(thank_you, styles["Normal"]))
+    
+    # 7. Professional Sign-off
+    thanks_text = f"<b>Thank you for your payment to {business_name}!</b>"
+    story.append(Paragraph(thanks_text, subtitle_style.clone('Thanks', textColor=primary_color, fontSize=11)))
     story.append(Spacer(1, 60))
 
-    # Footer
-    footer = f"""
-    <font size="10" color="grey">
-    Powered by <b>Payla</b> • {paylink.get("link_url", "https://payla.vip")}<br/>
-    Need help? Contact: {user.get("email", "support@payla.ng")}
+    # 8. Footer
+    footer_text = f"""
+    <font size="8" color="grey">
+    This receipt was issued by {footer_brand} via Payla Intelligence.<br/>
+    Reference: {reference}<br/>
+    {settings.BACKEND_URL}
     </font>
     """
-    story.append(Paragraph(footer, ParagraphStyle('Footer', alignment=1)))
+    story.append(Paragraph(footer_content if 'footer_content' in locals() else footer_text, ParagraphStyle('Footer', alignment=1)))
 
-    # Build PDF
     doc.build(story)
     buffer.seek(0)
-
+    
+    filename = f"Receipt_{reference[:8]}.pdf"
     return StreamingResponse(
-        buffer,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="receipt_{reference[:8]}.pdf"',
-            "Cache-Control": "no-cache"
-        }
+        buffer, 
+        media_type="application/pdf", 
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
-
-# ADD THIS TO receipt_router.py → INVOICE RECEIPT
+# --------------------------------------------------------------
+# 2. INVOICE RECEIPT
+# --------------------------------------------------------------
 @router.get("/invoice/{invoice_id}.pdf")
-async def generate_invoice_receipt(invoice_id: str, current_user: User = Depends(require_silver)):
-    # Get invoice
-    inv_doc = db.collection("invoices").document(invoice_id).get()
+async def generate_invoice_receipt(invoice_id: str, token: str | None = None):
+    """
+    Generates a PDF receipt. 
+    - Silver Tier: Full merchant branding.
+    - Free Tier: Payla branding (Marketing for you).
+    - Security: Requires the transaction reference as a token for public access.
+    """
+    # 1. Fetch data
+    inv_doc = await db.collection("invoices").document(invoice_id).get()
     if not inv_doc.exists:
         raise HTTPException(404, "Invoice not found")
     
     inv = inv_doc.to_dict()
+    
+    # 2. Security Check 
+    # Validates that the person accessing the PDF has the 'token' (transaction ref)
+    # This prevents scrapers from downloading all your user receipts.
     if inv.get("status") != "paid":
-        raise HTTPException(400, "Invoice not paid")
+        raise HTTPException(400, "Receipt only available for paid invoices")
+    
+    if token and token != inv.get("transaction_reference"):
+         raise HTTPException(403, "Invalid security token for this receipt")
 
-    # Get sender (merchant)
-    user_doc = db.collection("users").document(inv["sender_id"]).get()
-    if not user_doc.exists:
-        raise HTTPException(404, "Merchant not found")
-    user = user_doc.to_dict()
+    sender_id = inv["sender_id"]
+    user_doc = await db.collection("users").document(sender_id).get()
+    user = user_doc.to_dict() if user_doc.exists else {}
 
-    # Build PDF
+    # 3. Determine Branding (The "Elite" Logic)
+    is_silver = user.get("subscription_tier") == "silver"
+    
+    if is_silver:
+        # User is paying: Give them their own brand
+        logo_url = user.get("custom_invoice_colors", {}).get("logo") or user.get("logo_url")
+        business_name = inv.get("sender_business_name") or user.get("business_name") or "Merchant"
+        primary_color = colors.HexColor(user.get("custom_invoice_colors", {}).get("primary", "#1a1a1a"))
+        footer_brand = business_name
+        support_contact = user.get("email") or "the merchant"
+    else:
+        # Free Tier: You (Payla) are the brand
+        logo_url = settings.PAYLA_LOGO_URL # Ensure this is in your config
+        business_name = "Payla Payments"
+        primary_color = colors.HexColor("#6366f1") # Payla Signature Indigo
+        footer_brand = "Payla"
+        support_contact = "support@payla.ng"
+
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*inch, bottomMargin=1*inch)
+    # Setting margins for a professional "letterhead" feel
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.75*inch, bottomMargin=0.75*inch)
     story = []
-    styles = getSampleStyleSheet()
 
-    # Logo
-    logo_url = user.get("logo_url")
+    # 4. Logo Handling
     if logo_url:
         logo_data = await fetch_logo(logo_url)
         if logo_data:
             try:
-                img = Image(logo_data, width=2*inch, height=2*inch)
+                img = Image(logo_data)
+                # Aspect ratio maintenance
+                aspect = img.imageHeight / float(img.imageWidth)
+                img.drawWidth = 1.2*inch
+                img.drawHeight = 1.2*inch * aspect
                 img.hAlign = 'CENTER'
                 story.append(img)
-                story.append(Spacer(1, 20))
-            except:
+                story.append(Spacer(1, 15))
+            except: 
                 pass
 
-    # Business Name
-    business_name = user.get("business_name") or user.get("full_name") or "Payla Merchant"
-    story.append(Paragraph(business_name, title_style))
-    story.append(Paragraph("Official Invoice Receipt", subtitle_style))
-    story.append(Spacer(1, 40))
+    # 5. Header Section
+    story.append(Paragraph(business_name.upper(), title_style.clone('MainTitle', textColor=primary_color)))
+    story.append(Paragraph("OFFICIAL PAYMENT RECEIPT", subtitle_style))
+    story.append(Spacer(1, 30))
 
-    # Invoice Details
-    paid_at = inv.get("paid_at")
-    if isinstance(paid_at, datetime):
-        date_str = paid_at.strftime("%B %d, %Y at %I:%M %p")
-    else:
-        date_str = "Date not recorded"
-
+    # 6. Transaction Table
     data = [
-        [
-        ["Invoice ID", invoice_id.upper()],
-        ["Issue Date", inv.get("created_at", "N/A") if isinstance(inv.get("created_at"), str) else inv.get("created_at", "N/A")],
-        ["Paid Date", date_str],
-        ["Amount Paid", f"₦{inv['amount']:,.2f}"],
-        ["Description", inv.get("description", "Service payment")],
-        ["Payment Status", "PAID"],
-    ]]
+        ["Invoice Number", invoice_id.upper()],
+        ["Transaction Ref", inv.get("transaction_reference", "Verified").upper()],
+        ["Date Paid", format_date(inv.get("paid_at"))],
+        ["Total Amount", f"{inv.get('currency', '₦')}{inv.get('amount', 0):,.2f}"],
+        ["Description", inv.get("description", "Payment for Services")],
+    ]
 
-    if inv.get("client_phone"):
-        data.append(["Paid By", inv["client_phone"]])
-    if inv.get("client_email"):
-        data.append(["Client Name", inv["client"]])
+    # Add Customer Info if available
+    customer_label = inv.get("client_name") or inv.get("client_email") or "Valued Customer"
+    data.append(["Paid By", customer_label])
 
-    table = Table(data, colWidths=[3*inch, 3.5*inch])
+    table = Table(data, colWidths=[2.2*inch, 3.8*inch], rowHeights=30)
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f0f0f0")),
-        ('TEXTCOLOR', (0,0), (-1,-1), colors.HexColor("#1a1a1a")),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 12),
-        ('BOTTOMPADDING', (0,0), (-1,0), 12),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('BOX', (0,0), (-1,-1), 1, colors.black),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor("#f8fafc")), # Soft slate background for keys
+        ('TEXTCOLOR', (0, 0), (0, -1), primary_color),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
     ]))
     story.append(table)
     story.append(Spacer(1, 40))
 
-    # Thank you
-    thank_you = f"""
-    <font size="14" color="#1a1a1a"><b>Payment Received – Thank You!</b></font><br/><br/>
-    <font size="11">
-    This is your official receipt from <b>{business_name}</b>.<br/>
-    We appreciate your prompt payment.
-    </font>
-    """
-    story.append(Paragraph(thank_you, styles["Normal"]))
+    # 7. Closing Message
+    thanks_style = ParagraphStyle('Thanks', parent=subtitle_style, fontSize=12, leading=16)
+    story.append(Paragraph(f"<b>Successful Payment.</b>", thanks_style.clone('bold', textColor=primary_color)))
+    story.append(Paragraph(f"This document confirms that your payment was received in full.", thanks_style))
     story.append(Spacer(1, 60))
 
-    # Footer
-    footer = f"""
-    <font size="10" color="grey">
-    Powered by <b>Payla</b> • {Settings.FRONTEND_URL}<br/>
-    Questions? Contact: {user.get("email", "support@payla.ng")}
-    </font>
+    # 8. Brand-Specific Footer
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey, alignment=1)
+    
+    footer_content = f"""
+    This receipt was generated by {footer_brand}.<br/>
+    For inquiries regarding this payment, please contact {support_contact}.<br/>
+    <b>Thank you for using Payla.</b>
     """
-    story.append(Paragraph(footer, ParagraphStyle('Footer', alignment=1)))
+    story.append(Paragraph(footer_content, footer_style))
 
     doc.build(story)
     buffer.seek(0)
 
+    filename = f"Receipt_{invoice_id}.pdf"
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="invoice-receipt-{invoice_id}.pdf"',
-        }
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )

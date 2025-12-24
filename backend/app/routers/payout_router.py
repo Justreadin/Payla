@@ -7,7 +7,7 @@ from app.core.auth import get_current_user
 from app.models.user_model import User
 import httpx
 from firebase_admin import firestore
-from datetime import datetime
+from datetime import datetime, timezone
 from app.tasks.payout import initiate_payout
 import logging
 from app.tasks.payout_celery import payout_task
@@ -85,13 +85,13 @@ async def save_payout_account(payload: PayoutAccountIn, current_user: User = Dep
         "payout_account_number": payload.account_number,
         "payout_account_name": resolved["account_name"],
         "payout_bank_name": resolved["bank_name"],
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.now(timezone.utc)
     }
     user_ref.update(update_data)
     logger.info(f"Payout account updated for {user_id}: {resolved['account_name']}")
     return PayoutAccountOut(bank_code=payload.bank_code, account_number=payload.account_number,
                             account_name=resolved["account_name"], bank_name=resolved["bank_name"],
-                            updated_at=datetime.utcnow())
+                            updated_at=datetime.now(timezone.utc))
 
 @router.get("/account", response_model=Optional[PayoutAccountOut])
 async def get_payout_account(current_user: User = Depends(get_current_user)):
@@ -106,7 +106,7 @@ async def get_payout_account(current_user: User = Depends(get_current_user)):
         account_number=data.get("payout_account_number", ""),
         account_name=data.get("payout_account_name", ""),
         bank_name=data.get("payout_bank_name", "Unknown Bank"),
-        updated_at=data.get("updated_at", datetime.utcnow())
+        updated_at=data.get("updated_at", datetime.now(timezone.utc))
     )
 
 
@@ -123,7 +123,7 @@ async def remove_payout_account(current_user: User = Depends(get_current_user)):
         "payout_account_number": firestore.DELETE_FIELD,
         "payout_account_name": firestore.DELETE_FIELD,
         "payout_bank_name": firestore.DELETE_FIELD,
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.now(timezone.utc)
     })
     logger.info(f"Payout account removed for {current_user.id}")
     return DeleteResponse()
@@ -172,7 +172,7 @@ async def earnings(current_user: User = Depends(get_current_user)):
         if d.get("payout_status") in ["pending", "ready", None]:
             available_for_payout += amt
 
-    next_payout_date = datetime.utcnow()  # Replace with real schedule logic
+    next_payout_date = datetime.now(timezone.utc)  # Replace with real schedule logic
     return {"total_earnings": total_earnings, "available_for_payout": available_for_payout,
             "next_payout_date": next_payout_date.isoformat()}
 
@@ -215,7 +215,7 @@ async def queue_payout(user_id: str, amount: float, reference: str, payout_type:
         "amount": amount,
         "type": payout_type,
         "status": "pending",
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
         "paid_at": None
     }
     payout_ref.set(payout_entry)
@@ -243,7 +243,16 @@ async def queue_payout(user_id: str, amount: float, reference: str, payout_type:
 
 @router.get("/transaction/{reference}/payout_status")
 async def get_payout_status(reference: str):
-    doc = db.collection("paylink_transactions").document(reference).get()
+    # Check the central payouts collection first
+    doc = db.collection("payouts").document(reference).get()
+    
+    if not doc.exists:
+        # Fallback to check paylink_transactions if not in payouts yet
+        doc = db.collection("paylink_transactions").document(reference).get()
+        
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    return {"payout_status": doc.to_dict().get("payout_status", "not_started")}
+        
+    data = doc.to_dict()
+    # Return 'status' (from payouts) or 'payout_status' (from paylinks)
+    return {"payout_status": data.get("status") or data.get("payout_status", "pending")}

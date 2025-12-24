@@ -144,6 +144,14 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
     }
 
 
+@router.get("/refresh", response_model=Dict[str, Any])
+async def refresh_dashboard_stats(current_user: User = Depends(get_current_user)):
+    """Lightweight endpoint for auto-reloading dashboard stats and recent activity."""
+    # This calls your existing logic but could be optimized to only fetch 
+    # changed data if needed. For now, we reuse your existing logic.
+    return await get_dashboard_data(current_user)
+    
+
 @router.post("/quick-invoice", response_model=dict)
 async def create_quick_invoice(
     payload: dict,

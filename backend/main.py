@@ -13,6 +13,8 @@ from app.tasks.reminder_cleanup import cleanup_loop
 from app.scripts.flusher import flush_logs
 from fastapi_utils.tasks import repeat_every
 from app.tasks.reminder_service_loop import reminder_loop
+from app.tasks.billing_service_loop import billing_service_loop
+from app.tasks.marketing_service_loop import marketing_loop
 from fastapi.responses import StreamingResponse
 import time
 import threading
@@ -115,7 +117,9 @@ from app.routers import (
     analytics_router,
     receipt_router,
     presell_router,
-    token_gate
+    token_gate,
+    webhooks,
+    marketing_router
 )
 
 app.include_router(auth_router.router, prefix="/api", tags=["Auth"])
@@ -134,6 +138,8 @@ app.include_router(analytics_router.router, prefix="/api", tags=["Analytics"])
 app.include_router(receipt_router.router, prefix="/api", tags=["Receipt"])
 app.include_router(presell_router.router, prefix="/api", tags=["Presell"])
 app.include_router(token_gate.router, prefix="/api", tags=["Token_Gate"])
+app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
+app.include_router(marketing_router.router, tags=["Marketing"])
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ------------------------------------------------------------
@@ -344,8 +350,10 @@ async def start_background_tasks():
     logger.info("✅ Async reminder loop started")
     
     # Start reminder cleanup loop
-    asyncio.create_task(cleanup_loop())
-    logger.info("✅ Async cleanup loop started")
+    asyncio.create_task(billing_service_loop())
+    logger.info("✅ Async billing loop started")
+    asyncio.create_task(marketing_loop())
+    logger.info("✅ Async marketing/conversion loop started")
 
 
 """
@@ -376,6 +384,7 @@ def startup_celery():
     threading.Thread(target=start_celery_beat, daemon=True).start()
     logger.info("Celery worker and beat started in background threads.")
 """
+
 
 
 # ------------------------------------------------------------

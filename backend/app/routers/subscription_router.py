@@ -5,6 +5,8 @@ from app.models.user_model import User
 from app.core.firebase import db
 from datetime import datetime, timezone, timedelta
 import uuid
+import httpx 
+
 from app.core.config import settings
 
 router = APIRouter(prefix="/subscription", tags=["Subscription"])
@@ -29,57 +31,79 @@ PLANS = {
 
 @router.get("/status")
 async def get_status(user: User = Depends(get_current_user)):
+    # 1. Get fresh data from Firestore
     doc = db.collection("users").document(user.id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     data = doc.to_dict()
+    # Add document ID back to data for the User model
+    data["_id"] = user.id
+    
+    # 2. Create User object using your existing logic
+    current_user = User(**data)
+    
+    # 3. Manually map subscription_end if it exists in Firestore (as per your core fix)
+    if "subscription_end" in data:
+        setattr(current_user, "subscription_end", data["subscription_end"])
 
-    plan = data.get("plan", "free")
-    trial_end = data.get("trial_end_date")
+    now = datetime.now(timezone.utc)
 
-    # Active silver subscription
-    if plan == "silver":
+    # --- STATUS LOGIC ---
+
+    # A. Check Presell (1 Year Free)
+    presell_active = False
+    if current_user.plan == "presell" and current_user.presell_end_date:
+        # Parse firestore date safely
+        from app.core.subscription import parse_firestore_datetime
+        p_end = parse_firestore_datetime(current_user.presell_end_date)
+        if p_end and p_end > now:
+            presell_active = True
+            days_left = (p_end - now).days
+            return {
+                "plan": "presell",
+                "is_active": True,
+                "message": f"Presell Access Active ({days_left} days left)",
+                "next_billing": p_end,
+                "can_use_premium": True,
+                "billing": "yearly"
+            }
+
+    # B. Check Paid Subscription (Silver/Gold/Opal)
+    from app.core.subscription import has_active_subscription
+    if has_active_subscription(current_user):
         return {
-            "plan": "silver",
+            "plan": current_user.plan,
             "billing": data.get("billing_cycle", "monthly"),
             "is_active": True,
-            "message": f"Payla Silver Active — Billed {data.get('billing_cycle', 'monthly')}",
-            "next_billing": data.get("next_billing_date"),
+            "message": f"Payla {current_user.plan.capitalize()} Active",
+            "next_billing": data.get("subscription_end"),
             "can_use_premium": True
         }
 
-    # Trial logic
-    if not trial_end:
-        trial_end_dt = datetime.now(timezone.utc) + timedelta(days=14)
-        db.collection("users").document(user.id).update({
-            "trial_end_date": trial_end_dt,
-            "plan": "free"
-        })
-        days_left = 14
-    else:
-        # Convert to datetime safely
-        if hasattr(trial_end, "to_datetime"):
-            end_dt = trial_end.to_datetime()
-        elif isinstance(trial_end, int):
-            # Assume seconds timestamp
-            end_dt = datetime.fromtimestamp(trial_end, tz=timezone.utc)
-        elif isinstance(trial_end, float):
-            # Some Firestore exports use float seconds
-            end_dt = datetime.fromtimestamp(int(trial_end), tz=timezone.utc)
-        else:
-            end_dt = trial_end  # Already datetime
+    # C. Check Trial Logic (for users not paying and not on presell)
+    from app.core.subscription import is_trial_active, parse_firestore_datetime
+    trial_active = is_trial_active(current_user)
+    
+    trial_end_dt = parse_firestore_datetime(current_user.trial_end_date)
+    
+    # If trial date is missing but they aren't on a paid plan, repair it
+    if not trial_end_dt:
+        created_at = parse_firestore_datetime(data.get("created_at")) or now
+        trial_end_dt = created_at + timedelta(days=14)
+        db.collection("users").document(user.id).update({"trial_end_date": trial_end_dt})
+        trial_active = trial_end_dt > now
 
-        # Compute days left
-        days_left = max(0, (end_dt - datetime.now(timezone.utc)).days)
-
-    is_active = days_left > 0
+    days_left = (trial_end_dt - now).days if trial_end_dt > now else 0
 
     return {
-        "plan": "free",
-        "is_active": is_active,
-        "trial_days_left": days_left,
-        "message": "Free trial active" if is_active else "Trial expired — Upgrade to continue",
-        "can_use_premium": is_active
+        "plan": current_user.plan if not trial_active else "free-trial",
+        "is_active": trial_active,
+        "trial_days_left": max(0, days_left),
+        "message": "Free trial active" if trial_active else "Trial expired — Upgrade to continue",
+        "can_use_premium": trial_active,
+        "billing": None
     }
-
 
 
 @router.get("/plans")
@@ -89,37 +113,121 @@ async def get_plans():
 
 @router.post("/start/{plan_code}")
 async def start_subscription(plan_code: str, user: User = Depends(get_current_user)):
+    """
+    Initiates a Paystack subscription flow.
+    Checks if the user is already on a paid plan to prevent double billing.
+    """
+    # 1. Validate Plan Choice
     if plan_code not in PLANS:
-        raise HTTPException(400, detail="Invalid plan")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid plan code. Choose from: {', '.join(PLANS.keys())}"
+        )
 
-    if user.plan == "silver":
-        raise HTTPException(400, detail="Already subscribed")
+    # 2. Check current status using your User model helper
+    # We allow them to start if they are 'free' (even if trial is active)
+    # but block if they already have a paid 'silver/gold' active subscription.
+    if user.plan != "free" and user.is_subscription_active():
+        raise HTTPException(
+            status_code=400, 
+            detail="You already have an active paid subscription."
+        )
 
-    plan = PLANS[plan_code]
-    ref = f"sub_{plan_code}_{user.id}_{uuid.uuid4().hex[:8]}"
+    plan_info = PLANS[plan_code]
+    
+    # 3. Generate a Unique Reference
+    # Format: sub_[interval]_[userid]_[random]
+    ref = f"sub_{plan_info['interval']}_{user.id}_{uuid.uuid4().hex[:8]}"
 
-    # Save pending subscription
-    db.collection("pending_subscriptions").document(ref).set({
+    # 4. Save Pending Transaction to Firestore
+    # This allows us to verify the intent when the webhook hits
+    pending_data = {
         "user_id": user.id,
         "email": user.email,
-        "plan": "silver",
+        "plan": "silver",  # The target tier
         "plan_code": plan_code,
-        "amount": plan["amount_ngn"],
+        "interval": plan_info["interval"],
+        "amount_ngn": plan_info["amount_ngn"],
         "reference": ref,
         "status": "pending",
-        "created_at": datetime.now(timezone.utc)
-    })
+        "created_at": datetime.now(timezone.utc),
+        "metadata": {
+            "user_id": user.id,
+            "plan_code": plan_code,
+            "billing_cycle": plan_info["interval"]
+        }
+    }
 
+    try:
+        db.collection("pending_subscriptions").document(ref).set(pending_data)
+    except Exception as e:
+        logger.error(f"Firestore Error saving pending sub: {e}")
+        raise HTTPException(status_code=500, detail="Database error. Please try again.")
+
+    # 5. Return Paystack Configuration to Frontend
     return {
         "success": True,
+        "message": "Subscription initialized",
         "reference": ref,
-        "amount_kobo": plan["amount_kobo"],
+        "amount_kobo": plan_info["amount_kobo"],
         "email": user.email,
         "public_key": settings.PAYSTACK_PUBLIC_KEY,
         "metadata": {
             "user_id": user.id,
             "plan": "silver",
             "plan_code": plan_code,
+            "billing_cycle": plan_info["interval"],
             "type": "subscription_initial"
         }
     }
+
+@router.get("/verify/{reference}")
+async def verify_subscription(reference: str, user: User = Depends(get_current_user)):
+    # 1. Check if this reference exists in pending_subscriptions
+    pending_doc = db.collection("pending_subscriptions").document(reference).get()
+    if not pending_doc.exists:
+        raise HTTPException(status_code=404, detail="Transaction reference not found")
+    
+    pending_data = pending_doc.to_dict()
+    
+    # 2. Verify with Paystack API
+    headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://api.paystack.co/transaction/verify/{reference}", 
+            headers=headers
+        )
+        resp_data = response.json()
+
+    # 3. If successful, update the User's plan in Firestore
+    if resp_data.get("status") and resp_data["data"]["status"] == "success":
+        plan_code = pending_data["plan_code"]
+        interval = pending_data["interval"]
+        
+        # Calculate new end date
+        days = 30 if interval == "monthly" else 365
+        new_end_date = datetime.now(timezone.utc) + timedelta(days=days)
+        
+        update_data = {
+            "plan": "silver",
+            "is_active": True,
+            "subscription_end": new_end_date,
+            "billing_cycle": interval,
+            "subscription_id": resp_data["data"]["id"], # Paystack ID
+            "last_payment_ref": reference
+        }
+        
+        db.collection("users").document(user.id).update(update_data)
+        db.collection("pending_subscriptions").document(reference).delete()
+        
+        return {
+            "success": True, 
+            "status": {
+                "plan": "silver",
+                "is_active": True,
+                "message": "Payla Silver Active",
+                "can_use_premium": True
+            }
+        }
+    
+    raise HTTPException(status_code=400, detail="Payment verification failed")

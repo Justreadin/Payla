@@ -147,7 +147,10 @@
             <div class="payment-form" id="paymentForm">
                 <div class="form-group">
                     <label for="paymentAmount">Amount (NGN)</label>
-                    <input type="number" id="paymentAmount" placeholder="Enter amount" required>
+                    <input type="number" id="paymentAmount" placeholder="enter amount" min="1000" required>
+                    <small style="color: #888; font-size: 0.75rem; margin-top: 5px; display: block;">
+                        Minimum transfer: 1,000 NGN
+                    </small>
                 </div>
 
                 <div class="form-group">
@@ -157,7 +160,7 @@
 
                 <div class="payment-security">
                     <i class="fas fa-lock"></i>
-                    <span>Your payment details are encrypted and secure</span>
+                    <span>Paystack processing fees apply, Payla takes zero transaction fees</span>
                 </div>
 
                 <button type="submit" class="submit-btn" id="processPayment">

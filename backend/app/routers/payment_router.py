@@ -73,6 +73,14 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
         if not ref:
             return {"status": "ignored"}
 
+        # --- 🛑 2025 IDEMPOTENCY GUARD ---
+        # Prevent processing the same success event twice if Paystack retries
+        payment_doc_ref = db.collection("payments").document(ref)
+        existing_payment = payment_doc_ref.get()
+        if existing_payment.exists and existing_payment.to_dict().get("status") == "success":
+            logger.info(f"♻️ Webhook already processed for {ref}")
+            return {"status": "already_done"}
+
         amount_kobo = data.get("amount", 0)
         amount = amount_kobo / 100
         status_str = "success" if event == "charge.success" else "failed"
@@ -109,7 +117,6 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
             created_at=datetime.now(timezone.utc),
             raw_event=event_data
         )
-        db.collection("payments").document(ref).set(payment.dict(by_alias=True))
 
         # ========================================
         # SUCCESS → CELEBRATE + PAY OUT
@@ -117,31 +124,51 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
         if status_str == "success":
             logger.info(f"Payment SUCCESS → {ref} | ₦{amount:,.0f} | User: {user_id}")
 
-            # --- PAYLINK PAYMENT ---
+            # --- 🚀 2025 ATOMIC TRANSACTION BATCH ---
+            # Ensures earnings, records, and paylinks update simultaneously or not at all
+            batch = db.batch()
+            
+            # 1. Set the Payment Document
+            batch.set(payment_doc_ref, payment.dict(by_alias=True))
+
+            # 2. Update User Earnings (Incrementing safely)
+            user_ref = db.collection("users").document(user_id)
+            batch.update(user_ref, {
+                "total_earned": firestore.Increment(amount),
+                "updated_at": datetime.now(timezone.utc)
+            })
+
+            # 3. Handle Paylink Updates
             if paylink_id:
-                tx = {
-                    "paylink_id": paylink_id,
-                    "user_id": user_id,
-                    "paystack_reference": ref,
-                    "amount": amount,
-                    "payer_name": payer_name,
-                    "payer_email": payer_email,
-                    "payer_phone": payer_phone,
-                    "status": "completed",
-                    "paid_at": datetime.now(timezone.utc),
-                    "created_at": datetime.now(timezone.utc),
-                    "metadata": metadata
-                }
-                db.collection("paylink_transactions").document(ref).update({
+                # Update the specific transaction entry
+                pt_ref = db.collection("paylink_transactions").document(ref)
+                batch.update(pt_ref, {
                     "amount_paid": amount,
                     "status": "success",
                     "paid_at": datetime.now(timezone.utc)
                 })
-                db.collection("paylinks").document(paylink_id).update({
+                # Increment the paylink's main stats
+                pl_ref = db.collection("paylinks").document(paylink_id)
+                batch.update(pl_ref, {
                     "total_received": firestore.Increment(amount),
                     "total_transactions": firestore.Increment(1),
                     "last_payment_at": datetime.now(timezone.utc)
                 })
+            
+            # 4. Handle Invoice Updates
+            elif invoice_id:
+                inv_ref = db.collection("invoices").document(invoice_id)
+                batch.update(inv_ref, {
+                    "status": "paid",
+                    "paid_at": datetime.now(timezone.utc),
+                    "paystack_reference": ref
+                })
+
+            # EXECUTE BATCH
+            batch.commit()
+
+            # --- 🔔 NOTIFICATIONS & CELERY ---
+            if paylink_id:
                 create_notification(
                     user_id=user_id,
                     title="New Paylink Payment!",
@@ -149,14 +176,7 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
                     type="payment",
                     link="/dashboard/payments"
                 )
-
-            # --- INVOICE PAYMENT ---
             elif invoice_id:
-                db.collection("invoices").document(invoice_id).update({
-                    "status": "paid",
-                    "paid_at": datetime.now(timezone.utc),
-                    "paystack_reference": ref
-                })
                 create_notification(
                     user_id=user_id,
                     title="Invoice Paid!",
@@ -165,34 +185,20 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
                     link="/dashboard/invoices"
                 )
 
-            # --- UPDATE USER EARNINGS (ONCE) ---
-            db.collection("users").document(user_id).update({
-                "total_earned": firestore.Increment(amount),
-                "updated_at": datetime.now(timezone.utc)
-            })
-
-            # --- AUTO PAYOUT — With BackgroundTasks ---
-            payout_doc = db.collection("payouts").document(ref).get()
-            if payout_doc.exists:
-                logger.info(f"Payout already processed for {ref}")
-            else:
-                try:
-                    from tasks.payout_celery import payout_task
-
-                    # enqueue payout task
-                    payout_task.delay(user_id, amount, ref)
-                    logger.info(f"Payout task queued via Celery → {ref}")
-
-                    logger.info(f"Payout task queued → {ref}")
-                except Exception as e:
-                    logger.error(f"Payout task failed to start: {e}", exc_info=True)
-
+            # --- AUTO PAYOUT TRIGGER ---
+            try:
+                from tasks.payout_celery import payout_task
+                payout_task.delay(user_id, amount, ref)
+                logger.info(f"Payout task queued via Celery → {ref}")
+            except Exception as e:
+                logger.error(f"Payout task failed to start: {e}", exc_info=True)
 
         # ========================================
         # FAILURE → Gentle nudge
         # ========================================
         else:
             logger.warning(f"Payment FAILED → {ref} | ₦{amount:,.0f}")
+            payment_doc_ref.set(payment.dict(by_alias=True)) # Save failed record
             create_notification(
                 user_id=user_id,
                 title="Payment Failed",
@@ -204,11 +210,9 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
     # ========================================
     # 3. PAYLA SUBSCRIPTIONS
     # ========================================
-    # === 3. SUBSCRIPTION EVENTS ===
     elif event == "subscription.create":
         sub_code = data["subscription_code"]
         customer_code = data["customer"]["customer_code"]
-        email = data["customer"]["email"]
         user_id = metadata.get("user_id")
         plan_code = metadata.get("plan_code")
 
@@ -225,7 +229,10 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
             "paystack_customer_code": customer_code,
             "next_billing_date": next_bill,
             "trial_end_date": None,
-            "upgraded_at": datetime.now(timezone.utc)
+            "upgraded_at": datetime.now(timezone.utc),
+            "billing_nudge_status": "active",
+            "subscription_end": new_end_date,
+            "last_nudge_date": None
         })
 
         create_notification(
@@ -270,3 +277,5 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
                 type="warning",
                 link="/subscription"
             )
+
+    return {"status": "success"}

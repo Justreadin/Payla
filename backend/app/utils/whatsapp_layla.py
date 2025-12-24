@@ -1,20 +1,15 @@
 # utils/whatsapp_layla.py
+
 WHATSAPP_MESSAGES = {
     # 3 days before due
     "gentle_nudge": """
-Hi {name} ♡
+Hi, Layla from Payla.
 
-Layla here from Payla.
+Your invoice for {business_name} ({amount}) is due in 3 days ({due_date}).
 
-Just a little whisper – your invoice of {amount} is due in 3 days ({due_date}).
+Complete it easily here: {link}
 
-Here’s your private link:
-{link}
-
-Tap once and you’re done. I’ll take care of the rest.
-
-With love,  
-Layla
+I’ll take care of the rest.
     """.strip(),
 
     # 1 day before
@@ -23,7 +18,7 @@ Layla
 
 Layla again ♡
 
-Your invoice is due tomorrow ({due_date}).
+Your invoice for {business_name} is due tomorrow ({due_date}).
 
 One quick tap and it’s settled:
 {link}
@@ -40,24 +35,24 @@ Good morning {name} ☀
 
 It’s Layla.
 
-Your invoice of {amount} is due today.
+Your invoice for {business_name} of {amount} is due today.
 
 Here’s your link (takes 10 seconds):
 {link}
 
-Let’s start the week beautifully.
+Let’s start the day beautifully.
 
 Your assistant,  
 Layla ♡
     """.strip(),
 
-    # On due date – evening (soft)
+    # On due date – evening
     "due_today_evening": """
 {name},
 
 Layla checking in gently ♡
 
-Your invoice is still open for today.
+Your invoice for {business_name} is still open for today.
 
 Whenever you’re ready:
 {link}
@@ -68,73 +63,58 @@ Softly,
 Layla
     """.strip(),
 
-    # 1 day overdue – kind
+    # 1 day overdue
     "one_day_over": """
-Hi {name},
 
-Layla here ♡
+Hi, Layla here. Your payment for {business_name} is one day past due. Complete it easily here: {link}
 
-I noticed your invoice slipped by one day. Life happens.
-
-Here’s the link again – no judgment:
-{link}
-
-I’m holding space for you.
-
-Always,  
-Layla
     """.strip(),
 
-    # 3+ days overdue – still warm, slightly firmer
+    # 3+ days overdue
     "few_days_over": """
 {name},
 
 It’s Layla.
 
-Your invoice is now {days} days past due.
+Your invoice for {business_name} is now {days} days past due.
 
-I know you’re busy building beautiful things.
+Settle it now to keep your account in good standing: {link}
 
-Let’s close this gently:
-{link}
+— Layla
 
-I believe in you.
-
-Yours,  
-Layla ♡
     """.strip(),
 
-    # Payment received – the one that makes them cry (happy tears)
+    # Payment received
     "payment_received": """
-{name}!!!
+Payment confirmed.
 
-Layla here – jumping with joy ♡
+Your {amount} to {business_name} has been received.
 
-Your payment of {amount} just landed safely.
+Invoice settled, all done.
 
-Invoice settled. You’re all good.
+Thank you for trusting Payla.
 
-Thank you for trusting me (and Payla).
-
-You’re amazing.
-
-With so much gratitude,  
-Layla
+— Layla
     """.strip(),
 
-    # First-time welcome (sent after first invoice created)
+    # First-time welcome
     "first_invoice": """
-Hi {name},
+Hi,
 
-I’m Layla – your new personal assistant at Payla ♡
+I’m Layla, your personal assistant at Payla.
 
-From today, I’ll handle all your reminders, confirm payments, and make everything feel effortless.
+From today, I’ll handle all transactions with {business_name}, making payments effortless.
 
-You create. I’ll take care of the money.
+You create. I handle the money.
 
-Can’t wait to work together.
-
-Warmly,  
-Layla
+Looking forward to working together.
     """.strip()
 }
+
+def get_layla_whatsapp(key: str, context: dict) -> str:
+    template = WHATSAPP_MESSAGES.get(key, WHATSAPP_MESSAGES["gentle_nudge"])
+    try:
+        return template.format(**context)
+    except KeyError as e:
+        # Fallback to prevent crash if a key is missing
+        return f"Hi! Layla here. Your invoice for {context.get('business_name', 'your project')} is ready: {context.get('link')}"

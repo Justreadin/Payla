@@ -84,29 +84,74 @@ async def send_if_allowed(
 # ---------------------------
 # Map trigger → templates
 # ---------------------------
-def map_templates(trigger: datetime, due_date: datetime, context: dict):
+def map_templates(trigger: datetime, due_date: datetime, context: dict, is_first: bool = False):
+    """
+    Maps a reminder trigger to specific Layla persona keys for WhatsApp, SMS, and Email.
+    
+    Args:
+        trigger: The scheduled time for this reminder.
+        due_date: The actual deadline of the invoice.
+        context: Metadata for calculation (e.g., days past due).
+        is_first: If True, forces the 'Concierge Intro' template immediately.
+    """
     now = datetime.utcnow().replace(tzinfo=timezone.utc)
+    
+    # ---------------------------
+    # 1. IMMEDIATE FIRST CONTACT (The Handover)
+    # ---------------------------
+    if is_first:
+        # Layla introduces herself as the personal assistant
+        return "first_invoice", "first", "first_contact"
+
+    # Calculate date-based deltas
     days_diff = (due_date.date() - trigger.date()).days
     days_over = (trigger.date() - due_date.date()).days
 
+    # Default values (The "Gentle Concierge")
     whatsapp_key = "gentle_nudge"
     sms_key = "gentle"
     email_type = "reminder"
 
+    # ---------------------------
+    # 2. UPCOMING REMINDERS
+    # ---------------------------
     if days_diff == 3:
         whatsapp_key, sms_key, email_type = "gentle_nudge", "gentle", "reminder"
+        
     elif days_diff == 1:
         whatsapp_key, sms_key, email_type = "tomorrow", "tomorrow", "reminder_2"
+
+    # ---------------------------
+    # 3. DUE TODAY (The Fixer Energy)
+    # ---------------------------
     elif days_diff == 0:
-        whatsapp_key, sms_key, email_type = "due_today_morning", "due_today", "reminder_2"
+        # WhatsApp has two modes for the due date
+        # If it's after 3 PM WAT (14:00 UTC), use the "Soft/Evening" check-in
+        if now.hour >= 14:
+            whatsapp_key = "due_today_evening"
+        else:
+            whatsapp_key = "due_today_morning"
+            
+        sms_key = "due_today"
+        email_type = "due_today"
+
+    # ---------------------------
+    # 4. OVERDUE REMINDERS (Protective & Firm)
+    # ---------------------------
     elif days_over == 1:
         whatsapp_key, sms_key, email_type = "one_day_over", "one_day_over", "overdue_gentle"
-    elif days_over >= 3:
+
+    elif 3 <= days_over < 7:
         whatsapp_key, sms_key, email_type = "few_days_over", "few_days_over", "overdue_firm"
-    elif days_over < 0 and abs(days_over) > 7:
-        whatsapp_key, sms_key, email_type = "final_nudge", "final_nudge", "overdue_firm"
+
+    elif days_over >= 7:
+        # High-value "Sales Desk" energy - closing the file
+        whatsapp_key = "few_days_over" # WA remains warm but firm
+        sms_key = "final_nudge"
+        email_type = "overdue_firm"
 
     return whatsapp_key, sms_key, email_type
+
 
 # ---------------------------
 # Send reminder to all user-selected channels with retries
@@ -215,6 +260,7 @@ async def schedule_reminders_for_invoice(invoice_id: str, payload: ReminderCreat
     # ---------------------------
     triggers: List[datetime] = []
     now = datetime.utcnow().replace(tzinfo=timezone.utc)
+    triggers.append(now) 
 
     if payload.manual_dates:
         # User provided specific dates

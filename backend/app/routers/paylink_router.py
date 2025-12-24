@@ -11,6 +11,7 @@ from app.models.paylink_model import PaylinkCreate, Paylink, CreatePaylinkTransa
 from app.core.firebase import db
 from app.core.auth import get_current_user
 from app.core.config import settings
+from app.utils.crm import sync_client_to_crm 
 from app.core.paystack import create_permanent_payment_page
 from app.core.notifications import create_notification
 from app.core.analytics import (
@@ -117,7 +118,7 @@ async def create_or_update_paylink(
     else:
         # New paylink: create display_name from business_name/full_name, description from tagline
         display_name = user.business_name or user.full_name
-        description = user.tagline or "Fast, secure payments via Payla"
+        description = user.tagline or "Description/Tagline"
         paylink_data = Paylink(
             _id=paylink_id,
             user_id=user.id,
@@ -434,24 +435,38 @@ async def update_paylink_transaction_status(
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     txn = doc.to_dict()
-    if status not in ["pending", "success", "failed"]:
-        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    # Check for already processed to prevent double-counting in CRM
+    if txn.get("status") == "success":
+        return {"success": True, "message": "Already processed"}
 
     update_data = {
         "status": status,
         "last_update": datetime.utcnow()
     }
 
-    # Queue payout if transaction succeeded
-    if status == "success" and txn.get("payout_status") != "queued":
+    if status == "success":
         amount = txn.get("amount_paid") or txn.get("amount_requested")
-        await queue_payout(
-            user_id=txn["user_id"],
-            amount=amount,
-            reference=reference,
-            payout_type="paylink"
+        
+        # --- START CRM SYNC ---
+        # We use await here to ensure the client is recorded 
+        # before the function returns success.
+        await sync_client_to_crm(
+            merchant_id=txn["user_id"],
+            email=txn["payer_email"],
+            amount=float(amount)
         )
-        update_data["payout_status"] = "queued"
+        # --- END CRM SYNC ---
+
+        # Existing payout logic
+        if txn.get("payout_status") != "queued":
+            await queue_payout(
+                user_id=txn["user_id"],
+                amount=amount,
+                reference=reference,
+                payout_type="paylink"
+            )
+            update_data["payout_status"] = "queued"
 
     doc_ref.update(update_data)
     return {"success": True, "status": status}

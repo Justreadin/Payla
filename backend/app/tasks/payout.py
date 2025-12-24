@@ -16,7 +16,7 @@ def update_payout_status(reference: str, status: str):
     if ref.get().exists:
         ref.update({
             "payout_status": status,
-            "last_update": datetime.utcnow()
+            "last_update": datetime.now(timezone.utc)
         })
         return
 
@@ -25,7 +25,7 @@ def update_payout_status(reference: str, status: str):
     if ref.get().exists:
         ref.update({
             "payout_status": status,
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.now(timezone.utc)
         })
         return
 
@@ -86,12 +86,25 @@ async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
             update_payout_status(reference, "held")
             return
 
+       # --- 2025 TRANSACTIONAL LOCK ---
         payout_ref = db.collection("payouts").document(reference)
-        if payout_ref.get().exists:
-            logger.warning(f"Payout already processed: {reference}")
-            return
+        payout_snap = payout_ref.get()
+        
+        # If it's already success OR currently being worked on, STOP.
+        if payout_snap.exists:
+            status = payout_snap.to_dict().get("status")
+            if status in ["success", "processing"]:
+                logger.warning(f"Payout already {status}: {reference}")
+                return
 
-        # Resolve recipient code
+        # Lock it immediately before calling Paystack
+        payout_ref.set({
+            "status": "processing",
+            "user_id": user_id,
+            "amount": amount_ngn,
+            "locked_at": datetime.now(timezone.utc)
+        }, merge=True)
+
         recipient_code = user.get("paystack_recipient_code")
 
         if not recipient_code:
@@ -118,9 +131,10 @@ async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
             db.collection("payouts").document(reference).set({
                 "user_id": user_id,
                 "amount": amount_ngn,
+                "recipient_used": recipient_code,
                 "status": "success",
                 "reference": reference,
-                "paid_at": datetime.utcnow()
+                "paid_at": datetime.now(timezone.utc)
             })
 
             update_payout_status(reference, "success")
@@ -128,6 +142,7 @@ async def initiate_payout(user_id: str, amount_ngn: float, reference: str):
         else:
             logger.error(f"Transfer failed: {error_msg}")
             update_payout_status(reference, "failed")
+            db.collection("payouts").document(reference).update({"error": error_msg, "failed_at": datetime.now(timezone.utc)})
             logger.info(f"Payout {reference} marked as failed")
 
     except Exception as e:

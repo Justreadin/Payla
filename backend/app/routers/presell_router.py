@@ -128,13 +128,12 @@ def update_presell_user_payment(presell_id: str, payment_data: Dict[str, Any]) -
 @router.post("/webhook/paystack", status_code=status.HTTP_200_OK)
 async def presell_paystack_webhook(request: Request, background_tasks: BackgroundTasks):
     """
-    Paystack webhook specifically for presell payments.
-    This handles the ₦5,000 lock year payments from the presell page.
+    Fixed webhook - only grants 1-year subscription to PAID presell users
     """
     body = await request.body()
     signature = request.headers.get("x-paystack-signature")
 
-    # === 1. Validate Signature ===
+    # Validate signature
     if not signature or not hmac.compare_digest(
         hmac.new(settings.PAYSTACK_SECRET_KEY.encode(), body, hashlib.sha512).hexdigest(),
         signature
@@ -154,119 +153,128 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
     
     logger.info(f"Presell webhook received: {event}")
 
-    # ========================================
-    # Handle Presell Lock Year Payments
-    # ========================================
-    if event in ("charge.success", "charge.failed"):
+    if event == "charge.success":
         ref = data.get("reference")
         if not ref:
-            logger.warning("Presell webhook missing reference")
             return {"status": "ignored"}
 
         amount_kobo = data.get("amount", 0)
         amount = amount_kobo / 100
-        status_str = "success" if event == "charge.success" else "failed"
-        
-        # Get metadata specific to presell
         presell_type = metadata.get("presell_type")
         
-        # Check if this is a presell payment
+        # ✅ ONLY process if this is a presell payment
         if presell_type != "founding_creator_2025":
             logger.info(f"Not a presell payment: {ref}")
             return {"status": "ignored"}
         
+        # ✅ VERIFY amount is exactly ₦5,000 (or 500000 kobo)
+        if amount_kobo != 500000:  # 5000 * 100
+            logger.warning(f"Invalid presell amount: {amount} (expected ₦5,000)")
+            return {"status": "invalid_amount"}
+        
         # Find pending presell payment
         pending_ref = db.collection("presell_references").document(ref).get()
         if not pending_ref.exists:
-            logger.warning(f"Presell payment not found in pending: {ref}")
+            logger.warning(f"Presell payment not found: {ref}")
             return {"status": "ignored"}
         
         pending_data = pending_ref.to_dict()
         pending_id = pending_data["pending_id"]
         
-        # Get pending details
         pending_details = db.collection("presell_pending").document(pending_id).get()
         if not pending_details.exists:
             logger.error(f"Pending details not found: {pending_id}")
             return {"status": "ignored"}
         
         payment_details = pending_details.to_dict()
+        email = payment_details['email'].lower().strip()
         
-        # ========================================
-        # PAYMENT SUCCESS
-        # ========================================
-        if status_str == "success":
-            logger.info(f"Presell payment SUCCESS → {ref} | ₦{amount:,.0f} | Email: {payment_details['email']}")
+        logger.info(f"✅ VALID PRESELL PAYMENT → {ref} | ₦{amount:,.0f} | Email: {email}")
+        
+        try:
+            # Create presell user record
+            presell_id = str(uuid.uuid4())
+            presell_user_data = {
+                "_id": presell_id,
+                "presell_id": presell_id,
+                "full_name": payment_details['fullName'],
+                "email": email,
+                "expectations": payment_details.get('expectations'),
+                "payment_reference": ref,
+                "amount": amount,
+                "currency": payment_details['currency'],
+                "payment_status": "verified",
+                "presell_tag": "founding_creator_2025",
+                "presell_reward": "1_year_free",
+                "joined_at": datetime.now(timezone.utc),
+                "verified_at": datetime.now(timezone.utc),
+                "type": "presell_payment",
+                "source": "presell_page",
+                "status": "active",
+                "presell_reward_claimed": False,
+                "presell_reward_claimable": True,  # Can be claimed when they sign up
+                "paystack_data": data
+            }
             
-            try:
-                # Create presell user
-                presell_user = create_presell_user(payment_details)
-                
-                # Update with payment verification data
-                update_presell_user_payment(presell_user["_id"], {
-                    "reference": ref,
-                    "amount": amount,
-                    "status": "success",
-                    "paid_at": datetime.now(timezone.utc),
-                    "paystack_data": data
-                })
-                
-                # Move from pending to completed
-                db.collection("presell_pending").document(pending_id).delete()
-                db.collection("presell_references").document(ref).delete()
-                
-                # Create success notification
-                create_notification(
-                    user_id=presell_user["_id"],
-                    title="Welcome to Payla Founding Creators!",
-                    message="You've successfully reserved your spot! You'll get 1 year free when we launch!",
-                    type="success",
-                    link="/presell/welcome"
-                )
-                
-                # Send welcome email
-                background_tasks.add_task(
-                    send_layla_email,
-                    "presell_success",
-                    payment_details['email'],
-                    {
-                        "name": payment_details['fullName'].split()[0]
-                    }
-                )
-                
-                logger.info(f"Presell user created successfully: {presell_user['_id']}")
-                
-            except Exception as e:
-                logger.error(f"Failed to process presell payment success: {e}", exc_info=True)
-                # Don't delete pending record if processing failed
-                
-        # ========================================
-        # PAYMENT FAILED
-        # ========================================
-        else:
-            logger.warning(f"Presell payment FAILED → {ref} | Email: {payment_details['email']}")
+            db.collection("presell_users").document(presell_id).set(presell_user_data)
             
-            # Update pending record with failure
-            db.collection("presell_pending").document(pending_id).update({
-                "status": "failed",
-                "failed_at": datetime.now(timezone.utc),
-                "failure_reason": data.get("gateway_response", "Payment failed")
+            # Save email reference for lookup
+            db.collection("presell_emails").document(email).set({
+                "presell_id": presell_id,
+                "email": email,
+                "joined_at": datetime.now(timezone.utc),
+                "payment_verified": True,
+                "amount_paid": amount,
+                "reference": ref
             })
             
-    # ========================================
-    # Handle Subscription Events (if any)
-    # ========================================
-    elif event == "subscription.create":
-        # Handle presell subscriptions if needed
-        logger.info(f"Presell subscription created: {event}")
-        
-    elif event in ("subscription.disable", "subscription.expire"):
-        # Handle subscription cancellation
-        logger.info(f"Presell subscription cancelled: {event}")
-        
-    else:
-        logger.info(f"Unhandled presell webhook event: {event}")
-
+            # ⚠️ IMPORTANT: Check if user already exists
+            # If they do, grant them the subscription immediately
+            existing_users = db.collection("users").where("email", "==", email).limit(1).get()
+            
+            if existing_users:
+                user_doc = existing_users[0]
+                user_id = user_doc.id
+                
+                logger.info(f"🎉 User exists! Granting 1-year subscription to {user_id}")
+                
+                # Grant 1-year subscription
+                subscription_end = datetime.now(timezone.utc) + timedelta(days=365)
+                
+                db.collection("users").document(user_id).update({
+                    "plan": "silver",
+                    "subscription_end": subscription_end,
+                    "presell_claimed": True,
+                    "presell_eligible": True,
+                    "presell_id": presell_id,
+                    "updated_at": datetime.now(timezone.utc)
+                })
+                
+                create_notification(
+                    user_id=user_id,
+                    title="Welcome, Founding Creator!",
+                    message="You've received Payla Silver for 1 year! 🎉",
+                    type="success",
+                    link="/dashboard"
+                )
+            
+            # Clean up pending records
+            db.collection("presell_pending").document(pending_id).delete()
+            db.collection("presell_references").document(ref).delete()
+            
+            # Send welcome email
+            background_tasks.add_task(
+                send_layla_email,
+                "presell_success",
+                email,
+                {"name": payment_details['fullName'].split()[0]}
+            )
+            
+            logger.info(f"✅ Presell user created successfully: {presell_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to process presell payment: {e}", exc_info=True)
+            
     return {"status": "success"}
 
 
@@ -719,8 +727,7 @@ async def get_thank_you_info(email: str):
 @router.post("/claim")
 async def claim_presell_reward(request: Request, authorization: str = Header(...)):
     """
-    Marks presell reward as claimed and grants Payla Silver for 1 year.
-    Sends email notification and creates an in-app notification.
+    Fixed claim - only grants subscription to users who PAID ₦5,000
     """
     if not authorization.startswith("Bearer "):
         raise HTTPException(401, "Missing or invalid token")
@@ -730,7 +737,7 @@ async def claim_presell_reward(request: Request, authorization: str = Header(...
     try:
         decoded_token = firebase_auth.verify_id_token(id_token)
         user_id = decoded_token['user_id']
-        email = decoded_token['email']
+        email = decoded_token['email'].lower().strip()
     except Exception as e:
         raise HTTPException(401, f"Invalid token: {e}")
 
@@ -742,30 +749,119 @@ async def claim_presell_reward(request: Request, authorization: str = Header(...
 
     user_data = user_doc.to_dict()
 
+    # Check if already claimed
     if user_data.get("presell_claimed"):
-        return {"success": False, "message": "Already claimed"}
+        return {
+            "success": False, 
+            "message": "You've already claimed your founding creator reward"
+        }
 
-    # Grant Payla Silver
-    from datetime import datetime, timedelta
-    next_year = datetime.utcnow() + timedelta(days=365)
+    # ✅ VERIFY user actually PAID for presell
+    presell_email_doc = db.collection("presell_emails").document(email).get()
+    
+    if not presell_email_doc.exists:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "presell_not_paid",
+                "message": "You haven't paid for the founding creator offer. Please pay ₦5,000 to unlock 1 year free."
+            }
+        )
+    
+    presell_email_data = presell_email_doc.to_dict()
+    
+    # Verify payment was actually verified
+    if not presell_email_data.get("payment_verified"):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "payment_not_verified",
+                "message": "Your payment is still pending verification. Please try again in a few minutes."
+            }
+        )
+    
+    # ✅ User paid and verified - grant 1-year subscription
+    logger.info(f"✅ Granting 1-year subscription to {user_id} (paid ₦{presell_email_data.get('amount_paid', 0)})")
+    
+    subscription_end = datetime.now(timezone.utc) + timedelta(days=365)
+    
     user_ref.update({
         "plan": "silver",
-        "plan_code": "payla-silver",
-        "subscription_end": next_year,
-        "presell_claimed": True
+        "subscription_end": subscription_end,
+        "presell_claimed": True,
+        "presell_eligible": True,
+        "presell_id": presell_email_data.get("presell_id"),
+        "updated_at": datetime.now(timezone.utc)
     })
 
-    # Send email
-    send_presell_reward_email(email, user_data["full_name"])
+    # Send email confirmation
+    send_presell_reward_email(email, user_data.get("full_name", ""))
 
-    # Create dashboard notification
+    # Create notification
     create_notification(
         user_id=user_id,
-        title="Presell Reward Claimed",
-        message="You have received Payla Silver for 1 year 🎉",
+        title="Founding Creator Reward Claimed! 🎉",
+        message="You've received Payla Silver for 1 year! Welcome to the founding crew.",
         type="success",
         link="/dashboard"
     )
 
     updated_user = user_ref.get().to_dict()
-    return {"success": True, "user": updated_user}
+    return {
+        "success": True, 
+        "user": updated_user,
+        "message": "Congratulations! You now have Payla Silver for 1 year."
+    }
+
+
+@router.get("/check-eligibility/{email}")
+async def check_presell_eligibility(email: str):
+    """
+    Check if an email has paid for presell and is eligible for 1-year subscription
+    Call this during signup/login to auto-grant subscription
+    """
+    try:
+        email = email.lower().strip()
+        
+        # Check if paid for presell
+        presell_doc = db.collection("presell_emails").document(email).get()
+        
+        if not presell_doc.exists:
+            return {
+                "eligible": False,
+                "message": "Email not found in founding creators list"
+            }
+        
+        presell_data = presell_doc.to_dict()
+        
+        if not presell_data.get("payment_verified"):
+            return {
+                "eligible": False,
+                "message": "Payment not yet verified"
+            }
+        
+        # Check if already claimed
+        users = db.collection("users").where("email", "==", email).limit(1).get()
+        if users:
+            user_data = users[0].to_dict()
+            if user_data.get("presell_claimed"):
+                return {
+                    "eligible": False,
+                    "already_claimed": True,
+                    "message": "Reward already claimed"
+                }
+        
+        return {
+            "eligible": True,
+            "presell_id": presell_data.get("presell_id"),
+            "amount_paid": presell_data.get("amount_paid"),
+            "payment_date": presell_data.get("joined_at"),
+            "message": "User is eligible for 1-year free subscription"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking eligibility: {e}")
+        return {
+            "eligible": False,
+            "error": str(e)
+        }
