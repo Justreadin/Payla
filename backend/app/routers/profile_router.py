@@ -71,24 +71,23 @@ async def update_profile(
         # 1. Check Plan Eligibility (require_silver already handles most of this)
         # 2. Check Timing
         last_change = user_data.get("last_username_change")
-        
+
         if last_change:
-            # Ensure last_change is a datetime object
-            if not isinstance(last_change, datetime):
-                # Handle Firestore Timestamp conversion if necessary
-                last_change = last_change # Firestore SDK usually returns datetime
-            
-            one_year_ago = datetime.utcnow() - timedelta(days=365)
-            
+            # Firestore already returns aware UTC datetime
+            one_year_ago = datetime.now(timezone.utc) - timedelta(days=365)
+
             if last_change > one_year_ago:
-                days_to_wait = (last_change + timedelta(days=365) - datetime.utcnow()).days
+                days_to_wait = (
+                    last_change + timedelta(days=365) - datetime.now(timezone.utc)
+                ).days
+
                 raise HTTPException(
-                    status_code=403, 
+                    status_code=403,
                     detail=f"Username can only be changed once a year. Please wait {days_to_wait} more days."
                 )
 
         # Update the timestamp since username is changing
-        update_data["last_username_change"] = datetime.utcnow()
+        update_data["last_username_change"] = datetime.now(timezone.utc)
 
     # ── EXECUTE UPDATE ──
     user_ref.update(update_data)
@@ -99,7 +98,7 @@ async def update_profile(
         paylink_ref.update({
             "display_name": update_data.get("business_name") or user_data.get("business_name"),
             "username": requested_username or current_username,
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.now(timezone.utc)
         })
 
     return {"message": "Profile updated successfully", "username_changed": requested_username != current_username}

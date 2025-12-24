@@ -227,11 +227,13 @@ async def get_my_paylink(current_user=Depends(get_current_user)):
 # 3. GET PAYLINK BY USERNAME (public)
 # --------------------------------------------------------------
 @router.get("/{username}", response_model=Paylink)
-async def get_paylink_by_username(username: str, current_user: User = Depends(require_silver)):
+async def get_paylink_by_username(username: str):
+    # 1. Clean the username input
     username_clean = username.lower().lstrip("@").strip()
     if not username_clean:
         raise HTTPException(status_code=404, detail="Invalid username")
 
+    # 2. Query for the paylink document
     docs = db.collection("paylinks").where("username", "==", username_clean).limit(1).get()
 
     if not docs:
@@ -239,18 +241,34 @@ async def get_paylink_by_username(username: str, current_user: User = Depends(re
 
     data = docs[0].to_dict()
     data["_id"] = docs[0].id
+    owner_id = data.get("user_id")
 
+    # 3. Check the OWNER'S subscription (The "Paid Feature" Gatekeeper)
+    # We fetch the owner's user record to see if they have Silver/Gold/Opal
+    user_doc = db.collection("users").document(owner_id).get()
+    
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="Paylink owner not found")
+
+    user_data = user_doc.to_dict()
+    current_plan = user_data.get("plan", "free").lower()
+
+    # If the owner is not on a paid plan, block public access
+    if current_plan not in ["silver", "gold", "opal", "trial"]:
+        raise HTTPException(
+            status_code=403, 
+            detail="This Paylink requires a Payla Silver subscription to be active."
+        )
+
+    # 4. Check if the link is manually deactivated
     if not data.get("active", True):
-        raise HTTPException(status_code=404, detail="Paylink not found or inactive")
+        raise HTTPException(status_code=404, detail="Paylink is currently inactive")
 
-    # Ensure paystack page exists
+    # 5. Sync branding (Override display_name with current profile data)
+    data["display_name"] = user_data.get("business_name") or user_data.get("full_name")
+    
+    # 6. Ensure Paystack connection is ready
     data = await ensure_paystack_page(data)
-
-    # Load user document to override display_name with current business_name/full_name
-    user_doc = db.collection("users").document(data["user_id"]).get()
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        data["display_name"] = user_data.get("business_name") or user_data.get("full_name")
 
     return Paylink(**data)
 
