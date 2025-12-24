@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 import uuid
 import time
-
+from app.models.user_model import User
 from fastapi import APIRouter, HTTPException, Depends, status
 
 from app.models.paylink_model import PaylinkCreate, Paylink, CreatePaylinkTransactionRequest
@@ -227,7 +227,7 @@ async def get_my_paylink(current_user=Depends(get_current_user)):
 # 3. GET PAYLINK BY USERNAME (public)
 # --------------------------------------------------------------
 @router.get("/{username}", response_model=Paylink)
-async def get_paylink_by_username(username: str):
+async def get_paylink_by_username(username: str, current_user: User = Depends(require_silver)):
     username_clean = username.lower().lstrip("@").strip()
     if not username_clean:
         raise HTTPException(status_code=404, detail="Invalid username")

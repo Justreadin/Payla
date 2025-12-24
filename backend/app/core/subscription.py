@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger("payla")
 
+# --- GRACE PERIOD CONFIG ---
+SUBSCRIPTION_GRACE_DAYS = 7
 
 def parse_firestore_datetime(value) -> Optional[datetime]:
     """Convert various datetime formats from Firestore to timezone-aware datetime"""
@@ -69,69 +71,75 @@ def is_trial_active(user: User) -> bool:
     return is_active
 
 
-def has_active_subscription(user: User) -> bool:
+def get_subscription_status(user: User) -> dict:
     """
-    Check if user has an active paid subscription
-    Checks subscription_end date (for active subscriptions)
+    Detailed check of subscription status including Grace Period logic.
+    Returns: {"is_active": bool, "in_grace_period": bool, "days_left_in_grace": int}
     """
     subscription_end = getattr(user, "subscription_end", None)
-    
     if subscription_end is None:
-        return False
-    
-    subscription_end_dt = parse_firestore_datetime(subscription_end)
-    if subscription_end_dt is None:
-        return False
-    
-    now = datetime.now(timezone.utc)
-    is_active = (subscription_end_dt + timedelta(hours=24)) > now
-    
-    if is_active:
-        days_left = (subscription_end_dt - now).days
-        logger.info(f"User {user.id} subscription ACTIVE - {days_left} days remaining (ends: {subscription_end_dt})")
-    else:
-        days_expired = (now - subscription_end_dt).days
-        logger.info(f"User {user.id} subscription EXPIRED - {days_expired} days ago")
-    
-    return is_active
+        return {"is_active": False, "in_grace_period": False, "days_left_in_grace": 0}
 
+    sub_end_dt = parse_firestore_datetime(subscription_end)
+    if sub_end_dt is None:
+        return {"is_active": False, "in_grace_period": False, "days_left_in_grace": 0}
+
+    now = datetime.now(timezone.utc)
+    
+    # 1. Standard Active Check (adding 24h buffer for timezone safety)
+    if (sub_end_dt + timedelta(hours=24)) > now:
+        return {"is_active": True, "in_grace_period": False, "days_left_in_grace": 0}
+
+    # 2. Grace Period Check
+    grace_end_dt = sub_end_dt + timedelta(days=SUBSCRIPTION_GRACE_DAYS)
+    if grace_end_dt > now:
+        days_left = (grace_end_dt - now).days
+        return {"is_active": True, "in_grace_period": True, "days_left_in_grace": days_left}
+
+    return {"is_active": False, "in_grace_period": False, "days_left_in_grace": 0}
+
+
+
+def has_active_subscription(user: User) -> bool:
+    """
+    Check if user has an active paid subscription or is within the 7-day grace period.
+    """
+    sub_status = get_subscription_status(user)
+    
+    # log the specific status for debugging
+    if sub_status["in_grace_period"]:
+        logger.info(f"⚠️ User {user.id} in GRACE PERIOD: {sub_status['days_left_in_grace']} days remaining.")
+    
+    return sub_status["is_active"]
 
 def can_access_silver_features(user: User) -> bool:
     """
     Comprehensive access check for Silver-tier features.
-    Hierarchy: Presell > Paid Subscription > Active Trial > Manual Override
+    Hierarchy: Presell > Paid Subscription (inc. Grace) > Active Trial > Manual Override
     """
     now = datetime.now(timezone.utc)
 
-    # Priority 1: Check Presell Status (1-Year Free Access)
+    # Priority 1: Check Presell Status
     if user.plan == "presell":
         presell_end = parse_firestore_datetime(getattr(user, "presell_end_date", None))
         if presell_end and presell_end > now:
-            logger.info(f"✅ User {user.id} accessing via ACTIVE PRESELL (Ends: {presell_end})")
             return True
-        else:
-            logger.warning(f"⚠️ User {user.id} PRESELL plan has expired.")
 
-    # Priority 2: Check Paid Subscription Date (Paystack/Recurring)
+    # Priority 2: Check Paid Subscription (Using the updated logic that includes grace period)
     if has_active_subscription(user):
-        logger.info(f"✅ User {user.id} has ACTIVE PAID SUBSCRIPTION")
         return True
     
     # Priority 3: Check for 14-day trial window
     if is_trial_active(user):
-        logger.info(f"✅ User {user.id} accessing via ACTIVE 14-DAY TRIAL")
         return True
     
-    # Priority 4: Check manual overrides (Plan set to silver AND has a sub_id)
-    # Useful for legacy users or manual support interventions
+    # Priority 4: Check manual overrides
     plan = (user.plan or "free").lower()
     if plan in ["silver", "gold", "opal"] and getattr(user, "subscription_id", None):
-        logger.info(f"✅ User {user.id} has manual/legacy Silver access")
         return True
     
-    logger.info(f"❌ User {user.id} access denied - No active trial, presell, or subscription found.")
     return False
-    
+
 
 async def require_silver(user: Optional[User] = Depends(get_current_user)) -> User:
     """

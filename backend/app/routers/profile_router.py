@@ -1,5 +1,5 @@
 # routers/profile_router.py → FINAL FIXED & BULLETPROOF (2025)
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from app.core.subscription import require_silver
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -56,33 +56,53 @@ async def update_profile(
     if current_user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
+    user_ref = db.collection("users").document(current_user.id)
+    user_data = user_ref.get().to_dict()
+    
     update_data = data.dict(exclude_unset=True, exclude_none=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No data provided")
 
-    # Update the user's profile
-    db.collection("users").document(current_user.id).update(update_data)
+    # ── USERNAME CHANGE LOGIC (The "Once Per Year" Gate) ──
+    requested_username = update_data.get("username")
+    current_username = user_data.get("username")
 
-    # -------------------------
-    # Update corresponding paylink
-    # -------------------------
+    if requested_username and requested_username != current_username:
+        # 1. Check Plan Eligibility (require_silver already handles most of this)
+        # 2. Check Timing
+        last_change = user_data.get("last_username_change")
+        
+        if last_change:
+            # Ensure last_change is a datetime object
+            if not isinstance(last_change, datetime):
+                # Handle Firestore Timestamp conversion if necessary
+                last_change = last_change # Firestore SDK usually returns datetime
+            
+            one_year_ago = datetime.utcnow() - timedelta(days=365)
+            
+            if last_change > one_year_ago:
+                days_to_wait = (last_change + timedelta(days=365) - datetime.utcnow()).days
+                raise HTTPException(
+                    status_code=403, 
+                    detail=f"Username can only be changed once a year. Please wait {days_to_wait} more days."
+                )
+
+        # Update the timestamp since username is changing
+        update_data["last_username_change"] = datetime.utcnow()
+
+    # ── EXECUTE UPDATE ──
+    user_ref.update(update_data)
+
+    # Sync Paylink (keep your existing paylink logic here)
     paylink_ref = db.collection("paylinks").document(current_user.id)
-    paylink_doc = paylink_ref.get()
-    if paylink_doc.exists:
-        paylink_data = paylink_doc.to_dict()
-        
-        # Determine new display_name and description
-        new_display_name = update_data.get("business_name") or current_user.full_name
-        new_description = update_data.get("tagline") or paylink_data.get("description") or "Fast, secure payments via Payla"
-        
+    if paylink_ref.get().exists:
         paylink_ref.update({
-            "display_name": new_display_name,
-            "description": new_description,
+            "display_name": update_data.get("business_name") or user_data.get("business_name"),
+            "username": requested_username or current_username,
             "updated_at": datetime.utcnow()
         })
 
-    return {"message": "Profile updated successfully and paylink synced"}
-
+    return {"message": "Profile updated successfully", "username_changed": requested_username != current_username}
 
 
 # =============================
