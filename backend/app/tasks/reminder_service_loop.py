@@ -14,6 +14,8 @@ from app.services.reminder_service import (
     get_layla_email,
     map_templates,
 )
+from app.core.config import settings  # Essential for settings.BACKEND_URL
+from google.cloud.firestore import Transaction # Needed if you type-hint transactions
 from app.models.reminder_model import Reminder
 from app.utils.receipt_emails import generate_receipt_content
 from app.utils.email import get_html_wrapper
@@ -183,26 +185,30 @@ async def send_channel_with_tracking(
         logger.error(f"[{ch}] ❌ Failed to send for reminder {rem.id}")
 
 async def process_reminder(rem: Reminder):
-    """
-    Processes a specific reminder: Fetches data, determines the luxury tone,
-    wraps it in high-end HTML, and dispatches via selected channels.
-    """
     if not acquire_reminder_lock(rem.id):
         logger.info(f"Reminder {rem.id} already locked, skipping")
         return
 
     try:
+        # Define reference and ID early for the 'not found' block
+        reminder_ref = db.collection("reminders").document(rem.id)
+        invoice_id = rem.invoice_id 
+
         # 1. Fetch Invoice Details
         invoice_doc = await asyncio.to_thread(
-            db.collection("invoices").document(rem.invoice_id).get
+            db.collection("invoices").document(invoice_id).get
         )
 
         if not invoice_doc.exists:
-            logger.warning(f"Invoice {rem.invoice_id} not found for reminder {rem.id}")
+            logger.warning(f"Invoice {invoice_id} not found for reminder {rem.id}. Archiving.")
+            # Use the variables we just defined
+            await asyncio.to_thread(
+                reminder_ref.update, 
+                {"status": "cancelled", "reason": "invoice_deleted", "active": False}
+            )
             return
 
         invoice = invoice_doc.to_dict()
-
         # Exit early if already paid
         if invoice.get("status") == "paid":
             logger.info(f"Invoice {rem.invoice_id} is paid, marking reminder {rem.id} as sent")
