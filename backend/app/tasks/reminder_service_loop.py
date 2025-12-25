@@ -16,6 +16,7 @@ from app.services.reminder_service import (
 )
 from app.models.reminder_model import Reminder
 from app.utils.receipt_emails import generate_receipt_content
+from app.utils.email import get_html_wrapper
 
 db = firestore.client()
 logger = logging.getLogger("payla.reminders")
