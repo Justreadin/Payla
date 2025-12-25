@@ -222,29 +222,6 @@ async def serve_html_page(page_name: str, request: Request):
         raise HTTPException(status_code=400, detail="Invalid page")
 
     # ───────────────────────────────────────────
-    # 🔐 TOKEN-GATED PAGE — thank-you
-    # ───────────────────────────────────────────
-    if page_name == "thank-you":
-        token = request.query_params.get("token")
-
-        if not token:
-            # No token → block access immediately
-            raise HTTPException(status_code=401, detail="Access denied")
-
-        # Import shared token store from router
-        try:
-            from app.routers.token_gate import TOKEN_STORE, clean_expired_tokens
-        except Exception:
-            raise HTTPException(status_code=500, detail="Token system unavailable")
-
-        # Remove old tokens
-        clean_expired_tokens()
-
-        # Validate
-        if token not in TOKEN_STORE:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-    # ───────────────────────────────────────────
     # Serve file if /frontend/{page_name}.html exists
     # ───────────────────────────────────────────
     html_path = os.path.join(FRONTEND_DIR, f"{page_name}.html")
