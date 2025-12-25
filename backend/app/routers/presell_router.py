@@ -225,7 +225,8 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
                 "joined_at": datetime.now(timezone.utc),
                 "payment_verified": True,
                 "amount_paid": amount,
-                "reference": ref
+                "reference": ref,
+                "current_spot": current_spot
             })
             
             # ⚠️ IMPORTANT: Check if user already exists
@@ -266,8 +267,7 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
             background_tasks.add_task(
                 send_layla_email,
                 "presell_success",
-                email,
-                {"name": payment_details['fullName'].split()[0]}
+                email
             )
             
             logger.info(f"✅ Presell user created successfully: {presell_id}")
@@ -511,11 +511,12 @@ async def get_presell_user_status(email: str):
         )
 
 
+from datetime import timedelta
+
 @router.post("/verify-payment")
-async def verify_payment(payload: dict):
+async def verify_payment(payload: dict, background_tasks: BackgroundTasks):
     """Instant, idempotent, real-time Paystack verification."""
     reference = payload.get("reference")
-    email = payload.get("email")
     
     if not reference:
         raise HTTPException(400, "Missing payment reference")
@@ -529,12 +530,13 @@ async def verify_payment(payload: dict):
             raise HTTPException(400, "Invalid reference")
 
         pending_id = ref_doc.to_dict().get("pending_id")
-
         pending_doc = db.collection("presell_pending").document(pending_id).get()
+        
         if not pending_doc.exists:
             raise HTTPException(400, "Pending record not found")
 
         pending = pending_doc.to_dict()
+        email = pending["email"].lower().strip()
 
         # Idempotency: if already completed, return success immediately
         if pending.get("status") == "completed":
@@ -543,20 +545,17 @@ async def verify_payment(payload: dict):
                 "message": "Payment already verified",
                 "user": {
                     "fullName": pending["fullName"],
-                    "email": pending["email"],
+                    "email": email,
                 }
             }
 
-        amount_expected = pending["amount"]
-
         # ======================================================
-        # 2. CALL PAYSTACK VERIFY API (REAL-TIME CONFIRMATION)
+        # 2. CALL PAYSTACK VERIFY API
         # ======================================================
         headers = {
             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
             "Accept": "application/json",
         }
-
         verify_url = f"https://api.paystack.co/transaction/verify/{reference}"
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -567,7 +566,7 @@ async def verify_payment(payload: dict):
 
         ps_data = ps.json()
         status_ = ps_data["data"]["status"]
-        amount_paid = ps_data["data"]["amount"] / 100  # convert kobo → naira
+        amount_paid = ps_data["data"]["amount"] / 100 
 
         # ======================================================
         # 3. CHECK FOR FAILURE / ABANDONED
@@ -577,7 +576,6 @@ async def verify_payment(payload: dict):
                 "status": "failed",
                 "updated_at": datetime.now(timezone.utc)
             })
-
             return {
                 "success": False,
                 "status": status_,
@@ -585,78 +583,97 @@ async def verify_payment(payload: dict):
             }
 
         # ======================================================
-        # 4. VALIDATE AMOUNT
+        # 4. VALIDATE AMOUNT (₦5,000)
         # ======================================================
-        if amount_paid < amount_expected:
+        if amount_paid < pending["amount"]:
             raise HTTPException(400, "Amount mismatch. Contact support.")
 
         # ======================================================
         # 5. MARK USER AS PAID (ATOMICS)
         # ======================================================
         batch = db.batch()
+        now = datetime.now(timezone.utc)
+        one_year_expiry = now + timedelta(days=365)
 
         # A. Update pending → completed
         batch.update(
             db.collection("presell_pending").document(pending_id),
-            {
-                "status": "completed",
-                "updated_at": datetime.now(timezone.utc)
-            }
+            {"status": "completed", "updated_at": now}
         )
 
         # B. Get counter to calculate current spot
         counter_response = await get_presell_counter()
-        current_spot = counter_response["paid_count"] + 1  # +1 because this user hasn't been counted yet
+        current_spot = counter_response["paid_count"] + 1
         spots_left = max(500 - current_spot, 0)
 
-        # C. Create final paid user record with spot information
+        # C. Create/Update the master email record (Crucial for Auth system)
         batch.set(
-            db.collection("presell_emails").document(pending["email"]),
+            db.collection("presell_emails").document(email),
             {
-                "email": pending["email"],
+                "email": email,
                 "fullName": pending["fullName"],
                 "reference": reference,
+                "payment_verified": True, # <--- Used by auth.py
                 "current_spot": current_spot,
-                "created_at": datetime.now(timezone.utc)
+                "joined_at": now,
+                "amount_paid": amount_paid
             }
         )
+
+        # D. IF USER EXISTS: Upgrade them immediately to Silver until 2026
+        existing_users = db.collection("users").where("email", "==", email).limit(1).get()
+        if existing_users:
+            user_doc = existing_users[0]
+            batch.update(db.collection("users").document(user_doc.id), {
+                "plan": "silver",
+                "subscription_end": one_year_expiry, # Sets to Dec 2026
+                "presell_eligible": True,
+                "presell_claimed": True,
+                "updated_at": now
+            })
+            
+            # Create in-app notification
+            create_notification(
+                user_id=user_doc.id,
+                title="Founding Creator Active! 🎉",
+                message="Your 1-year Payla Silver subscription is now active.",
+                type="success",
+                link="/dashboard"
+            )
 
         batch.commit()
 
         # ======================================================
-        # 6. Generate access token for thank-you page
+        # 6. TRIGGER LAYLA'S EMAIL (No name passed to avoid KeyError)
         # ======================================================
-        try:
-            # Create Firebase custom token
-            firebase_token = firebase_auth.create_custom_token(pending["email"])
-            access_token = firebase_token.decode() if isinstance(firebase_token, bytes) else firebase_token
-        except Exception as token_error:
-            logger.error(f"Failed to create Firebase token: {token_error}")
-            # Fallback to simple token
-            access_token = f"presell_{uuid.uuid4().hex}"
+        background_tasks.add_task(send_layla_email, "presell_success", email)
 
         # ======================================================
-        # 7. RESPONSE
+        # 7. GENERATE ACCESS TOKEN & RESPONSE
         # ======================================================
+        try:
+            firebase_token = firebase_auth.create_custom_token(email)
+            access_token = firebase_token.decode() if isinstance(firebase_token, bytes) else firebase_token
+        except Exception:
+            access_token = f"presell_{uuid.uuid4().hex}"
+
         return {
             "success": True,
             "status": "success",
-            "message": "Payment verified",
+            "message": "Payment verified and rewards granted",
             "access_token": access_token,
             "spots_left": spots_left,
             "user": {
                 "fullName": pending["fullName"],
-                "email": pending["email"],
+                "email": email,
             }
         }
 
     except HTTPException:
         raise
-
     except Exception as e:
         logger.error(f"PAYSTACK VERIFY ERROR: {e}")
         raise HTTPException(500, "Verification error occurred")
-
 
 @router.get("/thank-you")
 async def get_thank_you_info(email: str):

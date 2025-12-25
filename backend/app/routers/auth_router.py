@@ -500,13 +500,13 @@ async def logout():
 # ============================================================
 async def auto_grant_presell_on_signup(user_id: str, email: str):
     """
-    Call this function RIGHT AFTER creating a new user
-    Automatically grants 1-year subscription if they paid presell
+    Call this function RIGHT AFTER creating a new user or during login.
+    Automatically grants 1-year subscription if they paid presell.
     """
     try:
         email = email.lower().strip()
         
-        # Check eligibility
+        # 1. Check eligibility from the master presell collection
         presell_doc = await firestore_run(db.collection("presell_emails").document(email).get)
         
         if not presell_doc.exists:
@@ -515,14 +515,16 @@ async def auto_grant_presell_on_signup(user_id: str, email: str):
         
         presell_data = presell_doc.to_dict()
         
+        # 2. Check if verification was successful (must match what verify-payment sets)
         if not presell_data.get("payment_verified"):
-            logger.warning(f"User {email} presell payment not verified")
+            logger.warning(f"User {email} presell record exists but payment_verified is False")
             return False
         
-        # Grant 1-year subscription
+        # 3. Calculate 1 year from NOW
         now = datetime.now(timezone.utc)
         one_year_later = now + timedelta(days=365)
         
+        # 4. Atomic update to user plan
         await firestore_run(
             db.collection("users").document(user_id).update,
             {
@@ -530,20 +532,21 @@ async def auto_grant_presell_on_signup(user_id: str, email: str):
                 "plan_start_date": now,
                 "subscription_end": one_year_later,
                 "presell_end_date": one_year_later,
-                "next_billing_date": one_year_later, # They pay again in 1 year
+                "next_billing_date": one_year_later,
                 "presell_claimed": True,
                 "presell_eligible": True,
-                "presell_id": presell_data.get("presell_id"),
+                "presell_id": presell_data.get("presell_id", "founding_creator"),
                 "updated_at": now
             }
         )
         
-        logger.info(f"✅ Auto-granted 1-year subscription to {user_id}")
+        logger.info(f"✅ Auto-granted 1-year subscription to {email} (UID: {user_id})")
         
+        # 5. In-app notification
         create_notification(
             user_id=user_id,
             title="Welcome, Founding Creator! 🎉",
-            message="Your 1-year Payla Silver subscription is now active!",
+            message="Your email was recognized! You've been upgraded to 1-Year Payla Silver.",
             type="success",
             link="/dashboard"
         )
@@ -551,5 +554,5 @@ async def auto_grant_presell_on_signup(user_id: str, email: str):
         return True
         
     except Exception as e:
-        logger.error(f"Failed to auto-grant presell: {e}")
+        logger.error(f"❌ Failed to auto-grant presell: {e}")
         return False
