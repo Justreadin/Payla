@@ -11,7 +11,7 @@ logger = logging.getLogger("payla.billing")
 
 # Run check once every hour
 CHECK_INTERVAL = 3600 
-BILLING_SENDER = "billingnoreply@payla.vip"
+BILLING_SENDER = "billing.noreply@payla.vip"
 
 async def check_billing_status():
     # Use timezone-aware 'now'

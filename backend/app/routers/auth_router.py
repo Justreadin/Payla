@@ -526,7 +526,7 @@ async def auto_grant_presell_on_signup(user_id: str, email: str):
         await firestore_run(
             db.collection("users").document(user_id).update,
             {
-                "plan": "silver",
+                "plan": "silver", 
                 "plan_start_date": now,
                 "subscription_end": one_year_later,
                 "presell_end_date": one_year_later,
