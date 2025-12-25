@@ -14,7 +14,6 @@ def delete_unverified_user(firebase_uid: str):
     """
     Deletes a Firebase Auth user and Firestore document if unverified.
     """
-
     try:
         user_doc = db.collection("users").document(firebase_uid).get()
         if not user_doc.exists:

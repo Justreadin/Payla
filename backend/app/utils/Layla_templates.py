@@ -7,71 +7,71 @@ Layla_TEMPLATES = {
     1: {
         "subject": "Welcome to a new standard",
         "html": lambda full_name, username: f"""
-<div style="background:{MIDNIGHT}; color:{SOFT_WHITE}; font-family:'Inter', -apple-system, sans-serif; padding:60px 20px; min-height:100vh;">
-  <div style="max-width:460px; margin:0 auto; background:{MIDNIGHT}; border:1px solid rgba(232,180,184,0.25); border-radius:32px; padding:48px; box-shadow:0 40px 100px rgba(0,0,0,0.5);">
-    
-    <h1 style="font-family:'Playfair Display', serif; font-size:32px; font-weight:400; color:{ROSE}; margin-bottom:32px; letter-spacing:-0.5px;">
-      Welcome {full_name.split()[0]}.
-    </h1>
+              <div style="background:{MIDNIGHT}; color:{SOFT_WHITE}; font-family:'Inter', -apple-system, sans-serif; padding:60px 20px; min-height:100vh;">
+                <div style="max-width:460px; margin:0 auto; background:{MIDNIGHT}; border:1px solid rgba(232,180,184,0.25); border-radius:32px; padding:48px; box-shadow:0 40px 100px rgba(0,0,0,0.5);">
+                  
+                  <h1 style="font-family:'Playfair Display', serif; font-size:32px; font-weight:400; color:{ROSE}; margin-bottom:32px; letter-spacing:-0.5px;">
+                    Welcome {full_name.split()[0]}.
+                  </h1>
 
-    <div style="font-size:16px; line-height:1.9; color:#D6D6D6; font-weight:300;">
-      <p style="color:{SOFT_WHITE}; font-size:18px; margin-bottom:24px;">I’m <strong>Layla</strong>.</p>
-      
-      <p>
-        I’ll be guiding you through Payla — from your <strong>payment identity</strong>, to client payments, reminders, invoices, and receipts.
-      </p>
-      
-      <p>
-        Everything required to get paid cleanly, quickly, and without a single follow-up.
-      </p>
+                  <div style="font-size:16px; line-height:1.9; color:#D6D6D6; font-weight:300;">
+                    <p style="color:{SOFT_WHITE}; font-size:18px; margin-bottom:24px;">I’m <strong>Layla</strong>.</p>
+                    
+                    <p>
+                      I’ll be guiding you through Payla, from your <strong>payment identity</strong>, to client payments, reminders, invoices, and receipts.
+                    </p>
+                    
+                    <p>
+                      Everything required to get paid cleanly, quickly, and without a single follow-up.
+                    </p>
 
-      <p style="margin:32px 0 12px; color:{ROSE}; font-weight:600; letter-spacing:1px; font-size:13px; text-transform:uppercase;">
-        Here’s what Payla changes:
-      </p>
-      
-      <ul style="list-style-type:none; padding:0; margin-bottom:32px; color:{SOFT_WHITE};">
-        <li style="margin-bottom:8px;">• What Payla is</li>
-        <li style="margin-bottom:8px;">• What it replaces</li>
-        <li style="margin-bottom:8px;">• How creators get paid without friction</li>
-      </ul>
+                    <p style="margin:32px 0 12px; color:{ROSE}; font-weight:600; letter-spacing:1px; font-size:13px; text-transform:uppercase;">
+                      Over the next few weeks, I’ll show you:
+                    </p>
+                    
+                    <ul style="list-style-type:none; padding:0; margin-bottom:32px; color:{SOFT_WHITE};">
+                      <li style="margin-bottom:8px;">• What Payla is</li>
+                      <li style="margin-bottom:8px;">• What it replaces</li>
+                      <li style="margin-bottom:8px;">• How creators get paid without friction</li>
+                    </ul>
 
-      <p style="font-style:italic; border-left:2px solid {ROSE}; padding-left:16px; margin:32px 0;">
-        My emails are short. Intentional. Worth your time. One minute is all I need.
-      </p>
+                    <p style="font-style:italic; border-left:2px solid {ROSE}; padding-left:16px; margin:32px 0;">
+                      My emails are short. Intentional. Worth your time. One minute is all I need.
+                    </p>
 
-      <p style="margin-bottom:24px;">
-        Start now.<br/>
-        Share your Payla link with a client.<br/>
-        Add it to your bio.<br/>
-        Let it represent how you get paid.
-      </p>
+                    <p style="margin-bottom:24px;">
+                      Start now.<br/>
+                      Share your Payla link with a client.<br/>
+                      Add it to your bio.<br/>
+                      Let it represent how you get paid.
+                    </p>
 
-      <div style="text-align:center; margin:40px 0;">
-        <a href="https://payla.ng/@{username}" 
-           style="color:{ROSE}; text-decoration:none; font-size:20px; font-weight:700; letter-spacing:-0.5px;">
-           payla.ng/@{username}
-        </a>
-      </div>
+                    <div style="text-align:center; margin:40px 0;">
+                      <a href="https://payla.ng/@{username}" 
+                        style="color:{ROSE}; text-decoration:none; font-size:20px; font-weight:700; letter-spacing:-0.5px;">
+                        payla.ng/@{username}
+                      </a>
+                    </div>
 
-      <p style="color:{SOFT_WHITE}; font-weight:500;">
-        This isn’t a payment link. It’s your payment identity.
-      </p>
-      
-      <p style="margin-top:8px;">
-        Welcome to a new standard.
-      </p>
-    </div>
+                    <p style="color:{SOFT_WHITE}; font-weight:500;">
+                      This isn’t a payment link. It’s your payment identity.
+                    </p>
+                    
+                    <p style="margin-top:8px;">
+                      Welcome to a new standard.
+                    </p>
+                  </div>
 
-    <div style="margin-top:60px; padding-top:32px; border-top:1px solid rgba(232,180,184,0.15);">
-      <p style="margin:0; color:#888888; font-size:15px;">I’ll be in touch.</p>
-      <p style="margin:8px 0 0; color:{ROSE}; font-size:22px; font-family:'Playfair Display', serif;">— Layla</p>
-      <p style="margin:4px 0 0; font-weight:900; letter-spacing:4px; font-size:12px; color:rgba(232,180,184,0.5);">PAYLA</p>
-    </div>
+                  <div style="margin-top:60px; padding-top:32px; border-top:1px solid rgba(232,180,184,0.15);">
+                    <p style="margin:0; color:#888888; font-size:15px;">I’ll be in touch.</p>
+                    <p style="margin:8px 0 0; color:{ROSE}; font-size:22px; font-family:'Playfair Display', serif;">— Layla</p>
+                    <p style="margin:4px 0 0; font-weight:900; letter-spacing:4px; font-size:12px; color:rgba(232,180,184,0.5);">PAYLA</p>
+                  </div>
 
-  </div>
-</div>
-"""
-    },
+                </div>
+              </div>
+              """
+            },
     2: {
         "subject": "Why Payla exists",
         "html": lambda username: f"""

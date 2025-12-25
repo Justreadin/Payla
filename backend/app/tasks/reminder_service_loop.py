@@ -15,6 +15,7 @@ from app.services.reminder_service import (
     map_templates,
 )
 from app.models.reminder_model import Reminder
+from app.utils.receipt_templates import generate_receipt_content
 
 db = firestore.client()
 logger = logging.getLogger("payla.reminders")
@@ -180,13 +181,17 @@ async def send_channel_with_tracking(
     else:
         logger.error(f"[{ch}] ❌ Failed to send for reminder {rem.id}")
 
-
 async def process_reminder(rem: Reminder):
+    """
+    Processes a specific reminder: Fetches data, determines the luxury tone,
+    wraps it in high-end HTML, and dispatches via selected channels.
+    """
     if not acquire_reminder_lock(rem.id):
         logger.info(f"Reminder {rem.id} already locked, skipping")
         return
 
     try:
+        # 1. Fetch Invoice Details
         invoice_doc = await asyncio.to_thread(
             db.collection("invoices").document(rem.invoice_id).get
         )
@@ -197,6 +202,7 @@ async def process_reminder(rem: Reminder):
 
         invoice = invoice_doc.to_dict()
 
+        # Exit early if already paid
         if invoice.get("status") == "paid":
             logger.info(f"Invoice {rem.invoice_id} is paid, marking reminder {rem.id} as sent")
             await asyncio.to_thread(
@@ -205,130 +211,183 @@ async def process_reminder(rem: Reminder):
             )
             return
 
-        client_name = (invoice.get("client_name") or "there").split()[0]
+        # 2. Data Preparation & Timing
+        client_full_name = invoice.get("client_name") or "there"
+        client_first_name = client_full_name.split()[0]
         amount = f"₦{invoice.get('amount', 0):,}"
-        due_date = invoice.get("due_date")
+        biz_name = invoice.get("sender_business_name") or "Payla Creator"
         
+        due_date = invoice.get("due_date")
         if isinstance(due_date, str):
             due_date = datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc)
         elif hasattr(due_date, 'replace'):
             due_date = due_date.replace(tzinfo=timezone.utc)
             
         due_str = due_date.strftime("%b %d") if due_date else "N/A"
+        now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        day_of_week = now.strftime("%A")
 
+        # 3. Build Luxury Context for Layla's Voice
         context = {
-            "name": client_name,
+            "name": client_first_name,
             "amount": amount,
             "due_date": due_str,
             "due_date_dt": due_date,
             "link": invoice.get("invoice_url", ""),
-            "business_name": invoice.get("sender_business_name", "Payla user"),
+            "business_name": biz_name,
             "invoice_id": rem.invoice_id,
+            "day_of_week": day_of_week,
+            "days": 0 
         }
 
-        whatsapp_key, sms_key, email_type = map_templates(rem.next_send, due_date, context)
+        # 4. Saleswoman Strategy: Determine Template Keys
+        # Strategy: If channel_used is empty, this IS the 'First Contact' intro.
+        is_first_contact = len(rem.channel_used) == 0 
+        
+        if is_first_contact:
+            # Immediate Intro (Handover energy)
+            whatsapp_key = "first_invoice"
+            sms_key = "first"
+            email_type = "first_contact"
+            logger.info(f"✨ Layla introducing herself for {biz_name}")
+            
+        elif due_date and now > due_date:
+            # Overdue Logic (Firm & Protective energy)
+            overdue_delta = now - due_date
+            context["days"] = overdue_delta.days
+            
+            # Map general overdue keys
+            whatsapp_key, _, _ = map_templates(rem.next_send, due_date, context)
+            
+            if context["days"] >= 7: sms_key = "final_nudge"
+            elif context["days"] >= 3: 
+                sms_key = "few_days_over"
+                email_type = "overdue_firm"
+            else: 
+                sms_key = "one_day_over"
+                email_type = "overdue_gentle"
+        else:
+            # Scheduled Future Reminders (Anticipation & Joy energy)
+            whatsapp_key, sms_key, email_type = map_templates(rem.next_send, due_date, context)
+            
+            # Refine WhatsApp Morning/Evening split for the Due Date
+            if whatsapp_key == "due_today_morning" and now.hour >= 15:
+                whatsapp_key = "due_today_evening"
+                
+            # Align Email templates with SMS keys
+            if "tomorrow" in sms_key: email_type = "reminder_2"
+            elif "today" in sms_key: email_type = "due_today"
 
-        channels = rem.channels_selected or []
-
-        if not channels:
-            logger.warning(f"Reminder {rem.id} has no channels_selected, skipping")
-            return
-
+        # 5. Prepare Multi-Channel Messages
         whatsapp_msg = rem.message or get_layla_whatsapp(whatsapp_key, context)
         sms_msg = rem.message or get_layla_sms(sms_key, context)
-        email_html = rem.message or get_layla_email(email_type, context)
-        email_subject = f"Reminder: {amount} due on {due_str}"
+        
+        # Email: Body copy + Luxury HTML Wrapper
+        email_body_text = get_layla_email(email_type, context, use_html=False)
+        btn_label = "Settle Invoice" if "overdue" in email_type else "View & Pay"
+        if email_type == "payment_received": btn_label = "View Receipt"
 
+        email_html = get_html_wrapper(
+            title=f"Update regarding {biz_name}",
+            body_text=email_body_text,
+            button_text=btn_label,
+            link=context["link"],
+            business_name=biz_name
+        )
+        
+        # Subject line should be clean and professional
+        email_subject = f"Invoice from {biz_name}: {amount}"
+
+        # 6. Final Channel Validation & Dispatch
+        selected_channels = rem.channels_selected or []
         final_channels = []
-        for ch in channels:
+        
+        for ch in selected_channels:
             if ch in ["whatsapp", "sms"] and invoice.get("client_phone"):
                 final_channels.append(ch)
             elif ch == "email" and invoice.get("client_email"):
                 final_channels.append(ch)
 
         if not final_channels:
-            logger.warning(f"No valid channels for reminder {rem.id}")
+            logger.warning(f"No valid contact info for reminder {rem.id}")
             return
 
-        logger.info(f"📤 Sending reminder {rem.id} via channels: {final_channels}")
+        # 7. Execute Independent Tracked Tasks
+        # Each channel is sent and tracked individually to ensure data integrity
+        logger.info(f"📤 Dispatching {len(final_channels)} channels for {biz_name}")
 
-        # 🔥 KEY FIX: Send all channels IN PARALLEL independently
         tasks = [
             send_channel_with_tracking(
-                ch,
-                rem,
-                invoice,
-                whatsapp_msg,
-                sms_msg,
-                email_subject,
-                email_html,
-                email_type,
-                final_channels,
+                ch, rem, invoice, whatsapp_msg, sms_msg, 
+                email_subject, email_html, email_type, final_channels
             )
             for ch in final_channels
         ]
 
         await asyncio.gather(*tasks, return_exceptions=True)
-        
-        logger.info(f"✅ Finished processing reminder {rem.id}")
+        logger.info(f"✅ Processed reminder {rem.id}")
 
     except Exception as e:
-        logger.exception(f"Error processing reminder {rem.id}: {e}")
+        logger.exception(f"Critical error in Layla's process loop for {rem.id}: {e}")
     finally:
         release_reminder_lock(rem.id)
 
+        
 
 async def process_payment_notification(invoice_doc):
     invoice = invoice_doc.to_dict()
+    invoice_id = invoice.get("invoice_id")
 
     if invoice.get("payment_notified", False):
         return
 
-    client_name = (invoice.get("client_name") or "there").split()[0]
-    amount = f"₦{invoice.get('amount', 0):,}"
-
-    context = {
-        "name": client_name,
-        "amount": amount,
-        "invoice_id": invoice.get("invoice_id"),
+    amount_str = f"₦{invoice.get('amount', 0):,}"
+    client_email = invoice.get("client_email")
+    user_email = invoice.get("user_email")
+    
+    base_context = {
+        "amount": amount_str,
+        "invoice_id": invoice_id,
+        "date": datetime.utcnow().strftime("%b %d, %Y"),
+        "business_name": invoice.get("sender_business_name") or "Payla Creator",
     }
-
-    whatsapp_msg = get_layla_whatsapp("payment_received", context)
-    email_html = get_layla_email("payment_received", context)
-    email_subject = f"Payment received: {amount}"
 
     tasks = []
 
-    if invoice.get("user_phone"):
-        tasks.append(
-            send_single_channel(
-                "whatsapp",
-                {"client_phone": invoice["user_phone"]},
-                whatsapp_msg,
-            )
-        )
+    # 1. SMS/WhatsApp to CLIENT (Luxury Celebration)
+    if invoice.get("client_phone"):
+        paid_msg = get_layla_sms("paid", base_context) # Now correctly indented
+        tasks.append(send_via_sms(invoice["client_phone"], paid_msg))
+        tasks.append(send_via_whatsapp(invoice["client_phone"], paid_msg))
 
-    if invoice.get("user_email"):
-        tasks.append(
-            send_single_channel(
-                "email",
-                {"client_email": invoice["user_email"]},
-                "",
-                email_subject,
-                email_html,
-                email_type="payment_received",
-            )
-        )
+    # 2. Receipt to CLIENT
+    if client_email:
+        client_context = {
+            **base_context,
+            "client_name": (invoice.get("client_name") or "there").split()[0],
+            "receipt_link": f"{settings.BACKEND_URL}api/receipt/invoice/{invoice_id}.pdf,
+        }
+        client_html = generate_receipt_content("client_receipt", client_context)
+        client_subject = f"Receipt: {amount_str} to {base_context['business_name']}"
+        tasks.append(send_single_channel("email", invoice, "", client_subject, client_html, email_type="client_receipt"))
+
+    # 3. Alert to USER (The Creator)
+    if user_email:
+        user_context = {
+            **base_context,
+            "user_name": (invoice.get("user_name") or "Creator").split()[0],
+            "client_name": (invoice.get("client_name") or "A client"),
+            "client_email": client_email,
+            "invoice_link": invoice.get("invoice_url"),
+        }
+        user_html = generate_receipt_content("user_payment_alert", user_context)
+        user_subject = f"💰 Payment Received: {amount_str}!"
+        tasks.append(send_single_channel("email", {"client_email": user_email}, "", user_subject, user_html, email_type="payment_alert"))
 
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    await asyncio.to_thread(
-        db.collection("invoices").document(invoice["invoice_id"]).update,
-        {"payment_notified": True},
-    )
-
-    logger.info(f"Payment notification sent for invoice {invoice['invoice_id']}")
+    await asyncio.to_thread(db.collection("invoices").document(invoice_id).update, {"payment_notified": True})
 
 
 async def reminder_loop():
