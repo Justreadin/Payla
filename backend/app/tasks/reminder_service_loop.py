@@ -15,7 +15,7 @@ from app.services.reminder_service import (
     map_templates,
 )
 from app.models.reminder_model import Reminder
-from app.utils.receipt_templates import generate_receipt_content
+from app.utils.receipt_emails import generate_receipt_content
 
 db = firestore.client()
 logger = logging.getLogger("payla.reminders")
@@ -365,7 +365,7 @@ async def process_payment_notification(invoice_doc):
         client_context = {
             **base_context,
             "client_name": (invoice.get("client_name") or "there").split()[0],
-            "receipt_link": f"{settings.BACKEND_URL}api/receipt/invoice/{invoice_id}.pdf,
+            "receipt_link": f"{settings.BACKEND_URL}api/receipt/invoice/{invoice_id}.pdf",
         }
         client_html = generate_receipt_content("client_receipt", client_context)
         client_subject = f"Receipt: {amount_str} to {base_context['business_name']}"
