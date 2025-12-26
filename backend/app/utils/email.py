@@ -164,7 +164,7 @@ def generate_email_content(email_type: str, context: dict, use_html: bool = Fals
                 button_text=meta["button"],
                 link=context.get("link", "https://payla.ng"),
                 business_name=context.get("business_name", "Payla Creator")
-            )
+            ) 
         return formatted_body
         
     except KeyError as e:
