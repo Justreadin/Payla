@@ -8,6 +8,7 @@ from app.models.user_model import User
 from datetime import datetime, timedelta, timezone
 from app.routers.payout_router import resolve_account_name
 from app.services.layla_service import LaylaOnboardingService
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
@@ -55,7 +56,7 @@ async def complete_onboarding(
     if len(username) < 3:
         raise HTTPException(status_code=400, detail="Username too short")
     
-    username_check = db.collection("paylinks").where("username", "==", username).get()
+    username_check = db.collection("paylinks").where(filter=FieldFilter("username", "==", username)).get()
     if username_check:
         raise HTTPException(status_code=400, detail="Username already taken")
 
@@ -148,7 +149,7 @@ async def validate_username(username: str = Query(...)):
         return {"available": False, "message": "Invalid username format"}
 
     # Check if username exists in paylinks collection
-    existing = db.collection("paylinks").where("username", "==", username).get()
+    existing = db.collection("paylinks").where(filter=FieldFilter("username", "==", username)).get()
     if existing:
         return {"available": False, "message": "Username already taken"}
 

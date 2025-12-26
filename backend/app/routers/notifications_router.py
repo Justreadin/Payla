@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.core.firebase import db
 from app.core.auth import get_current_user
 from app.models.user_model import User
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 router = APIRouter(prefix="/dashboard/notifications", tags=["Notifications"])
 
 
@@ -18,9 +18,9 @@ async def get_notifications(current_user: User = Depends(get_current_user)):
 
     notifs_query = (
         db.collection("notifications")
-        .where("user_id", "==", current_user.id)
-        .where("created_at", ">=", seven_days_ago)
-        .order_by("created_at", direction="DESCENDING")
+        .where(filter=FieldFilter("user_id", "==", current_user.id))
+        .where(filter=FieldFilter("created_at", ">=", seven_days_ago))
+        .order_by(filter=FieldFilter("created_at", direction="DESCENDING"))
         .limit(10)
         .stream()
     )

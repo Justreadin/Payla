@@ -8,7 +8,7 @@ class PaylinkCreate(BaseModel):
     """Payload when user creates/updates their @username link."""
     username: str = Field(..., description="e.g. 'tunde' → payla.ng/@tunde")
     display_name: str = Field(..., description="Shown on link page")
-    description: Optional[str] = "Fast, secure payments via Payla"
+    description: Optional[str] = "Description/Tagline"
     currency: Literal["NGN", "USD", "GBP", "EUR"] = "NGN"
 
 
@@ -35,8 +35,8 @@ class Paylink(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+        from_attributes = True
+        populate_by_name = True
         include = {
             "paystack_page_url",
             "paystack_reference"

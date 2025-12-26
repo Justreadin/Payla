@@ -13,7 +13,7 @@ import logging
 from app.tasks.payout_celery import payout_task
 
 from app.core.config import settings
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 router = APIRouter(prefix="/payout", tags=["Payout Settings"])
 logger = logging.getLogger("payla")
 db = firestore.client()
@@ -154,7 +154,7 @@ async def earnings(current_user: User = Depends(get_current_user)):
     available_for_payout = 0
 
     # Paylink transactions
-    paylink_docs = db.collection("paylink_transactions").where("user_id", "==", user_id).stream()
+    paylink_docs = db.collection("paylink_transactions").where(filter=FieldFilter("user_id", "==", user_id)).stream()
     for doc in paylink_docs:
         d = doc.to_dict()
         if d.get("status") == "success":
@@ -164,7 +164,7 @@ async def earnings(current_user: User = Depends(get_current_user)):
                 available_for_payout += amt
 
     # Invoice payments
-    invoice_docs = db.collection("invoices").where("sender_id", "==", user_id).where("status", "==", "paid").stream()
+    invoice_docs = db.collection("invoices").where(filter=FieldFilter("sender_id", "==", user_id)).where(filter=FieldFilter("status", "==", "paid")).stream()
     for doc in invoice_docs:
         d = doc.to_dict()
         amt = d.get("amount", 0)
@@ -179,7 +179,7 @@ async def earnings(current_user: User = Depends(get_current_user)):
 @router.get("/history")
 async def payout_history(current_user: User = Depends(get_current_user)):
     user_id = current_user.id
-    payouts_ref = db.collection("payouts").where("user_id", "==", user_id)\
+    payouts_ref = db.collection("payouts").where(filter=FieldFilter("user_id", "==", user_id))\
         .order_by("paid_at", direction=firestore.Query.DESCENDING).limit(10)
     docs = payouts_ref.stream()
     history = []

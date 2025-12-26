@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from firebase_admin import firestore
 from app.tasks.reminder_service_loop import send_single_channel
 from app.utils.marketing import generate_marketing_content, MARKETING_TEMPLATES
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 db = firestore.client()
 logger = logging.getLogger("payla.marketing")
@@ -12,7 +13,7 @@ async def get_spots_left():
     """Dynamically calculate remaining Founding Creator spots"""
     try:
         total_limit = 500
-        count_query = db.collection("users").where("presell_claimed", "==", True).count()
+        count_query = db.collection("users").where(filter=FieldFilter("presell_claimed", "==", True)).count()
         result = await asyncio.to_thread(count_query.get)
         count = result[0][0].value
         return max(total_limit - count, 7)
@@ -24,7 +25,7 @@ async def process_conversion(email: str, user_id: str, spots: int, doc_id: str, 
     email_clean = email.lower().strip()
     
     # 1. Safety Checks: Is Client already a User? OR on your suppression_list?
-    is_user_query = db.collection("users").where("email", "==", email_clean).limit(1).get()
+    is_user_query = db.collection("users").where(filter=FieldFilter("email", "==", email_clean)).limit(1).get()
     is_suppressed = db.collection("suppression_list").document(email_clean).get()
 
     if not is_user_query and not is_suppressed.exists:
@@ -81,9 +82,9 @@ async def marketing_loop():
 
             # --- PART A: INVOICES ---
             recent_invoices = db.collection("invoices")\
-                .where("status", "==", "paid")\
-                .where("conversion_pitched", "==", False)\
-                .where("paid_at", "<=", target_time)\
+                .where(filter=FieldFilter("status", "==", "paid"))\
+                .where(filter=FieldFilter("conversion_pitched", "==", False))\
+                .where(filter=FieldFilter("paid_at", "<=", target_time))\
                 .limit(20).stream()
 
             for doc in recent_invoices:
@@ -99,9 +100,9 @@ async def marketing_loop():
 
             # --- PART B: PAYLINKS ---
             recent_paylinks = db.collection("paylink_transactions")\
-                .where("status", "==", "success")\
-                .where("conversion_pitched", "==", False)\
-                .where("created_at", "<=", target_time)\
+                .where(filter=FieldFilter("status", "==", "success"))\
+                .where(filter=FieldFilter("conversion_pitched", "==", False))\
+                .where(filter=FieldFilter("created_at", "<=", target_time))\
                 .limit(20).stream()
 
             for doc in recent_paylinks:

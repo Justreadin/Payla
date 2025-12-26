@@ -4,6 +4,7 @@ from app.core.firebase import db
 from app.models.user_model import User
 from app.core.email import send_email # Your email sender utility
 from app.utils.Layla_templates import Layla_TEMPLATES
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 class LaylaOnboardingService:
     def __init__(self):
@@ -41,8 +42,8 @@ class LaylaOnboardingService:
         
         # Query users who have started (Step >= 1) but haven't finished (Step < 5)
         users_ref = db.collection("users")\
-                      .where("onboarding_step", ">=", 1)\
-                      .where("onboarding_step", "<", 5).stream()
+                      .where(filter=FieldFilter("onboarding_step", ">=", 1))\
+                      .where(filter=FieldFilter("onboarding_step", "<", 5)).stream()
 
         for doc in users_ref:
             user = User(**doc.to_dict())

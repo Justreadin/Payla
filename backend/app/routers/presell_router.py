@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Header, Request, 
 from fastapi.responses import StreamingResponse
 import httpx
 from pydantic import BaseModel, EmailStr, validator
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 from app.core.firebase import db
 from app.core.config import settings
 from app.core.notifications import create_notification
@@ -231,7 +231,7 @@ async def presell_paystack_webhook(request: Request, background_tasks: Backgroun
             
             # ⚠️ IMPORTANT: Check if user already exists
             # If they do, grant them the subscription immediately
-            existing_users = db.collection("users").where("email", "==", email).limit(1).get()
+            existing_users = db.collection("users").where(filter=FieldFilter("email", "==", email)).limit(1).get()
             
             if existing_users:
                 user_doc = existing_users[0]
@@ -285,7 +285,7 @@ async def get_presell_counter():
     try:
         # Count verified presell users
         verified_users = db.collection("presell_users")\
-            .where("payment_status", "==", "verified")\
+            .where(filter=FieldFilter("payment_status", "==", "verified"))\
             .count()\
             .get()
         
@@ -328,7 +328,7 @@ async def save_pending_payment(request: LockYearRequest):
         # 1. Fetch existing pending for this email
         # =======================================
         pending_docs = db.collection("presell_pending")\
-            .where("email", "==", email)\
+            .where(filter=FieldFilter("email", "==", email))\
             .get()
 
         for doc in pending_docs:
@@ -621,7 +621,7 @@ async def verify_payment(payload: dict, background_tasks: BackgroundTasks):
         )
 
         # D. IF USER EXISTS: Upgrade them immediately to Silver until 2026
-        existing_users = db.collection("users").where("email", "==", email).limit(1).get()
+        existing_users = db.collection("users").where(filter=FieldFilter("email", "==", email)).limit(1).get()
         if existing_users:
             user_doc = existing_users[0]
             batch.update(db.collection("users").document(user_doc.id), {
@@ -685,7 +685,7 @@ async def get_thank_you_info(email: str):
             raise HTTPException(status_code=400, detail="Email is required")
 
         # Query user by email
-        user_docs = db.collection("presell_users").where("email", "==", email.lower()).limit(1).get()
+        user_docs = db.collection("presell_users").where(filter=FieldFilter("email", "==", email.lower())).limit(1).get()
         if not user_docs:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -699,7 +699,7 @@ async def get_thank_you_info(email: str):
         # Since the counter starts from 127, we need to calculate the user's actual position
         # Get all verified presell users sorted by joined_at
         all_users = db.collection("presell_users")\
-            .where("payment_status", "==", "verified")\
+            .where(filter=FieldFilter("payment_status", "==", "verified"))\
             .order_by("joined_at")\
             .stream()
 
@@ -858,7 +858,7 @@ async def check_presell_eligibility(email: str):
             }
         
         # Check if already claimed
-        users = db.collection("users").where("email", "==", email).limit(1).get()
+        users = db.collection("users").where(filter=FieldFilter("email", "==", email)).limit(1).get()
         if users:
             user_data = users[0].to_dict()
             if user_data.get("presell_claimed"):

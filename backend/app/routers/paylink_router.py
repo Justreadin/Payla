@@ -6,7 +6,7 @@ import uuid
 import time
 from app.models.user_model import User
 from fastapi import APIRouter, HTTPException, Depends, status
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 from app.models.paylink_model import PaylinkCreate, Paylink, CreatePaylinkTransactionRequest
 from app.core.firebase import db
 from app.core.auth import get_current_user
@@ -163,13 +163,13 @@ async def check_username_availability(payload: dict):
         raise HTTPException(status_code=400, detail="Username too long")
     
     # Check if username exists in paylinks
-    paylink_query = db.collection("paylinks").where("username", "==", username).limit(1).get()
+    paylink_query = db.collection("paylinks").where(filter=FieldFilter("username", "==", username)).limit(1).get()
     
     # Check if username exists in pending payments (lock year registrations)
-    pending_query = db.collection("pending_payments").where("username", "==", username).limit(1).get()
+    pending_query = db.collection("pending_payments").where(filter=FieldFilter("username", "==", username)).limit(1).get()
     
     # Check if username exists in confirmed users
-    confirmed_query = db.collection("confirmed_users").where("username", "==", username).limit(1).get()
+    confirmed_query = db.collection("confirmed_users").where(filter=FieldFilter("username", "==", username)).limit(1).get()
     
     if paylink_query or pending_query or confirmed_query:
         return {
@@ -234,7 +234,7 @@ async def get_paylink_by_username(username: str):
         raise HTTPException(status_code=404, detail="Invalid username")
 
     # 2. Query for the paylink document
-    docs = db.collection("paylinks").where("username", "==", username_clean).limit(1).get()
+    docs = db.collection("paylinks").where(filter=FieldFilter("username", "==", username_clean)).limit(1).get()
 
     if not docs:
         raise HTTPException(status_code=404, detail="Paylink not found or inactive")
@@ -329,7 +329,7 @@ async def activate_paylink(current_user=Depends(get_current_user)):
 async def create_paylink_transaction(username: str, req: CreatePaylinkTransactionRequest):
     paylink_docs = (
         db.collection("paylinks")
-        .where("username", "==", username.lower().strip())
+        .where(filter=FieldFilter("username", "==", username.lower().strip()))
         .limit(1)
         .stream()
     )
@@ -410,7 +410,7 @@ async def get_paylink_transaction_status(username: str, reference: str):
 # --------------------------------------------------------------
 @router.post("/{username}/analytics/view")
 async def track_page_view(username: str):
-    docs = db.collection("paylinks").where("username", "==", username).limit(1).get()
+    docs = db.collection("paylinks").where(filter=FieldFilter("username", "==", username)).limit(1).get()
     if not docs:
         raise HTTPException(status_code=404, detail="Paylink not found")
 
@@ -428,7 +428,7 @@ async def track_page_view(username: str):
 # --------------------------------------------------------------
 @router.post("/{username}/analytics/transfer")
 async def track_transfer_click(username: str):
-    docs = db.collection("paylinks").where("username", "==", username).limit(1).get()
+    docs = db.collection("paylinks").where(filter=FieldFilter("username", "==", username)).limit(1).get()
     if not docs:
         raise HTTPException(status_code=404, detail="Paylink not found")
 

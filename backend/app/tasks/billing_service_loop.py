@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from firebase_admin import firestore
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 from app.tasks.reminder_service_loop import send_single_channel
 from app.utils.billing_emails import BILLING_TEMPLATES, generate_billing_content
 
@@ -25,9 +25,9 @@ async def check_billing_status():
     # 1. EXPIRING IN 72 HOURS (3 Days)
     # We look for active users whose sub ends in the next 3 days
     expiring_soon = db.collection("users")\
-        .where("subscription_end", "<=", three_days_from_now)\
-        .where("subscription_end", ">", now)\
-        .where("billing_nudge_status", "==", "active")\
+        .where(filter=FieldFilter("subscription_end", "<=", three_days_from_now))\
+        .where(filter=FieldFilter("subscription_end", ">", now))\
+        .where(filter=FieldFilter("billing_nudge_status", "==", "active"))\
         .stream()
 
     for doc in expiring_soon:
@@ -55,8 +55,8 @@ async def check_billing_status():
     # BULLETPROOF: We target ANYONE who has passed their end date 
     # but hasn't received the 'expired_sent' nudge yet.
     expired_grace = db.collection("users")\
-        .where("subscription_end", "<", now)\
-        .where("billing_nudge_status", "in", ["active", "72h_sent"])\
+        .where(filter=FieldFilter("subscription_end", "<", now))\
+        .where(filter=FieldFilter("billing_nudge_status", "in", ["active", "72h_sent"]))\
         .stream()
 
     for doc in expired_grace:

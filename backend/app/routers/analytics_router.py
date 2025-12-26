@@ -6,7 +6,7 @@ from app.core.auth import get_current_user
 from app.core.analytics import get_paylink_analytics
 from app.core.subscription import require_silver   # ← ADD THIS
 from app.models.user_model import User
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 router = APIRouter(prefix="/dashboard/analytics", tags=["Analytics"])
 
 
@@ -34,7 +34,7 @@ async def fetch_full_analytics(current_user: User):
     # --------------------------
     # 2. Fetch transactions
     # --------------------------
-    txns = db.collection("paylink_transactions").where("paylink_id", "==", paylink_id).stream()
+    txns = db.collection("paylink_transactions").where(filter=FieldFilter("paylink_id", "==", paylink_id)).stream()
 
     total_received = 0.0
     total_transactions = 0

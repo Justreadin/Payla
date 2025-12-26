@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from firebase_admin import auth
 from datetime import datetime, timedelta, timezone
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, EmailStr
 from app.services.email_service import send_verification_email, send_reset_password_email
 import uuid

@@ -12,7 +12,7 @@ from app.models.invoice_model import Invoice
 from app.core.subscription import require_silver
 from app.routers.invoice_router import create_invoice_draft, publish_invoice
 from app.core.config import settings
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 logger = logging.getLogger("payla")
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -35,7 +35,7 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
     # === Fetch invoices ===
     invoices_query = await firestore_run(
         db.collection("invoices")
-        .where("sender_id", "==", user_id)
+        .where(filter=FieldFilter("sender_id", "==", user_id))
         .stream
     )
 

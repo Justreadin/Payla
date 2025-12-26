@@ -19,6 +19,7 @@ from google.cloud.firestore import Transaction # Needed if you type-hint transac
 from app.models.reminder_model import Reminder
 from app.utils.receipt_emails import generate_receipt_content
 from app.utils.email import get_html_wrapper
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 db = firestore.client()
 logger = logging.getLogger("payla.reminders")
@@ -407,9 +408,9 @@ async def reminder_loop():
             pending_docs = await asyncio.to_thread(
                 lambda: list(
                     db.collection("reminders")
-                    .where("status", "==", "pending")
-                    .where("active", "==", True)
-                    .where("next_send", "<=", now)
+                    .where(filter=FieldFilter("status", "==", "pending"))
+                    .where(filter=FieldFilter("active", "==", True))
+                    .where(filter=FieldFilter("next_send", "<=", now))
                     .stream()
                 )
             )
@@ -419,8 +420,8 @@ async def reminder_loop():
             paid_docs = await asyncio.to_thread(
                 lambda: list(
                     db.collection("invoices")
-                    .where("status", "==", "paid")
-                    .where("payment_notified", "==", False)
+                    .where(filter=FieldFilter("status", "==", "paid"))
+                    .where(filter=FieldFilter("payment_notified", "==", False))
                     .stream()
                 )
             )

@@ -17,7 +17,7 @@ from app.core.notifications import create_notification
 from app.core.subscription import require_silver
 from app.tasks.payout import initiate_payout
 from app.utils.crm import sync_client_to_crm
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
 
 class TempReminderPayload:
@@ -288,7 +288,7 @@ async def get_my_invoices(current_user=Depends(get_current_user)):
 
     docs = await firestore_run(
         db.collection("invoices")
-        .where("sender_id", "==", current_user.id)
+        .where(filter=FieldFilter("sender_id", "==", current_user.id))
         .stream
     )
 
