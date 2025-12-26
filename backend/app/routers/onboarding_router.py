@@ -113,7 +113,7 @@ async def complete_onboarding(
         "user_id": user.id,
         "username": username,
         "display_name": update_data["business_name"],
-        "description": "Description/Tagline.", 
+        "description": "Your unique payment identity. Get paid instantly.", 
         "currency": "NGN",
         "active": True,
         "link_url": f"https://payla.ng/@{username}",
