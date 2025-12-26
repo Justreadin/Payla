@@ -87,12 +87,18 @@ async def paystack_webhook(
 
     # --- CASE B: PAYLA SENT MONEY TO A USER (Payouts) ---
     elif event == "transfer.success":
-        logger.info(f"💰 Webhook: Payout successful for {reference}")
-        db.collection("payouts").document(reference).update({
-            "status": "success",
-            "completed_at": datetime.now(timezone.utc),
-            "gateway_response": "Successful"
-        })
+        payout_ref = db.collection("payouts").document(reference)
+        
+        # Run in a transaction or check state to prevent double processing
+        doc = payout_ref.get()
+        if doc.exists and doc.to_dict().get("status") == "processing":
+            payout_ref.update({
+                "status": "success",
+                "completed_at": datetime.now(timezone.utc),
+                "gateway_response": "Successful",
+                "paystack_transfer_id": event_data.get("id")
+            })
+            logger.info(f"💰 Payout Confirmed: {reference}")
 
     elif event in ["transfer.failed", "transfer.reversed"]:
         reason = event_data.get("reason", "Bank reversal")

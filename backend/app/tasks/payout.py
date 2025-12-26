@@ -177,9 +177,22 @@ async def create_recipient(account_number: str, bank_code: str, account_name: st
 
 async def create_transfer(recipient_code: str, amount_ngn: float, reason: str):
     url = "https://api.paystack.co/transfer"
+    
+    # 1. Identify the fee that was added by the frontend
+    # (Matches your JS logic)
+    if amount_ngn <= 5010: # 5000 + 10 fee
+        payout_fee = 10
+    elif amount_ngn <= 50025: # 50000 + 25 fee
+        payout_fee = 25
+    else:
+        payout_fee = 50
+
+    # 2. Subtract it so we only send the "Price" the user wanted
+    actual_user_money = amount_ngn - payout_fee
+
     payload = {
         "source": "balance",
-        "amount": int(amount_ngn * 100),
+        "amount": int(actual_user_money * 100), # Send the 'Price', leave the 'Fee' for Paystack
         "recipient": recipient_code,
         "reason": f"Payla Instant Payout - {reason or 'No reference'}"
     }
