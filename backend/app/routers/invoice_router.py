@@ -12,7 +12,11 @@ from app.core.firebase import db
 from app.models.user_model import User
 from app.core.auth import get_current_user
 from app.core.config import settings
-from app.services.reminder_service import schedule_reminders_for_invoice
+# In your router file, update the imports:
+from app.services.reminder_service import (
+    schedule_reminders_for_invoice, 
+    send_returning_client_notification # We will add this
+)
 from app.core.notifications import create_notification
 from app.core.subscription import require_silver
 from app.tasks.payout import initiate_payout
@@ -195,15 +199,42 @@ async def publish_invoice(
     if not data.get("amount") or not data.get("currency"):
         raise HTTPException(status_code=400, detail="Incomplete invoice data")
 
+    # 1. Check for Existing Relationship (Strict First Contact Logic)
+    # We check if this sender has billed this email or phone before
+    is_returning_client = False
+    client_email = data.get("client_email")
+    normalized_phone = normalize_phone(data.get("client_phone"))
+
+    # Query for any other published/paid invoices for this client from this merchant
+    existing_base_query = db.collection("invoices").where(
+        filter=FieldFilter("sender_id", "==", current_user.id)
+    ).where(
+        filter=FieldFilter("status", "in", ["pending", "paid", "overdue", "sent"])
+    )
+
+    # Check Email
+    if client_email:
+        email_check = await firestore_run(
+            existing_base_query.where(filter=FieldFilter("client_email", "==", client_email)).limit(1).get
+        )
+        if email_check:
+            is_returning_client = True
+
+    # Check Phone (if email didn't already prove relationship)
+    if not is_returning_client and normalized_phone:
+        phone_check = await firestore_run(
+            existing_base_query.where(filter=FieldFilter("client_phone", "==", normalized_phone)).limit(1).get
+        )
+        if phone_check:
+            is_returning_client = True
+
+    # 2. Initialize Paystack
     short_id = invoice_id.split("_")[-1]
     published_id = f"inv_{short_id}"
 
-    # Normalize phone before Paystack
-    normalized_phone = normalize_phone(data.get("client_phone"))
-
     paystack_payload = {
         "amount": int(float(data["amount"]) * 100),
-        "email": data.get("client_email") or "client@payla.vip",
+        "email": client_email or "client@payla.vip",
         "currency": data["currency"],
         "reference": published_id,
         "callback_url": f"{settings.FRONTEND_URL}/i/{short_id}/paid",
@@ -230,6 +261,7 @@ async def publish_invoice(
 
     paystack_data = resp.json()["data"]
 
+    # 3. Save Published Invoice
     published_invoice = invoice.dict(by_alias=True)
     published_invoice.update({
         "_id": published_id,
@@ -238,14 +270,15 @@ async def publish_invoice(
         "description": data.get("description"),
         "due_date": data.get("due_date"),
         "status": "pending",
-        "client_email": data.get("client_email"),
-        "client_phone": normalized_phone,  # Use normalized phone
+        "client_email": client_email,
+        "client_phone": normalized_phone,
         "client_name": data.get("client_name"),
         "invoice_url": f"{settings.BACKEND_URL}/i/{short_id}",
         "payment_url": paystack_data["authorization_url"],
         "paystack_reference": paystack_data["reference"],
         "published_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
+        "is_returning_client": is_returning_client # Store this for the loop's logic
     })
 
     published_invoice.pop("draft_data", None)
@@ -255,8 +288,9 @@ async def publish_invoice(
         published_invoice,
     )
 
-    # Schedule reminders with normalized phone
-    if normalized_phone or data.get("client_email"):
+    # 4. Handle Notifications based on Client Status
+    if normalized_phone or client_email:
+        # We pass 'skip_intro' or use the 'is_returning_client' logic within the service
         background_tasks.add_task(
             schedule_reminders_for_invoice,
             invoice_id=published_id,
@@ -277,7 +311,6 @@ async def publish_invoice(
     )
 
     return Invoice(**updated_doc.to_dict())
-
 
 # --------------------------------------------------------------
 # 4. GET USER'S INVOICES

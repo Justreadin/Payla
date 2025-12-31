@@ -369,6 +369,44 @@ async def schedule_reminders_for_invoice(invoice_id: str, payload: ReminderCreat
     logger.info(f"✅ Scheduled {len(reminders)} reminders for invoice {invoice_id} with channels: {channels}")
     return reminders
 
+
+
+# app/services/reminder_service.py
+
+async def send_returning_client_notification(invoice: dict, user_name: str):
+    """
+    Sends an immediate notification to an existing client 
+    without the 'First Contact' introduction.
+    """
+    client_name = (invoice.get("client_name") or "there").split()[0]
+    amount_str = f"₦{invoice.get('amount', 0):,}"
+    
+    context = {
+        "name": client_name,
+        "amount": amount_str,
+        "business_name": user_name,
+        "link": invoice.get("invoice_url"),
+        "due_date": invoice.get("due_date")
+    }
+
+    # Use standard keys instead of "first_contact"
+    whatsapp_msg = get_layla_whatsapp("gentle_nudge", context)
+    sms_msg = get_layla_sms("gentle", context)
+    
+    # Modify the subject to be more direct
+    subject = f"New Invoice from {user_name}"
+    email_html = get_layla_email("reminder", context)
+
+    # Dispatch to available channels
+    if invoice.get("client_phone"):
+        await send_via_whatsapp(invoice["client_phone"], whatsapp_msg)
+        await send_via_sms(invoice["client_phone"], sms_msg)
+    
+    if invoice.get("client_email"):
+        await send_via_email(invoice["client_email"], subject, email_html)
+
+
+        
 # ---------------------------
 # Payment success notification to the user
 # ---------------------------
