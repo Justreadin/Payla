@@ -86,131 +86,130 @@ async def send_if_allowed(
 # ---------------------------
 def map_templates(trigger: datetime, due_date: datetime, context: dict, is_first: bool = False):
     """
-    Maps a reminder trigger to specific Layla persona keys for WhatsApp, SMS, and Email.
-    
-    Args:
-        trigger: The scheduled time for this reminder.
-        due_date: The actual deadline of the invoice.
-        context: Metadata for calculation (e.g., days past due).
-        is_first: If True, forces the 'Concierge Intro' template immediately.
+    Maps a reminder trigger to specific Layla persona keys.
     """
     now = datetime.utcnow().replace(tzinfo=timezone.utc)
     
-    # ---------------------------
-    # 1. IMMEDIATE FIRST CONTACT (The Handover)
-    # ---------------------------
-    if is_first:
-        # Layla introduces herself as the personal assistant
-        return "first_invoice", "first", "first_contact"
-
-    # Calculate date-based deltas
-    days_diff = (due_date.date() - trigger.date()).days
-    days_over = (trigger.date() - due_date.date()).days
-
-    # Default values (The "Gentle Concierge")
+    # 1. INITIALIZE DEFAULTS (Prevents UnboundLocalError)
     whatsapp_key = "gentle_nudge"
     sms_key = "gentle"
     email_type = "reminder"
 
-    # ---------------------------
-    # 2. UPCOMING REMINDERS
-    # ---------------------------
-    if days_diff == 3:
-        whatsapp_key, sms_key, email_type = "gentle_nudge", "gentle", "reminder"
-        
-    elif days_diff == 1:
+    # 2. IMMEDIATE FIRST CONTACT
+    # Only send intro if it's the first reminder AND triggered within 10 mins of creation
+    time_since_trigger = abs((now - trigger).total_seconds())
+    if is_first and time_since_trigger < 600:
+        return "first_invoice", "first", "first_contact"
+
+    # Calculate date-based deltas
+    # We use .date() to avoid hour/minute discrepancies
+    trigger_date = trigger.date()
+    due_date_only = due_date.date()
+    
+    days_diff = (due_date_only - trigger_date).days
+    days_over = (trigger_date - due_date_only).days
+
+    # 3. SPECIFIC LOGIC GATES
+    if days_diff == 1:
         whatsapp_key, sms_key, email_type = "tomorrow", "tomorrow", "reminder_2"
-
-    # ---------------------------
-    # 3. DUE TODAY (The Fixer Energy)
-    # ---------------------------
+        
     elif days_diff == 0:
-        # WhatsApp has two modes for the due date
-        # If it's after 3 PM WAT (14:00 UTC), use the "Soft/Evening" check-in
-        if now.hour >= 14:
-            whatsapp_key = "due_today_evening"
-        else:
-            whatsapp_key = "due_today_morning"
-            
-        sms_key = "due_today"
-        email_type = "due_today"
-
-    # ---------------------------
-    # 4. OVERDUE REMINDERS (Protective & Firm)
-    # ---------------------------
+        # Evening check-in after 3 PM WAT (14:00 UTC)
+        whatsapp_key = "due_today_evening" if now.hour >= 14 else "due_today_morning"
+        sms_key, email_type = "due_today", "due_today"
+        
     elif days_over == 1:
         whatsapp_key, sms_key, email_type = "one_day_over", "one_day_over", "overdue_gentle"
-
+        
     elif 3 <= days_over < 7:
         whatsapp_key, sms_key, email_type = "few_days_over", "few_days_over", "overdue_firm"
-
+        
     elif days_over >= 7:
-        # High-value "Sales Desk" energy - closing the file
-        whatsapp_key = "few_days_over" # WA remains warm but firm
-        sms_key = "final_nudge"
-        email_type = "overdue_firm"
+        whatsapp_key, sms_key, email_type = "few_days_over", "final_nudge", "overdue_firm"
+        
+    else:
+        # FALLBACK: If it's 2 days before, 4 days before, etc.
+        # This ensures the variables ALWAYS have a value.
+        whatsapp_key, sms_key, email_type = "gentle_nudge", "gentle", "reminder"
 
     return whatsapp_key, sms_key, email_type
-
 
 # ---------------------------
 # Send reminder to all user-selected channels with retries
 # ---------------------------
 async def send_reminder_to_all_channels(rem: Reminder, invoice: dict, context: dict, channels: list):
+    # --- STEP A: Determine if this is the first contact EVER for this client/business pair ---
+    is_first_contact = False
+    
+    # 1. Get all reminders for this invoice to see if this is the 'Initial' one
+    all_rem_docs = db.collection("reminders").where("invoice_id", "==", rem.invoice_id).get()
+    reminders_list = sorted([d.to_dict() for d in all_rem_docs], key=lambda x: x['next_send'])
+    
+    if reminders_list and reminders_list[0]['id'] == rem.id:
+        # 2. Check if this client has ever received a 'paid' or 'sent' invoice from THIS business before
+        # This prevents repeat clients from getting the Layla intro every time.
+        previous_invoices = db.collection("invoices")\
+            .where("sender_id", "==", invoice.get("sender_id"))\
+            .where("client_email", "==", invoice.get("client_email"))\
+            .limit(2).get()
+        
+        # If count is 1, this is their first invoice from this business
+        if len(previous_invoices) <= 1:
+            is_first_contact = True
+
+    # --- STEP B: Map Templates with the calculated is_first flag ---
     whatsapp_key, sms_key, email_type = map_templates(
-        rem.next_send, context.get("due_date_dt", datetime.utcnow()), context
+        rem.next_send, 
+        context.get("due_date_dt", datetime.utcnow()), 
+        context,
+        is_first=is_first_contact
     )
 
     async def try_send(ch: str):
         if ch in rem.channel_used:
-            logger.info(f"Channel {ch} already sent for reminder {rem.id}, skipping")
             return
 
         retry_count = 0
-        max_retries = 5
-        wait_seconds = 15 * 60
+        max_retries = 3
         success = False
 
         while not success and retry_count < max_retries:
             now = datetime.utcnow().replace(tzinfo=timezone.utc)
             if is_within_quiet_hours(now):
-                logger.info(f"[{now.isoformat()}] Quiet hours active, waiting to send {ch}")
                 await asyncio.sleep(60)
                 continue
 
             try:
                 if ch == "whatsapp" and invoice.get("client_phone"):
                     msg = rem.message or get_layla_whatsapp(whatsapp_key, context)
-                    logger.info(f"[{now.isoformat()}] Sending WhatsApp to {invoice['client_phone']}")
                     await send_via_whatsapp(invoice["client_phone"], msg)
 
                 elif ch == "sms" and invoice.get("client_phone"):
                     msg = rem.message or get_layla_sms(sms_key, context)
-                    logger.info(f"[{now.isoformat()}] Sending SMS to {invoice['client_phone']}")
                     await send_via_sms(invoice["client_phone"], msg)
 
                 elif ch == "email" and invoice.get("client_email"):
-                    subject = f"Reminder: {context['amount']} due on {context['due_date']}"
+                    # Dynamic Subject based on Layla's Meta
+                    from app.utils.email import METADATA
+                    subject = METADATA.get(email_type, {}).get("title", "Invoice Reminder")
                     html = rem.message or get_layla_email(email_type, context)
-                    logger.info(f"[{now.isoformat()}] Sending Email to {invoice['client_email']}")
                     await send_via_email(invoice["client_email"], subject, html, email_type=email_type)
 
                 success = True
                 rem.channel_used.append(ch)
-                status = "sent" if set(rem.channel_used) == set(channels) else "pending"
                 db.collection("reminders").document(rem.id).update({
                     "channel_used": rem.channel_used,
-                    "status": status,
+                    "status": "sent" if set(rem.channel_used) == set(channels) else "pending",
                     "sent_at": datetime.utcnow().replace(tzinfo=timezone.utc)
                 })
 
             except Exception as e:
-                logger.error(f"[{now.isoformat()}] Failed to send {ch} for reminder {rem.id} (retry {retry_count}): {e}")
+                logger.error(f"Failed {ch} send: {e}")
                 retry_count += 1
-                await asyncio.sleep(wait_seconds)
+                await asyncio.sleep(5)
 
-    # Run all channels independently in parallel
     await asyncio.gather(*(try_send(ch) for ch in channels))
+
 
 # ---------------------------
 # Schedule reminders for invoice (user-selected channels only)

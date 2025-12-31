@@ -191,7 +191,7 @@ async def process_reminder(rem: Reminder):
         return
 
     try:
-        # Define reference and ID early for the 'not found' block
+        # Define reference early
         reminder_ref = db.collection("reminders").document(rem.id)
         invoice_id = rem.invoice_id 
 
@@ -202,7 +202,6 @@ async def process_reminder(rem: Reminder):
 
         if not invoice_doc.exists:
             logger.warning(f"Invoice {invoice_id} not found for reminder {rem.id}. Archiving.")
-            # Use the variables we just defined
             await asyncio.to_thread(
                 reminder_ref.update, 
                 {"status": "cancelled", "reason": "invoice_deleted", "active": False}
@@ -210,6 +209,7 @@ async def process_reminder(rem: Reminder):
             return
 
         invoice = invoice_doc.to_dict()
+        
         # Exit early if already paid
         if invoice.get("status") == "paid":
             logger.info(f"Invoice {rem.invoice_id} is paid, marking reminder {rem.id} as sent")
@@ -219,11 +219,27 @@ async def process_reminder(rem: Reminder):
             )
             return
 
-        # 2. Data Preparation & Timing
+        # 2. Fetch User Model Data (Aligning with your Pydantic User Model)
+        sender_id = invoice.get("sender_id")
+        user_doc = await asyncio.to_thread(
+            db.collection("users").document(sender_id).get
+        )
+        
+        user_data = user_doc.to_dict() if user_doc.exists else {}
+        
+        # Determine the "Business Identity" based on your model priorities:
+        # 1. business_name -> 2. full_name -> 3. username -> 4. Fallback
+        biz_display_name = (
+            user_data.get("business_name") or 
+            user_data.get("full_name") or 
+            user_data.get("username") or 
+            "Your Provider"
+        )
+
+        # 3. Data Preparation & Timing
         client_full_name = invoice.get("client_name") or "there"
         client_first_name = client_full_name.split()[0]
         amount = f"₦{invoice.get('amount', 0):,}"
-        biz_name = invoice.get("sender_business_name") or "Payla Creator"
         
         due_date = invoice.get("due_date")
         if isinstance(due_date, str):
@@ -235,45 +251,45 @@ async def process_reminder(rem: Reminder):
         now = datetime.utcnow().replace(tzinfo=timezone.utc)
         day_of_week = now.strftime("%A")
 
-        # 3. Build Luxury Context for Layla's Voice
+        # 4. Initialize Template Defaults (Prevents UnboundLocalError)
+        whatsapp_key = "gentle_nudge"
+        sms_key = "gentle"
+        email_type = "reminder"
+
         context = {
             "name": client_first_name,
             "amount": amount,
             "due_date": due_str,
             "due_date_dt": due_date,
             "link": invoice.get("invoice_url", ""),
-            "business_name": biz_name,
+            "business_name": biz_display_name, # Mapped to User model field
             "invoice_id": rem.invoice_id,
             "day_of_week": day_of_week,
             "days": 0 
         }
 
-        # 4. Saleswoman Strategy: Determine Template Keys
-        # Strategy: If channel_used is empty, this IS the 'First Contact' intro.
+        # 5. Saleswoman Strategy: Determine Template Keys
         is_first_contact = len(rem.channel_used) == 0 
         
         if is_first_contact:
             # Immediate Intro (Handover energy)
-            whatsapp_key = "first_invoice"
-            sms_key = "first"
-            email_type = "first_contact"
-            logger.info(f"✨ Layla introducing herself for {biz_name}")
+            whatsapp_key, sms_key, email_type = "first_invoice", "first", "first_contact"
+            logger.info(f"✨ Layla introducing herself for {biz_display_name}")
             
         elif due_date and now > due_date:
             # Overdue Logic (Firm & Protective energy)
             overdue_delta = now - due_date
             context["days"] = overdue_delta.days
             
-            # Map general overdue keys
+            # Map general overdue keys from the map_templates helper
             whatsapp_key, _, _ = map_templates(rem.next_send, due_date, context)
             
-            if context["days"] >= 7: sms_key = "final_nudge"
+            if context["days"] >= 7: 
+                sms_key, email_type = "final_nudge", "overdue_firm"
             elif context["days"] >= 3: 
-                sms_key = "few_days_over"
-                email_type = "overdue_firm"
+                sms_key, email_type = "few_days_over", "overdue_firm"
             else: 
-                sms_key = "one_day_over"
-                email_type = "overdue_gentle"
+                sms_key, email_type = "one_day_over", "overdue_gentle"
         else:
             # Scheduled Future Reminders (Anticipation & Joy energy)
             whatsapp_key, sms_key, email_type = map_templates(rem.next_send, due_date, context)
@@ -283,30 +299,33 @@ async def process_reminder(rem: Reminder):
                 whatsapp_key = "due_today_evening"
                 
             # Align Email templates with SMS keys
-            if "tomorrow" in sms_key: email_type = "reminder_2"
-            elif "today" in sms_key: email_type = "due_today"
+            if "tomorrow" in sms_key: 
+                email_type = "reminder_2"
+            elif "today" in sms_key: 
+                email_type = "due_today"
 
-        # 5. Prepare Multi-Channel Messages
+        # 6. Prepare Multi-Channel Messages
         whatsapp_msg = rem.message or get_layla_whatsapp(whatsapp_key, context)
         sms_msg = rem.message or get_layla_sms(sms_key, context)
         
-        # Email: Body copy + Luxury HTML Wrapper
+        # Email Generation
         email_body_text = get_layla_email(email_type, context, use_html=False)
+        
         btn_label = "Settle Invoice" if "overdue" in email_type else "View & Pay"
-        if email_type == "payment_received": btn_label = "View Receipt"
+        if email_type == "payment_received": 
+            btn_label = "View Receipt"
 
         email_html = get_html_wrapper(
-            title=f"Update regarding {biz_name}",
+            title=f"Update regarding {biz_display_name}",
             body_text=email_body_text,
             button_text=btn_label,
             link=context["link"],
-            business_name=biz_name
+            business_name=biz_display_name
         )
         
-        # Subject line should be clean and professional
-        email_subject = f"Invoice from {biz_name}: {amount}"
+        email_subject = f"Invoice from {biz_display_name}: {amount}"
 
-        # 6. Final Channel Validation & Dispatch
+        # 7. Channel Validation
         selected_channels = rem.channels_selected or []
         final_channels = []
         
@@ -320,9 +339,8 @@ async def process_reminder(rem: Reminder):
             logger.warning(f"No valid contact info for reminder {rem.id}")
             return
 
-        # 7. Execute Independent Tracked Tasks
-        # Each channel is sent and tracked individually to ensure data integrity
-        logger.info(f"📤 Dispatching {len(final_channels)} channels for {biz_name}")
+        # 8. Dispatch Tracked Tasks
+        logger.info(f"📤 Dispatching {len(final_channels)} channels for {biz_display_name}")
 
         tasks = [
             send_channel_with_tracking(
@@ -339,7 +357,6 @@ async def process_reminder(rem: Reminder):
         logger.exception(f"Critical error in Layla's process loop for {rem.id}: {e}")
     finally:
         release_reminder_lock(rem.id)
-
         
 
 async def process_payment_notification(invoice_doc):
