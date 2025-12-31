@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     PAYSTACK_SECRET_PAYLA: str = Field(..., env="PAYSTACK_SECRET_PAYLA")
     PAYSTACK_PUBLIC_PAYLA: str = Field(..., env="PAYSTACK_PUBLIC_PAYLA")
     PAYSTACK_WEBHOOK_URL: AnyUrl = Field(
-        default_factory=lambda: f"{os.getenv('BACKEND_URL', 'https://payla.ng').rstrip('/')}/api/webhook/paystack"
+        default_factory=lambda: f"{os.getenv('BACKEND_URL', 'https://payla.ng').rstrip('/')}/api/webhooks/paystack"
     )
 
     # ────────────────────────────────

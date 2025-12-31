@@ -20,7 +20,7 @@ async def get_notifications(current_user: User = Depends(get_current_user)):
         db.collection("notifications")
         .where(filter=FieldFilter("user_id", "==", current_user.id))
         .where(filter=FieldFilter("created_at", ">=", seven_days_ago))
-        .order_by(filter=FieldFilter("created_at", direction="DESCENDING"))
+        .order_by("created_at", direction="DESCENDING")
         .limit(10)
         .stream()
     )
