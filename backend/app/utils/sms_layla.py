@@ -18,7 +18,7 @@ SMS_LAYLA = {
     "paid": "Payment confirmed. Your {amount} to {business_name} has been processed. Your receipt has been delivered. — Layla",
 
     # First invoice ever — Setting the tone
-    "first": "I am Layla, your new payment concierge. I will be handling your transactions with {business_name} from now on to make things effortless. Looking forward to working with you!",
+    "first": "Hello, I am Layla, from Payla. I will be handling your transactions with {business_name} from now on to make things effortless. Looking forward to working with you!",
 
     # Bonus: Final nudge (7+ days) — The "Closing the file" energy
     "final_nudge": "Hi, Layla here. I am doing my weekly review and noticed your {amount} payment is still open. I'm here if you need any help completing this: {link}"

@@ -227,8 +227,7 @@ async def process_reminder(rem: Reminder):
         
         user_data = user_doc.to_dict() if user_doc.exists else {}
         
-        # Determine the "Business Identity" based on your model priorities:
-        # 1. business_name -> 2. full_name -> 3. username -> 4. Fallback
+        # Priority: business_name -> full_name -> username -> Fallback
         biz_display_name = (
             user_data.get("business_name") or 
             user_data.get("full_name") or 
@@ -236,11 +235,19 @@ async def process_reminder(rem: Reminder):
             "Your Provider"
         )
 
-        # 3. Data Preparation & Timing
+        # 3. Data Preparation & Link Sanitization
         client_full_name = invoice.get("client_name") or "there"
         client_first_name = client_full_name.split()[0]
         amount = f"₦{invoice.get('amount', 0):,}"
         
+        # --- FIX: Sanitize the Link to prevent http:/// error ---
+        raw_link = invoice.get("invoice_url", "")
+        if not raw_link.startswith("http"):
+            # Ensure it points to your production domain and remove double slashes
+            clean_link = f"https://payla.ng/{raw_link.lstrip('/')}"
+        else:
+            clean_link = raw_link
+
         due_date = invoice.get("due_date")
         if isinstance(due_date, str):
             due_date = datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc)
@@ -261,8 +268,8 @@ async def process_reminder(rem: Reminder):
             "amount": amount,
             "due_date": due_str,
             "due_date_dt": due_date,
-            "link": invoice.get("invoice_url", ""),
-            "business_name": biz_display_name, # Mapped to User model field
+            "link": clean_link, # Sanitized link
+            "business_name": biz_display_name,
             "invoice_id": rem.invoice_id,
             "day_of_week": day_of_week,
             "days": 0 
@@ -272,16 +279,12 @@ async def process_reminder(rem: Reminder):
         is_first_contact = len(rem.channel_used) == 0 
         
         if is_first_contact:
-            # Immediate Intro (Handover energy)
             whatsapp_key, sms_key, email_type = "first_invoice", "first", "first_contact"
             logger.info(f"✨ Layla introducing herself for {biz_display_name}")
             
         elif due_date and now > due_date:
-            # Overdue Logic (Firm & Protective energy)
             overdue_delta = now - due_date
             context["days"] = overdue_delta.days
-            
-            # Map general overdue keys from the map_templates helper
             whatsapp_key, _, _ = map_templates(rem.next_send, due_date, context)
             
             if context["days"] >= 7: 
@@ -291,14 +294,9 @@ async def process_reminder(rem: Reminder):
             else: 
                 sms_key, email_type = "one_day_over", "overdue_gentle"
         else:
-            # Scheduled Future Reminders (Anticipation & Joy energy)
             whatsapp_key, sms_key, email_type = map_templates(rem.next_send, due_date, context)
-            
-            # Refine WhatsApp Morning/Evening split for the Due Date
             if whatsapp_key == "due_today_morning" and now.hour >= 15:
                 whatsapp_key = "due_today_evening"
-                
-            # Align Email templates with SMS keys
             if "tomorrow" in sms_key: 
                 email_type = "reminder_2"
             elif "today" in sms_key: 
@@ -307,8 +305,6 @@ async def process_reminder(rem: Reminder):
         # 6. Prepare Multi-Channel Messages
         whatsapp_msg = rem.message or get_layla_whatsapp(whatsapp_key, context)
         sms_msg = rem.message or get_layla_sms(sms_key, context)
-        
-        # Email Generation
         email_body_text = get_layla_email(email_type, context, use_html=False)
         
         btn_label = "Settle Invoice" if "overdue" in email_type else "View & Pay"
@@ -327,13 +323,10 @@ async def process_reminder(rem: Reminder):
 
         # 7. Channel Validation
         selected_channels = rem.channels_selected or []
-        final_channels = []
-        
-        for ch in selected_channels:
-            if ch in ["whatsapp", "sms"] and invoice.get("client_phone"):
-                final_channels.append(ch)
-            elif ch == "email" and invoice.get("client_email"):
-                final_channels.append(ch)
+        final_channels = [ch for ch in selected_channels if (
+            (ch in ["whatsapp", "sms"] and invoice.get("client_phone")) or 
+            (ch == "email" and invoice.get("client_email"))
+        )]
 
         if not final_channels:
             logger.warning(f"No valid contact info for reminder {rem.id}")
