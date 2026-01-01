@@ -21,7 +21,7 @@ import threading
 import subprocess
 # main.py
 import multiprocessing
-from app.core.celery_app import celery_app
+#from app.core.celery_app import celery_app
 from celery.bin import beat
 
 # ------------------------------------------------------------

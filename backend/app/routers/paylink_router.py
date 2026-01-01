@@ -23,9 +23,9 @@ from app.core.analytics import (
 from fastapi import BackgroundTasks
 from app.routers.payout_router import queue_payout
 
-from app.tasks.payout import initiate_payout
+#from app.tasks.payout import initiate_payout
 import asyncio
-from app.tasks.payout_celery import payout_task
+#from app.tasks.payout_celery import payout_task
 
 from app.core.subscription import require_silver  # ← Subscription enforcement
 
@@ -34,45 +34,64 @@ router = APIRouter(prefix="/paylinks", tags=["Paylinks"])
 
 
 # --------------------------------------------------------------
-# Helper: Ensure Paystack page exists
+# Helper: Ensure Paystack page exists (Subaccount Version)
 # --------------------------------------------------------------
 async def ensure_paystack_page(paylink: dict) -> dict:
-    # If both page URL and reference exist, just return the paylink
+    """
+    Checks if a permanent Paystack page exists. If not, it fetches the 
+    user's subaccount_code and creates a split-payment page.
+    """
+    # If page already exists, we are good
     if paylink.get("paystack_page_url") and paylink.get("paystack_reference"):
         return paylink
 
     username = paylink["username"]
     display_name = paylink["display_name"]
-    user_id = paylink.get("_id") or paylink.get("user_id")
+    user_id = paylink.get("user_id")
 
     try:
-        # Only 2 arguments now
-        page_data = await create_permanent_payment_page(username, display_name)
+        # 1. Fetch user's subaccount code from their profile
+        user_doc = db.collection("users").document(user_id).get()
+        if not user_doc.exists:
+            logger.error(f"User {user_id} not found while creating page")
+            return paylink
+            
+        user_data = user_doc.to_dict()
+        subaccount_code = user_data.get("paystack_subaccount_code")
 
-        # Update the paylink dict
-        paylink.update({
+        if not subaccount_code:
+            logger.warning(f"⚠️ User {user_id} has no subaccount_code. Split payment page creation skipped.")
+            return paylink
+
+        # 2. Create permanent payment page linked to the subaccount
+        # This ensures money is split automatically at source
+        page_data = await create_permanent_payment_page(
+            username, 
+            display_name, 
+            subaccount_code
+        )
+
+        update_payload = {
             "paystack_page_url": page_data["url"],
             "paystack_reference": page_data["reference"],
+            "paystack_subaccount_code": subaccount_code, # Track which subaccount is linked
             "updated_at": datetime.utcnow()
-        })
+        }
 
-        # Persist to Firestore
-        db.collection("paylinks").document(user_id).update({
-            "paystack_page_url": page_data["url"],
-            "paystack_reference": page_data["reference"],
-            "updated_at": datetime.utcnow()
-        })
+        # 3. Persist to Paylinks collection
+        paylink.update(update_payload)
+        db.collection("paylinks").document(user_id).update(update_payload)
 
-        logger.info(f"Paystack page created for @{username}: {page_data['url']}")
+        logger.info(f"✅ Paystack split-page created for @{username} (Subaccount: {subaccount_code})")
 
     except Exception as e:
-        logger.error(f"Failed to create Paystack page for @{username}: {e}")
+        logger.error(f"❌ Failed to create Paystack page for @{username}: {e}")
 
     return paylink
 
 
 # --------------------------------------------------------------
-# 1. CREATE OR UPDATE PAYLINK  ← Protected (Silver/trial)
+# 1. CREATE OR UPDATE PAYLINK
 # --------------------------------------------------------------
 @router.post(
     "/",
@@ -86,60 +105,63 @@ async def create_or_update_paylink(
     user = current_user
     username = payload.username.lower().strip()
 
+    # Validation
     if not username.replace("-", "").replace("_", "").isalnum():
         raise HTTPException(status_code=400, detail="Username: letters, numbers, -, _ only")
     if len(username) < 3:
         raise HTTPException(status_code=400, detail="Username too short")
 
-    paylink_id = user.id
+    paylink_id = user.id  # We use user_id as the document ID for paylinks
     link_url = f"{settings.FRONTEND_URL}/@{username}"
 
-    # Check if a paylink already exists
-    doc = db.collection("paylinks").document(paylink_id).get()
+    # Check for existing paylink
+    doc_ref = db.collection("paylinks").document(paylink_id)
+    doc = doc_ref.get()
+    
+    now = datetime.utcnow()
+
     if doc.exists:
         data = doc.to_dict()
-        # If it exists, only update username, link_url, currency, active
-        display_name = user.business_name or user.full_name
-        description = user.tagline or "Fast, secure payments via Payla"
+        # Update logic: keep history, update link info
         paylink_data = Paylink(
             _id=paylink_id,
             user_id=user.id,
             username=username,
-            display_name=data.get("display_name"),  # preserve original
-            description=data.get("description"),    # preserve original
+            display_name=data.get("display_name") or user.business_name or user.full_name,
+            description=data.get("description") or user.tagline or "Fast, secure payments",
             currency=payload.currency,
             active=True,
             link_url=link_url,
             total_received=data.get("total_received", 0.0),
             total_transactions=data.get("total_transactions", 0),
             created_at=data.get("created_at"),
-            updated_at=datetime.utcnow()
+            updated_at=now
         )
     else:
-        # New paylink: create display_name from business_name/full_name, description from tagline
-        display_name = user.business_name or user.full_name
-        description = user.tagline or "Description/Tagline"
+        # Initial creation logic
         paylink_data = Paylink(
             _id=paylink_id,
             user_id=user.id,
             username=username,
-            display_name=display_name,
-            description=description,
+            display_name=user.business_name or user.full_name,
+            description=user.tagline or "Accept payments easily with Payla",
             currency=payload.currency,
             active=True,
             link_url=link_url,
             total_received=0.0,
             total_transactions=0,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=now,
+            updated_at=now
         )
 
-    db.collection("paylinks").document(paylink_id).set(
-        paylink_data.dict(by_alias=True), merge=True
-    )
+    # Save initial record (without Paystack URLs yet)
+    doc_ref.set(paylink_data.dict(by_alias=True), merge=True)
 
-    updated_paylink = await ensure_paystack_page(paylink_data.dict(by_alias=True))
-    return Paylink(**updated_paylink)
+    # 4. Trigger the Paystack Page creation with subaccount linkage
+    updated_paylink_dict = await ensure_paystack_page(paylink_data.dict(by_alias=True))
+    
+    return Paylink(**updated_paylink_dict)
+
 
 # routers/paylink.py - Add this endpoint
 @router.post("/check-username")
@@ -321,12 +343,12 @@ async def activate_paylink(current_user=Depends(get_current_user)):
 
     return {"message": "Paylink activated"}
 
-
 # --------------------------------------------------------------
-# 6. PUBLIC: CREATE PAYLINK TRANSACTION
+# 6. PUBLIC: CREATE PAYLINK TRANSACTION (Updated for Subaccounts)
 # --------------------------------------------------------------
 @router.post("/{username}/transaction")
 async def create_paylink_transaction(username: str, req: CreatePaylinkTransactionRequest):
+    # 1. Find the Paylink
     paylink_docs = (
         db.collection("paylinks")
         .where(filter=FieldFilter("username", "==", username.lower().strip()))
@@ -344,8 +366,26 @@ async def create_paylink_transaction(username: str, req: CreatePaylinkTransactio
         raise HTTPException(status_code=404, detail="Paylink not found")
 
     user_id = paylink["user_id"]
+    
+    # 2. Fetch the Owner's Subaccount Code
+    # This is vital for the frontend PaystackPop to know where to send the money
+    user_doc = db.collection("users").document(user_id).get()
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="Owner profile not found")
+    
+    user_data = user_doc.to_dict()
+    subaccount_code = user_data.get("paystack_subaccount_code")
+
+    if not subaccount_code:
+        # If they don't have a subaccount, they can't receive split payments
+        raise HTTPException(
+            status_code=400, 
+            detail="This creator has not completed their settlement setup."
+        )
+
     reference = f"payla_{username}_{uuid.uuid4().hex[:12]}"
 
+    # 3. Save Pending Transaction to Firestore
     transaction = {
         "paylink_id": paylink["_id"],
         "user_id": user_id,
@@ -356,8 +396,9 @@ async def create_paylink_transaction(username: str, req: CreatePaylinkTransactio
         "payer_name": req.payer_name or "Anonymous",
         "payer_phone": req.payer_phone or "",
         "paystack_reference": reference,
+        "paystack_subaccount_code": subaccount_code, # Track the split target
         "status": "pending",
-        "payout_status": "not_started",
+        "payout_status": "split_automated", # Mark as automated via subaccount
         "last_update": datetime.utcnow(),
         "created_at": datetime.utcnow(),
         "metadata": {"type": "paylink", "notes": getattr(req, "notes", None)},
@@ -365,25 +406,19 @@ async def create_paylink_transaction(username: str, req: CreatePaylinkTransactio
 
     db.collection("paylink_transactions").document(reference).set(transaction)
 
-    create_notification(
-        user_id=user_id,
-        title="New Paylink Transaction",
-        message=f"{req.amount} requested via your Paylink",
-        type="info",
-        link="/dashboard/paylinks"
-    )
-
+    # 4. Return data to Frontend (including subaccount info)
     return {
         "reference": reference,
         "email": req.payer_email,
         "amount_kobo": int(req.amount * 100),
         "public_key": settings.PAYSTACK_PUBLIC_KEY,
+        "subaccount": subaccount_code, # <--- CRITICAL: For PaystackPop
+        "bearer": "subaccount",        # <--- CRITICAL: Creator pays the fee
         "metadata": {
             "user_id": user_id,
             "paylink_id": paylink["_id"],
             "paylink_username": username.lower(),
             "payer_name": req.payer_name or "Anonymous",
-            "payer_phone": req.payer_phone or "",
             "type": "paylink"
         }
     }
@@ -440,51 +475,3 @@ async def track_transfer_click(username: str):
 
     return {"success": True}
 
-
-@router.patch("/transaction/{reference}/status", include_in_schema=False)
-async def update_paylink_transaction_status(
-    reference: str,
-    status: Literal["pending", "success", "failed"],
-    background_tasks: BackgroundTasks
-):
-    doc_ref = db.collection("paylink_transactions").document(reference)
-    doc = doc_ref.get()
-    if not doc.exists:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-
-    txn = doc.to_dict()
-    
-    # Check for already processed to prevent double-counting in CRM
-    if txn.get("status") == "success":
-        return {"success": True, "message": "Already processed"}
-
-    update_data = {
-        "status": status,
-        "last_update": datetime.utcnow()
-    }
-
-    if status == "success":
-        amount = txn.get("amount_paid") or txn.get("amount_requested")
-        
-        # --- START CRM SYNC ---
-        # We use await here to ensure the client is recorded 
-        # before the function returns success.
-        await sync_client_to_crm(
-            merchant_id=txn["user_id"],
-            email=txn["payer_email"],
-            amount=float(amount)
-        )
-        # --- END CRM SYNC ---
-
-        # Existing payout logic
-        if txn.get("payout_status") != "queued":
-            await queue_payout(
-                user_id=txn["user_id"],
-                amount=amount,
-                reference=reference,
-                payout_type="paylink"
-            )
-            update_data["payout_status"] = "queued"
-
-    doc_ref.update(update_data)
-    return {"success": True, "status": status}

@@ -8,6 +8,7 @@ from app.models.user_model import User
 from datetime import datetime, timedelta, timezone
 from app.routers.payout_router import resolve_account_name
 from app.services.layla_service import LaylaOnboardingService
+from app.core.paystack import create_paystack_subaccount # Add this
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
@@ -105,14 +106,25 @@ async def complete_onboarding(
             "presell_end_date": None
         })
 
-    # 5. Database Operations
+    # 5a. Create Paystack Subaccount
+    subaccount_code = await create_paystack_subaccount(
+        business_name=update_data["business_name"],
+        bank_code=payload.payout_bank,
+        account_number=payload.payout_account_number
+    )
+    
+    if subaccount_code:
+        update_data["paystack_subaccount_code"] = subaccount_code
+
+    # 5b. Database Operations
     db.collection("users").document(user.id).update(update_data)
 
-    # Create paylink with Luxury Tagline
+    # Create paylink with Luxury Tagline AND Subaccount
     paylink_data = {
         "user_id": user.id,
         "username": username,
         "display_name": update_data["business_name"],
+        "paystack_subaccount_code": subaccount_code, # Store it here too
         "description": "One Link. Instant Payments. Zero Hassle.", 
         "currency": "NGN",
         "active": True,

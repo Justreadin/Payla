@@ -19,7 +19,7 @@ from app.services.reminder_service import (
 )
 from app.core.notifications import create_notification
 from app.core.subscription import require_silver
-from app.tasks.payout import initiate_payout
+#from app.tasks.payout import initiate_payout
 from app.utils.crm import sync_client_to_crm
 from google.cloud.firestore_v1.base_query import FieldFilter
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
@@ -200,19 +200,16 @@ async def publish_invoice(
         raise HTTPException(status_code=400, detail="Incomplete invoice data")
 
     # 1. Check for Existing Relationship (Strict First Contact Logic)
-    # We check if this sender has billed this email or phone before
     is_returning_client = False
     client_email = data.get("client_email")
     normalized_phone = normalize_phone(data.get("client_phone"))
 
-    # Query for any other published/paid invoices for this client from this merchant
     existing_base_query = db.collection("invoices").where(
         filter=FieldFilter("sender_id", "==", current_user.id)
     ).where(
         filter=FieldFilter("status", "in", ["pending", "paid", "overdue", "sent"])
     )
 
-    # Check Email
     if client_email:
         email_check = await firestore_run(
             existing_base_query.where(filter=FieldFilter("client_email", "==", client_email)).limit(1).get
@@ -220,7 +217,6 @@ async def publish_invoice(
         if email_check:
             is_returning_client = True
 
-    # Check Phone (if email didn't already prove relationship)
     if not is_returning_client and normalized_phone:
         phone_check = await firestore_run(
             existing_base_query.where(filter=FieldFilter("client_phone", "==", normalized_phone)).limit(1).get
@@ -246,6 +242,14 @@ async def publish_invoice(
         },
     }
 
+    # --- NEW: SUBACCOUNT ROUTING ---
+    # If the user has a subaccount, route the payment there automatically
+    subaccount_code = getattr(current_user, "paystack_subaccount_code", None)
+    if subaccount_code:
+        paystack_payload["subaccount"] = subaccount_code
+        # 'subaccount' means the creator (subaccount) bears the Paystack transaction fees
+        paystack_payload["bearer"] = "subaccount"
+
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
             "https://api.paystack.co/transaction/initialize",
@@ -257,6 +261,7 @@ async def publish_invoice(
         )
 
     if resp.status_code != 200 or not resp.json().get("status"):
+        logger.error(f"Paystack Init Failed: {resp.text}")
         raise HTTPException(status_code=400, detail="Paystack initialization failed")
 
     paystack_data = resp.json()["data"]
@@ -276,9 +281,10 @@ async def publish_invoice(
         "invoice_url": f"{settings.BACKEND_URL}/i/{short_id}",
         "payment_url": paystack_data["authorization_url"],
         "paystack_reference": paystack_data["reference"],
+        "paystack_subaccount_code": subaccount_code, # Track which subaccount this was sent to
         "published_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
-        "is_returning_client": is_returning_client # Store this for the loop's logic
+        "is_returning_client": is_returning_client 
     })
 
     published_invoice.pop("draft_data", None)
@@ -288,9 +294,8 @@ async def publish_invoice(
         published_invoice,
     )
 
-    # 4. Handle Notifications based on Client Status
+    # 4. Handle Notifications
     if normalized_phone or client_email:
-        # We pass 'skip_intro' or use the 'is_returning_client' logic within the service
         background_tasks.add_task(
             schedule_reminders_for_invoice,
             invoice_id=published_id,
@@ -386,7 +391,9 @@ async def get_invoice(invoice_id: str):
             "sender_logo": user.custom_invoice_colors.get("logo")
             if user.custom_invoice_colors else None,
             "sender_email": user.email,
+            "sender_subaccount_code": getattr(user, "paystack_subaccount_code", None)
         })
+
 
     response["message"] = {
         "paid": "This invoice has been paid. Thank you!",

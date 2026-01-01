@@ -19,17 +19,20 @@ class User(BaseModel):
     tagline: Optional[str] = None
     verify_token: Optional[str] = None
 
-    # ---------------- Payout ----------------
-    payout_bank: Optional[str] = None
-    payout_account_number: str = ""
+    # ---------------- Payout & Banking (Subaccount Ready) ----------------
+    payout_bank: Optional[str] = None            # e.g., "Access Bank"
+    payout_bank_code: Optional[str] = None       # e.g., "044" (Required for Paystack)
+    payout_account_number: str = ""              # 10 digits
+    payout_account_name: Optional[str] = None    # Verified name from bank
+    bank_verified: bool = False                  # Flag if Paystack verified the info
 
-    # ---------------- Paystack ----------------
-    paystack_subaccount_code: Optional[str] = None
+    # ---------------- Paystack Integration ----------------
+    # Changed from subaccount_code to match Paystack naming: "SET_xxxxxx"
+    paystack_subaccount_id: Optional[str] = None 
+    paystack_customer_code: Optional[str] = None # For their own subscription billing
     subscription_id: Optional[str] = None 
-    paystack_customer_code: Optional[str] = None
 
     # ---------------- Plan / Subscription ----------------
-    # Added "presell" to the literal so validation doesn't fail
     plan: Literal["free", "silver", "gold", "opal", "presell"] = "free"
     trial_end_date: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=14))
     
@@ -45,7 +48,7 @@ class User(BaseModel):
     # ---------------- Stats & Flags ----------------
     international_enabled: bool = True
     total_invoices: int = 0
-    total_earned: float = 0.0
+    total_earned: float = 0.0 # This is now the "Source of Truth" for dashboard
 
     # ---------------- Metadata ----------------
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -69,27 +72,22 @@ class User(BaseModel):
 
     def is_subscription_active(self) -> bool:
         now = datetime.now(timezone.utc)
-        
-        # 1. Check Presell (1 Year Free)
         if self.plan == "presell" and self.presell_end_date and now < self.presell_end_date:
             return True
-        
-        # 2. Check Paid Subscription
         if self.subscription_end and now < self.subscription_end:
             return True
-                
-        # 3. Fallback to Trial
         return self.is_trial_active()
 
     def can_access_silver_features(self) -> bool:
-        # Everyone on trial or on a paid/presell plan gets access
         return self.is_subscription_active() or self.plan in ["silver", "gold", "opal", "presell"]
 
+    def has_payout_setup(self) -> bool:
+        """Helper to check if the user can receive money via subaccounts."""
+        return bool(self.paystack_subaccount_id and self.bank_verified)
+
     def get_layla_status(self) -> str:
-        if self.onboarding_step >= 5:
-            return "Graduated"
-        if self.onboarding_step == 0:
-            return "Not Started"
+        if self.onboarding_step >= 5: return "Graduated"
+        if self.onboarding_step == 0: return "Not Started"
         return f"Lesson {self.onboarding_step} of 5"
 
     model_config = {

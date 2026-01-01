@@ -1,4 +1,4 @@
-# routers/payment_router.py → FINAL ELITE 2025 (PERFECT PAYOUTS + RETRIES)
+## routers/payment_router.py → FINAL ELITE 2025 (SUBACCOUNT EDITION)
 from fastapi import APIRouter, Request, HTTPException, status, BackgroundTasks
 from datetime import datetime, timezone
 import hmac
@@ -40,7 +40,7 @@ def create_notification(
 
 
 # ========================================
-# PAYSTACK WEBHOOK — UNIFIED & BULLETPROOF
+# PAYSTACK WEBHOOK — SUBACCOUNT OPTIMIZED
 # ========================================
 @router.post("/paystack", status_code=status.HTTP_200_OK)
 async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -66,7 +66,7 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
     metadata = data.get("metadata", {})
 
     # ========================================
-    # 2. Handle Charge Events
+    # 2. Handle Charge Events (Split Payments)
     # ========================================
     if event in ("charge.success", "charge.failed"):
         ref = data.get("reference")
@@ -74,15 +74,14 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
             return {"status": "ignored"}
 
         # --- 🛑 2025 IDEMPOTENCY GUARD ---
-        # Prevent processing the same success event twice if Paystack retries
         payment_doc_ref = db.collection("payments").document(ref)
         existing_payment = payment_doc_ref.get()
         if existing_payment.exists and existing_payment.to_dict().get("status") == "success":
             logger.info(f"♻️ Webhook already processed for {ref}")
             return {"status": "already_done"}
 
-        amount_kobo = data.get("amount", 0)
-        amount = amount_kobo / 100
+        amount_total_kobo = data.get("amount", 0)
+        amount_total = amount_total_kobo / 100
         status_str = "success" if event == "charge.success" else "failed"
 
         user_id = metadata.get("user_id")
@@ -93,12 +92,23 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
             logger.warning(f"Webhook missing user_id: {ref}")
             return {"status": "ignored"}
 
+        # --- 💸 SUBACCOUNT SPLIT LOGIC ---
+        # We extract how much went to the user (subaccount) vs how much we kept (fees)
+        subaccount_data = data.get("subaccount", {})
+        user_share = amount_total # Default to total if no split
+        
+        if subaccount_data:
+            # If split happened, Paystack provides the subaccount share
+            # Note: Paystack 'amount' in the subaccount object is usually the share
+            user_share_kobo = subaccount_data.get("amount", amount_total_kobo)
+            user_share = user_share_kobo / 100
+
         customer = data.get("customer", {})
         payer_email = customer.get("email") or metadata.get("payer_email", "client@payla.ng")
         payer_name = metadata.get("payer_name", "Anonymous")
         payer_phone = metadata.get("payer_phone", "")
 
-        amount_str = f"₦{amount:,.0f}"
+        amount_str = f"₦{user_share:,.2f}"
 
         # === Save Payment Record ===
         payment = Payment(
@@ -107,7 +117,8 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
             invoice_id=invoice_id or None,
             paylink_id=paylink_id or None,
             paystack_reference=ref,
-            amount=amount,
+            amount=amount_total,         # Total paid by client
+            user_share=user_share,       # What user actually gets
             currency="NGN",
             status=status_str,
             channel=data.get("channel"),
@@ -119,38 +130,34 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
         )
 
         # ========================================
-        # SUCCESS → CELEBRATE + PAY OUT
+        # SUCCESS → ATOMIC SUBACCOUNT UPDATES
         # ========================================
         if status_str == "success":
-            logger.info(f"Payment SUCCESS → {ref} | ₦{amount:,.0f} | User: {user_id}")
+            logger.info(f"✅ Subaccount Payment SUCCESS → {ref} | User Share: {amount_str}")
 
-            # --- 🚀 2025 ATOMIC TRANSACTION BATCH ---
-            # Ensures earnings, records, and paylinks update simultaneously or not at all
             batch = db.batch()
             
-            # 1. Set the Payment Document
+            # 1. Record the Payment
             batch.set(payment_doc_ref, payment.dict(by_alias=True))
 
-            # 2. Update User Earnings (Incrementing safely)
+            # 2. Update User Earnings (This represents their lifetime revenue)
             user_ref = db.collection("users").document(user_id)
             batch.update(user_ref, {
-                "total_earned": firestore.Increment(amount),
+                "total_earned": firestore.Increment(user_share),
                 "updated_at": datetime.now(timezone.utc)
             })
 
             # 3. Handle Paylink Updates
             if paylink_id:
-                # Update the specific transaction entry
                 pt_ref = db.collection("paylink_transactions").document(ref)
                 batch.update(pt_ref, {
-                    "amount_paid": amount,
+                    "amount_paid": user_share,
                     "status": "success",
                     "paid_at": datetime.now(timezone.utc)
                 })
-                # Increment the paylink's main stats
                 pl_ref = db.collection("paylinks").document(paylink_id)
                 batch.update(pl_ref, {
-                    "total_received": firestore.Increment(amount),
+                    "total_received": firestore.Increment(user_share),
                     "total_transactions": firestore.Increment(1),
                     "last_payment_at": datetime.now(timezone.utc)
                 })
@@ -164,51 +171,35 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
                     "paystack_reference": ref
                 })
 
-            # EXECUTE BATCH
             batch.commit()
 
-            # --- 🔔 NOTIFICATIONS & CELERY ---
-            if paylink_id:
-                create_notification(
-                    user_id=user_id,
-                    title="New Paylink Payment!",
-                    message=f"{amount_str} from {payer_name}\nSomeone just paid your link ♡",
-                    type="payment",
-                    link="/dashboard/payments"
-                )
-            elif invoice_id:
-                create_notification(
-                    user_id=user_id,
-                    title="Invoice Paid!",
-                    message=f"{amount_str} received\nYour client settled the invoice",
-                    type="payment",
-                    link="/dashboard/invoices"
-                )
-
-            # --- AUTO PAYOUT TRIGGER ---
-            try:
-                from tasks.payout_celery import payout_task
-                payout_task.delay(user_id, amount, ref)
-                logger.info(f"Payout task queued via Celery → {ref}")
-            except Exception as e:
-                logger.error(f"Payout task failed to start: {e}", exc_info=True)
-
-        # ========================================
-        # FAILURE → Gentle nudge
-        # ========================================
-        else:
-            logger.warning(f"Payment FAILED → {ref} | ₦{amount:,.0f}")
-            payment_doc_ref.set(payment.dict(by_alias=True)) # Save failed record
+            # --- 🔔 NOTIFICATIONS ---
             create_notification(
                 user_id=user_id,
-                title="Payment Failed",
-                message=f"A client tried to pay {amount_str} but it failed.\nThey might try again.",
-                type="warning",
-                link="/dashboard"
+                title="Payment Received!",
+                message=f"{amount_str} from {payer_name}\nSettlement is being processed to your bank account.",
+                type="payment",
+                link="/dashboard/payments"
+            )
+
+            # NOTE: With Subaccounts, Paystack handles the payout automatically (T+1).
+            # We no longer trigger a manual Celery payout task unless you have a secondary logic.
+
+        # ========================================
+        # FAILURE
+        # ========================================
+        else:
+            logger.warning(f"❌ Payment FAILED → {ref}")
+            payment_doc_ref.set(payment.dict(by_alias=True))
+            create_notification(
+                user_id=user_id,
+                title="Payment Attempt Failed",
+                message=f"A client tried to pay {amount_str} but it failed.",
+                type="warning"
             )
 
     # ========================================
-    # 3. PAYLA SUBSCRIPTIONS
+    # 3. PAYLA SUBSCRIPTIONS (Main Account)
     # ========================================
     elif event == "subscription.create":
         sub_code = data["subscription_code"]
@@ -230,24 +221,20 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
             "next_billing_date": next_bill,
             "trial_end_date": None,
             "upgraded_at": datetime.now(timezone.utc),
-            "billing_nudge_status": "active",
-            "subscription_end": new_end_date,
-            "last_nudge_date": None
+            "billing_nudge_status": "active"
         })
 
         create_notification(
             user_id=user_id,
             title="Welcome to Payla Silver!",
-            message=f"You’re now on {PLANS[plan_code]['description']}\nFull access unlocked forever until cancelled",
+            message=f"You’re now on {PLANS.get(plan_code, {}).get('description', 'Silver Plan')}",
             type="success"
         )
 
     elif event == "charge.success" and data.get("subscription"):
-        # Renewal payment
         user_id = metadata.get("user_id")
-        plan_code = metadata.get("plan_code", "silver_monthly")
         if user_id:
-            next_bill = data["subscription"]["next_payment_date"]
+            next_bill = data["subscription"].get("next_payment_date")
             db.collection("users").document(user_id).update({
                 "plan": "silver",
                 "next_billing_date": next_bill
@@ -255,25 +242,23 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
             create_notification(
                 user_id=user_id,
                 title="Subscription Renewed",
-                message=f"₦{PLANS[plan_code]['amount_ngn']:,} charged successfully\nNext billing: {next_bill.split('T')[0]}",
+                message=f"Your subscription was renewed successfully. Next billing: {next_bill}",
                 type="info"
             )
 
     elif event in ("subscription.disable", "subscription.expire") \
         or (event == "charge.failed" and data.get("subscription")):
-        # Payment failed or cancelled
         user_id = metadata.get("user_id")
         if user_id:
             db.collection("users").document(user_id).update({
                 "plan": "free",
                 "subscription_id": None,
-                "paystack_customer_code": None,
                 "next_billing_date": None
             })
             create_notification(
                 user_id=user_id,
                 title="Subscription Expired",
-                message="Your Payla Silver access has ended.\nPaylinks & reminders are now disabled.\nResubscribe to continue.",
+                message="Your Silver access has ended. Resubscribe to continue using pro features.",
                 type="warning",
                 link="/subscription"
             )

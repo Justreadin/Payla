@@ -32,7 +32,13 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
     user_id = current_user.id
     now = datetime.now(timezone.utc)
 
-    # === Fetch invoices ===
+    # === 1. User Balance (The Source of Truth) ===
+    # Use the pre-calculated total from the user document (updated by webhook)
+    # This includes both Invoices AND Paylink earnings.
+    official_total_earned = getattr(current_user, "total_earned", 0.0)
+    subaccount_id = getattr(current_user, "paystack_subaccount_id", None)
+
+    # === 2. Fetch Invoices ===
     invoices_query = await firestore_run(
         db.collection("invoices")
         .where(filter=FieldFilter("sender_id", "==", user_id))
@@ -40,25 +46,21 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
     )
 
     invoices = []
-    total_earned = 0.0
     pending_amount = 0.0
-    overdue_amount = 0.0  # ← ADD THIS
+    overdue_amount = 0.0
     overdue_count = 0
 
     for doc in invoices_query:
         inv_data = doc.to_dict()
 
-        # 🚫 Skip drafts entirely
         if inv_data.get("status") == "draft":
             continue
 
-        # ✅ Inject Firestore document ID
         inv_data["id"] = doc.id
-        inv_data["_id"] = doc.id  # ← ADD THIS for frontend compatibility
+        inv_data["_id"] = doc.id 
 
         inv = Invoice(**inv_data)
 
-        # Ensure due_date is timezone-aware
         if inv.due_date and inv.due_date.tzinfo is None:
             inv.due_date = inv.due_date.replace(tzinfo=timezone.utc)
 
@@ -80,24 +82,21 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
             inv.status = "overdue"
 
         # === Stats aggregation ===
-        if inv.status == "paid":
-            total_earned += inv.amount
-
-        elif inv.status == "pending":
+        # Note: We don't calculate total_earned here anymore to avoid missing Paylink money
+        if inv.status == "pending":
             pending_amount += inv.amount
             
         elif inv.status == "overdue":
-            overdue_amount += inv.amount  # ← ADD THIS
+            overdue_amount += inv.amount
             pending_amount += inv.amount
             overdue_count += 1
 
         invoices.append(inv)
 
-    # === Sort invoices ===
-    # overdue → pending → paid → failed (most recent first)
+    # === 3. Sort invoices ===
     invoices.sort(
         key=lambda x: (
-            0 if x.status == "overdue" else  # ← CHANGED: overdue first
+            0 if x.status == "overdue" else
             1 if x.status == "pending" else
             2 if x.status == "paid" else
             3 if x.status == "failed" else 4,
@@ -105,27 +104,28 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
         )
     )
 
-    # === Paylink ===
+    # === 4. Paylink ===
     paylink_doc = await firestore_run(
         db.collection("paylinks").document(user_id).get
     )
-    paylink = paylink_doc.to_dict() if paylink_doc.exists else None
+    paylink_data = paylink_doc.to_dict() if paylink_doc.exists else {}
     paylink_url = (
-        paylink["link_url"]
-        if paylink
+        paylink_data.get("link_url")
+        if paylink_data
         else f"{settings.BACKEND_URL}/@{current_user.username}"
     )
 
     return {
         "stats": {
-            "total_earned": round(total_earned, 2),
+            "total_earned": round(official_total_earned, 2),
             "pending_amount": round(pending_amount, 2),
-            "overdue_amount": round(overdue_amount, 2),  # ← ADD THIS
+            "overdue_amount": round(overdue_amount, 2),
             "total_invoices": len(invoices),
             "overdue_count": overdue_count,
             "draft_count": 0,
             "growth_trend": "0%",
-            "has_earnings": total_earned > 0  # ← ADD THIS
+            "has_earnings": official_total_earned > 0,
+            "is_subaccount_linked": bool(subaccount_id) # Useful for frontend warnings
         },
         "invoices": [
             {
@@ -136,13 +136,13 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
                     else None
                 )
             }
-            for inv in invoices[:50]  # ← INCREASED from 20 to show more
+            for inv in invoices[:50]
         ],
         "paylink": {
-            "url": paylink_url
+            "url": paylink_url,
+            "total_received": paylink_data.get("total_received", 0)
         }
     }
-
 
 @router.get("/refresh", response_model=Dict[str, Any])
 async def refresh_dashboard_stats(current_user: User = Depends(get_current_user)):
