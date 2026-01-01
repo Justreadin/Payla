@@ -22,7 +22,6 @@ db = firestore.client()
 
 class PayoutAccountIn(BaseModel):
     bank_code: str = Field(..., description="Paystack bank code")
-    bvn: str = Field(..., pattern=r"^\d{11}$")
     account_number: str = Field(
         ...,
         min_length=10,
@@ -51,42 +50,62 @@ class DeleteResponse(BaseModel):
 
 # ==================== Paystack Helpers ====================
 
-async def verify_identity(bvn: str, account_number: str, bank_code: str) -> bool:
-    """Verifies BVN matches account details via Paystack."""
-    url = "https://api.paystack.co/bvn/match"
+async def resolve_account_name(bank_code: str, account_number: str) -> dict:
+    url = "https://api.paystack.co/bank/resolve"
     headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
-    payload = {
-        "bvn": bvn,
-        "account_number": account_number,
-        "bank_code": bank_code
-    }
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(url, json=payload, headers=headers)
-            data = resp.json()
-            # If status is true, the BVN matches the account
-            return data.get("status") is True
-        except Exception as e:
-            logger.error(f"BVN Verification Error: {e}")
-            return False
+    params = {"account_number": account_number, "bank_code": bank_code}
 
-async def create_or_update_subaccount(user: User, bank_code: str, account_number: str, bvn: str) -> str:
-    """THE FIXED FUNCTION: Creates/Updates subaccount with 4 arguments."""
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+            data = resp.json()
+            
+            if resp.status_code == 200 and data.get("status"):
+                account_name = data["data"]["account_name"]
+                # Paystack sometimes doesn't return bank_name in the resolve endpoint
+                bank_name = data["data"].get("bank_name")
+                
+                # FALLBACK: If bank_name is missing, fetch the bank list to find the name
+                if not bank_name:
+                    banks_resp = await client.get("https://api.paystack.co/bank", headers=headers)
+                    if banks_resp.status_code == 200:
+                        all_banks = banks_resp.json().get("data", [])
+                        # Match the bank_code to get the name
+                        matched_bank = next((b for b in all_banks if b["code"] == bank_code), None)
+                        if matched_bank:
+                            bank_name = matched_bank["name"]
+
+                return {
+                    "account_name": account_name,
+                    "bank_name": bank_name or "Unknown Bank"
+                }
+            
+            msg = data.get("message", "Invalid account or bank")
+            raise HTTPException(status_code=400, detail=msg)
+        except httpx.RequestError as e:
+            logger.error(f"Paystack resolve failed: {e}")
+            raise HTTPException(status_code=502, detail="Bank verification unavailable")
+
+async def create_or_update_subaccount(user: User, bank_code: str, account_number: str) -> str:
+    """Creates/Updates a subaccount on Paystack for automated splitting (T+1 payouts)."""
     url = "https://api.paystack.co/subaccount"
-    headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
+    headers = {
+        "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+        "Content-Type": "application/json"
+    }
     
     payload = {
         "business_name": user.business_name or f"Merchant_{user.id[-6:]}",
         "settlement_bank": bank_code,
         "account_number": account_number,
-        "percentage_charge": 0,
-        "description": f"Payla Merchant: {user.email}",
-        "primary_contact_email": user.email,
-        "metadata": {"bvn": bvn} 
+        "percentage_charge": 0,  # Payla takes 0%; user gets full amount minus Paystack fees
+        "description": f"Payla Merchant: {user.email}"
     }
 
     async with httpx.AsyncClient(timeout=10.0) as client:
+        # If user already has a subaccount, we UPDATE it
         sub_code = getattr(user, "paystack_subaccount_code", None)
+        
         if sub_code:
             resp = await client.put(f"{url}/{sub_code}", json=payload, headers=headers)
         else:
@@ -96,81 +115,46 @@ async def create_or_update_subaccount(user: User, bank_code: str, account_number
         if resp.status_code in [200, 201] and data.get("status"):
             return data["data"]["subaccount_code"]
         
-        raise HTTPException(status_code=400, detail=data.get("message", "Subaccount creation failed"))
-
-
-async def get_paystack_subaccount_status(subaccount_code: str) -> str:
-    """Queries Paystack directly to get the live status of a subaccount."""
-    url = f"https://api.paystack.co/subaccount/{subaccount_code}"
-    headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
-    
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                # Paystack returns 'active', 'pending', or 'inactive'
-                return data.get("data", {}).get("status", "pending")
-            return "pending"
-        except Exception as e:
-            logger.error(f"Error checking subaccount status: {e}")
-            return "pending"
-
-
-async def resolve_account_name(bank_code: str, account_number: str) -> dict:
-    url = "https://api.paystack.co/bank/resolve"
-    headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
-    params = {"account_number": account_number, "bank_code": bank_code}
-
-    async with httpx.AsyncClient(timeout=12.0) as client:
-        resp = await client.get(url, headers=headers, params=params)
-        data = resp.json()
-        if resp.status_code == 200 and data.get("status"):
-            return {
-                "account_name": data["data"]["account_name"],
-                "bank_name": data["data"].get("bank_name", "Bank")
-            }
-        raise HTTPException(status_code=400, detail="Could not resolve bank account name")
+        logger.error(f"Paystack Subaccount operation failed: {data}")
+        raise HTTPException(status_code=500, detail="Provider failed to register bank account")
 
 # ==================== ROUTES ====================
 
 @router.post("/account", response_model=PayoutAccountOut)
 async def save_payout_account(payload: PayoutAccountIn, current_user: User = Depends(get_current_user)):
-    # 1. Identity Check
-    is_valid = await verify_identity(payload.bvn, payload.account_number, payload.bank_code)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail="BVN does not match bank account details.")
+    user_id = current_user.id
     
-    # 2. Resolve Name
+    # 1. Resolve Bank Info (Now with improved bank name matching)
     resolved = await resolve_account_name(payload.bank_code, payload.account_number)
     
-    # 3. Create Subaccount (Calls the fixed 4-argument function)
-    sub_code = await create_or_update_subaccount(
-        current_user, 
-        payload.bank_code, 
-        payload.account_number, 
-        payload.bvn
+    # 2. Register with Paystack
+    subaccount_code = await create_or_update_subaccount(
+        current_user, payload.bank_code, payload.account_number
     )
-    
-    # 4. Save to Firestore
-    account_data = {
-        "bank_code": payload.bank_code,
-        "account_number": payload.account_number,
-        "account_name": resolved["account_name"],
-        "bank_name": resolved["bank_name"],
-        "subaccount_code": sub_code,
-        "bvn_verified": True,
-        "updated_at": datetime.now(timezone.utc)
+
+    # 3. Update Firestore
+    now = datetime.now(timezone.utc)
+    update_data = {
+        "payout_bank": payload.bank_code, # Your screenshot shows "50515" (Moniepoint)
+        "payout_account_number": payload.account_number,
+        "payout_account_name": resolved["account_name"],
+        "payout_bank_name": resolved["bank_name"], # This will now be "Moniepoint MFB"
+        "paystack_subaccount_code": subaccount_code,
+        "bank_verified": True,
+        "payout_verified": True,
+        "updated_at": now
     }
     
-    db.collection("users").document(current_user.id).update({
-        "payout_account": account_data,
-        "paystack_subaccount_code": sub_code
-    })
+    db.collection("users").document(user_id).update(update_data)
     
-    return {**account_data, "updated_at": account_data["updated_at"]}
-
-
+    return PayoutAccountOut(
+        bank_code=payload.bank_code,
+        account_number=payload.account_number,
+        account_name=resolved["account_name"],
+        bank_name=resolved["bank_name"],
+        subaccount_code=subaccount_code,
+        updated_at=now
+    )
 @router.get("/account", response_model=Optional[PayoutAccountOut])
 async def get_payout_account(current_user: User = Depends(get_current_user)):
     doc = db.collection("users").document(current_user.id).get()
@@ -223,44 +207,20 @@ async def resolve_payout_account(bank: str, account: str, current_user: User = D
 
 @router.get("/earnings")
 async def earnings(current_user: User = Depends(get_current_user)):
+    # 1. Use the pre-calculated total from the User document
     total_earned = getattr(current_user, "total_earned", 0.0)
-    sub_code = getattr(current_user, "paystack_subaccount_code", None)
     
-    # Initialize default states
-    display_status = "Action Required"
-    instruction = "Add BVN in the bank field to enable payouts"
-    is_automated = False
-
-    # 1. If we have a subaccount code, check its real status
-    if sub_code:
-        status = await get_paystack_subaccount_status(sub_code)
-        
-        if status == "active":
-            display_status = "Automated (T+1)"
-            instruction = "Your earnings are automatically sent to your bank."
-            is_automated = True
-        elif status == "pending":
-            display_status = "Pending Verification"
-            instruction = "Paystack is verifying your identity. This usually takes 24 hours."
-            is_automated = False
-        else:
-            display_status = "Account Inactive"
-            instruction = "There is an issue with your bank details. Please re-link your account."
-            is_automated = False
-            
-    # 2. Fallback: If no sub_code but user has payout data in Firestore (legacy/partial setup)
-    elif hasattr(current_user, "payout_account"):
-        display_status = "Verification Required"
-        instruction = "Complete BVN verification to activate automated payouts."
+    # We use .get() or getattr() to handle cases where the field might be missing
+    bank_name = getattr(current_user, "payout_bank_name", "your bank")
 
     return {
         "total_earnings": total_earned, 
-        "available_for_payout": 0,
-        "display_available": display_status,
-        "payout_instruction": instruction,
-        "payout_method": getattr(current_user, "payout_bank_name", "your bank"),
-        "next_payout": "Next working day" if is_automated else "Pending setup",
-        "is_automated": is_automated
+        "available_for_payout": 0, # In T+1, everything is technically "processing"
+        "display_available": "Automated (T+1)",
+        "payout_method": bank_name,
+        "next_payout": "Next working day (10:00 AM)",
+        "is_automated": True,
+        "fee_structure": "Your Clients Pay Fees"
     }
 
 @router.get("/history")
