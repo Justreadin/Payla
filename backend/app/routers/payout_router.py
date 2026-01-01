@@ -59,11 +59,27 @@ async def resolve_account_name(bank_code: str, account_number: str) -> dict:
         try:
             resp = await client.get(url, headers=headers, params=params)
             data = resp.json()
+            
             if resp.status_code == 200 and data.get("status"):
+                account_name = data["data"]["account_name"]
+                # Paystack sometimes doesn't return bank_name in the resolve endpoint
+                bank_name = data["data"].get("bank_name")
+                
+                # FALLBACK: If bank_name is missing, fetch the bank list to find the name
+                if not bank_name:
+                    banks_resp = await client.get("https://api.paystack.co/bank", headers=headers)
+                    if banks_resp.status_code == 200:
+                        all_banks = banks_resp.json().get("data", [])
+                        # Match the bank_code to get the name
+                        matched_bank = next((b for b in all_banks if b["code"] == bank_code), None)
+                        if matched_bank:
+                            bank_name = matched_bank["name"]
+
                 return {
-                    "account_name": data["data"]["account_name"],
-                    "bank_name": data["data"].get("bank_name", "Unknown Bank")
+                    "account_name": account_name,
+                    "bank_name": bank_name or "Unknown Bank"
                 }
+            
             msg = data.get("message", "Invalid account or bank")
             raise HTTPException(status_code=400, detail=msg)
         except httpx.RequestError as e:
@@ -108,10 +124,10 @@ async def create_or_update_subaccount(user: User, bank_code: str, account_number
 async def save_payout_account(payload: PayoutAccountIn, current_user: User = Depends(get_current_user)):
     user_id = current_user.id
     
-    # 1. Resolve Bank Info (Verify account exists)
+    # 1. Resolve Bank Info (Now with improved bank name matching)
     resolved = await resolve_account_name(payload.bank_code, payload.account_number)
     
-    # 2. Register with Paystack for Automated Payouts
+    # 2. Register with Paystack
     subaccount_code = await create_or_update_subaccount(
         current_user, payload.bank_code, payload.account_number
     )
@@ -119,18 +135,18 @@ async def save_payout_account(payload: PayoutAccountIn, current_user: User = Dep
     # 3. Update Firestore
     now = datetime.now(timezone.utc)
     update_data = {
-        "payout_bank": payload.bank_code,
+        "payout_bank": payload.bank_code, # Your screenshot shows "50515" (Moniepoint)
         "payout_account_number": payload.account_number,
         "payout_account_name": resolved["account_name"],
-        "payout_bank_name": resolved["bank_name"],
+        "payout_bank_name": resolved["bank_name"], # This will now be "Moniepoint MFB"
         "paystack_subaccount_code": subaccount_code,
         "bank_verified": True,
+        "payout_verified": True,
         "updated_at": now
     }
     
     db.collection("users").document(user_id).update(update_data)
-    logger.info(f"Subaccount {subaccount_code} linked to user {user_id}")
-
+    
     return PayoutAccountOut(
         bank_code=payload.bank_code,
         account_number=payload.account_number,
@@ -139,7 +155,6 @@ async def save_payout_account(payload: PayoutAccountIn, current_user: User = Dep
         subaccount_code=subaccount_code,
         updated_at=now
     )
-
 @router.get("/account", response_model=Optional[PayoutAccountOut])
 async def get_payout_account(current_user: User = Depends(get_current_user)):
     doc = db.collection("users").document(current_user.id).get()
@@ -183,16 +198,26 @@ async def get_banks():
             return {"banks": data["data"]}
         raise HTTPException(status_code=502, detail="Failed to load banks")
 
+@router.get("/resolve")
+async def resolve_payout_account(bank: str, account: str, current_user: User = Depends(get_current_user)):
+    if len(account) != 10 or not account.isdigit():
+        raise HTTPException(status_code=400, detail="Invalid account number")
+    resolved = await resolve_account_name(bank, account)
+    return {"account_name": resolved["account_name"], "bank_name": resolved.get("bank_name", "Unknown Bank")}
+
+
 @router.get("/earnings")
 async def earnings(current_user: User = Depends(get_current_user)):
-    # Pull from the pre-calculated field for speed (updated by webhook)
+    # Total earned is what Paystack has split to the subaccount
     total_earned = getattr(current_user, "total_earned", 0.0)
     
     return {
         "total_earnings": total_earned, 
-        "available_for_payout": "Automated (T+1)",
+        "available_for_payout": total_earned, # Send as float to fix NaN
+        "display_available": "Automated (T+1)",
         "payout_method": "Subaccount Transfer",
-        "next_payout": "Next working day"
+        "next_payout": "Next working day",
+        "is_automated": True
     }
 
 @router.get("/history")
@@ -280,7 +305,23 @@ async def queue_payout(
 
 @router.get("/transaction/{reference}/payout_status")
 async def get_payout_status(reference: str):
+    # 1. Check the central payouts collection first
     doc = db.collection("payouts").document(reference).get()
+    
     if doc.exists:
-        return {"payout_status": doc.to_dict().get("status", "settled")}
+        data = doc.to_dict()
+        return {"payout_status": data.get("status", "settled")}
+        
+    # 2. Fallback to check paylink_transactions if not in payouts history yet
+    tx_doc = db.collection("paylink_transactions").document(reference).get()
+    if tx_doc.exists:
+        data = tx_doc.to_dict()
+        return {"payout_status": data.get("payout_status", "processing")}
+        
+    # 3. Final fallback for Invoices
+    inv_doc = db.collection("invoices").where("transaction_reference", "==", reference).limit(1).get()
+    if inv_doc:
+        data = inv_doc[0].to_dict()
+        return {"payout_status": data.get("payout_status", "processing")}
+
     return {"payout_status": "processing"}

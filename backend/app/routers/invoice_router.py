@@ -282,6 +282,7 @@ async def publish_invoice(
         "payment_url": paystack_data["authorization_url"],
         "paystack_reference": paystack_data["reference"],
         "paystack_subaccount_code": subaccount_code, # Track which subaccount this was sent to
+        "sender_subaccount_code": subaccount_code,
         "published_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
         "is_returning_client": is_returning_client 
@@ -355,57 +356,60 @@ async def get_my_invoices(current_user=Depends(get_current_user)):
 # --------------------------------------------------------------
 # 5. GET SINGLE INVOICE
 # --------------------------------------------------------------
+# --------------------------------------------------------------
+# 5. GET SINGLE INVOICE (Public Page)
+# --------------------------------------------------------------
 @router.get("/{invoice_id}", response_model=dict)
 async def get_invoice(invoice_id: str):
-    ref = db.collection("invoices").document(invoice_id)
+    # Support both short ID and full ID (inv_...)
+    actual_id = invoice_id if invoice_id.startswith("inv_") else f"inv_{invoice_id}"
+    
+    ref = db.collection("invoices").document(actual_id)
     doc = await firestore_run(ref.get)
 
     if not doc.exists:
         raise HTTPException(404, "Invoice not found")
 
-    invoice = Invoice(**doc.to_dict())
+    invoice_data = doc.to_dict()
     now = datetime.now(timezone.utc)
 
-    if invoice.due_date and invoice.due_date.tzinfo is None:
-        invoice.due_date = invoice.due_date.replace(tzinfo=timezone.utc)
+    # 1. Handle Status/Overdue Logic
+    due_date = invoice_data.get("due_date")
+    if due_date and due_date.tzinfo is None:
+        due_date = due_date.replace(tzinfo=timezone.utc)
 
-    if invoice.status == "pending" and invoice.due_date and invoice.due_date < now:
-        await firestore_run(
-            ref.update,
-            {"status": "overdue", "updated_at": now},
-        )
-        invoice.status = "overdue"
+    if invoice_data.get("status") == "pending" and due_date and due_date < now:
+        await firestore_run(ref.update, {"status": "overdue", "updated_at": now})
+        invoice_data["status"] = "overdue"
 
-    response = invoice.dict(by_alias=True)
-
+    # 2. Fetch LIVE Sender Data (Logo, Username, Subaccount)
     user_doc = await firestore_run(
-        db.collection("users")
-        .document(invoice.sender_id)
-        .get
+        db.collection("users").document(invoice_data["sender_id"]).get
     )
 
     if user_doc.exists:
-        user = User(**user_doc.to_dict())
-        response.update({
-            "sender_username": user.username,
-            "sender_logo": user.custom_invoice_colors.get("logo")
-            if user.custom_invoice_colors else None,
-            "sender_email": user.email,
-            "sender_subaccount_code": getattr(user, "paystack_subaccount_code", None)
+        user_data = user_doc.to_dict()
+        invoice_data.update({
+            "sender_username": user_data.get("username"),
+            "sender_logo": user_data.get("custom_invoice_colors", {}).get("logo") 
+                           if user_data.get("custom_invoice_colors") else None,
+            "sender_email": user_data.get("email"),
+            # CRITICAL: This is what the frontend button needs!
+            "sender_subaccount_code": user_data.get("paystack_subaccount_code")
         })
 
-
-    response["message"] = {
+    # 3. Add UI helper messages
+    invoice_data["message"] = {
         "paid": "This invoice has been paid. Thank you!",
         "overdue": "This invoice is overdue.",
         "failed": "Payment failed. Please try again.",
         "draft": "This is a draft. Publish to send.",
-    }.get(invoice.status)
+    }.get(invoice_data["status"])
 
-    if invoice.status == "paid":
-        response["payment_url"] = None
+    if invoice_data["status"] == "paid":
+        invoice_data["payment_url"] = None
 
-    return response
+    return invoice_data
 
 # --------------------------------------------------------------
 # 6. UPDATE STATUS (Verified & Secure)
@@ -414,7 +418,7 @@ async def get_invoice(invoice_id: str):
 async def update_invoice_status(
     invoice_id: str,
     payload: StatusUpdate,
-    background_tasks: BackgroundTasks # Added this
+    background_tasks: BackgroundTasks
 ):
     # 1. Basic validation
     if payload.status != "paid":
@@ -432,7 +436,7 @@ async def update_invoice_status(
 
     invoice_data = doc.to_dict()
     
-    # 3. Race condition safety
+    # 3. Race condition safety (Double-tap prevention)
     if invoice_data.get("status") == "paid":
         return {"message": "Invoice already processed", "status": "already_paid"}
 
@@ -450,13 +454,22 @@ async def update_invoice_status(
         if not v_data.get("status") or v_data["data"]["status"] != "success":
             raise HTTPException(400, "Payment was not successful on Paystack")
 
-        # Verify amount (Paystack returns in Kobo)
-        paid_amount = v_data["data"]["amount"] / 100
-        if paid_amount < float(invoice_data["amount"]):
-            raise HTTPException(400, "Amount paid is less than invoice amount")
+        payment_details = v_data["data"]
+        
+        # --- SAFETY CHECK: Metadata match ---
+        # Ensure this Paystack transaction was actually meant for this invoice
+        ps_invoice_id = payment_details.get("metadata", {}).get("invoice_id")
+        if ps_invoice_id and ps_invoice_id != invoice_id:
+             raise HTTPException(400, "Transaction reference does not match this invoice")
 
-    # 5. Handle Payer Email (Fallback to Paystack's verified email)
-    final_payer_email = (payload.payer_email or v_data["data"]["customer"]["email"]).lower()
+        # --- SAFETY CHECK: Amount ---
+        paid_amount = payment_details["amount"] / 100
+        # We use >= because if the client paid the fees, paid_amount will be higher than invoice_amount
+        if paid_amount < float(invoice_data["amount"]):
+            raise HTTPException(400, f"Insufficient amount. Paid: {paid_amount}, Expected: {invoice_data['amount']}")
+
+    # 5. Handle Payer Email
+    final_payer_email = (payload.payer_email or payment_details["customer"]["email"]).lower()
 
     # 6. Prepare Update Data
     now = datetime.now(timezone.utc)
@@ -465,11 +478,12 @@ async def update_invoice_status(
         "updated_at": now,
         "paid_at": now,
         "transaction_reference": payload.transaction_reference,
-        "payer_email": final_payer_email
+        "payer_email": final_payer_email,
+        # Log the actual final amount paid (including fees if any)
+        "amount_paid_gross": paid_amount 
     }
 
-    # 7. CRM Sync (Use the corrected variable name: invoice_data)
-    # We await this to ensure marketing data is saved before response
+    # 7. CRM Sync 
     await sync_client_to_crm(
         merchant_id=invoice_data["sender_id"],
         email=final_payer_email,
@@ -477,10 +491,13 @@ async def update_invoice_status(
     )
 
     # 8. Trigger Payout (Background)
+    # NOTE: Since you are using Paystack Subaccounts, the payout is 
+    # handled AUTOMATICALLY by Paystack. You only need to call initiate_payout 
+    # if you are doing manual ledger accounting.
     amount = invoice_data.get("amount", 0)
     if invoice_data.get("payout_status") != "queued":
-        background_tasks.add_task(initiate_payout, invoice_data["sender_id"], amount, invoice_id)
-        update_data["payout_status"] = "queued"
+        # background_tasks.add_task(initiate_payout, invoice_data["sender_id"], amount, invoice_id)
+        update_data["payout_status"] = "paid_via_subaccount"
 
     # 9. Save Update
     await firestore_run(ref.update, update_data)
@@ -499,7 +516,7 @@ async def update_invoice_status(
         sender_doc = await firestore_run(db.collection("users").document(invoice_data["sender_id"]).get)
         sender_user = sender_doc.to_dict() if sender_doc.exists else {}
         
-        # We ensure the invoice_data reflects the 'paid' status for the notification
+        # Merge updates into invoice_data for the notification template
         invoice_data.update(update_data) 
 
         background_tasks.add_task(
@@ -509,7 +526,6 @@ async def update_invoice_status(
         )
 
     return {"message": "Success", "status": "paid"}
-
 # --------------------------------------------------------------
 # 7. DELETE INVOICE
 # --------------------------------------------------------------

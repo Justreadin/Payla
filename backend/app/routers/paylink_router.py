@@ -353,22 +353,17 @@ async def create_paylink_transaction(username: str, req: CreatePaylinkTransactio
         db.collection("paylinks")
         .where(filter=FieldFilter("username", "==", username.lower().strip()))
         .limit(1)
-        .stream()
+        .get() # Using .get() is more efficient than .stream() for a limit(1)
     )
 
-    paylink = None
-    for doc in paylink_docs:
-        paylink = doc.to_dict()
-        paylink["_id"] = doc.id
-        break
-
-    if not paylink:
+    if not paylink_docs:
         raise HTTPException(status_code=404, detail="Paylink not found")
 
-    user_id = paylink["user_id"]
+    paylink_doc = paylink_docs[0]
+    paylink_data = paylink_doc.to_dict()
+    user_id = paylink_data["user_id"]
     
     # 2. Fetch the Owner's Subaccount Code
-    # This is vital for the frontend PaystackPop to know where to send the money
     user_doc = db.collection("users").document(user_id).get()
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="Owner profile not found")
@@ -377,53 +372,74 @@ async def create_paylink_transaction(username: str, req: CreatePaylinkTransactio
     subaccount_code = user_data.get("paystack_subaccount_code")
 
     if not subaccount_code:
-        # If they don't have a subaccount, they can't receive split payments
         raise HTTPException(
             status_code=400, 
             detail="This creator has not completed their settlement setup."
         )
 
+    # 3. Handle Accurate Math
+    # req.amount is the 'totalAmount' from paylink.js (e.g., 1229)
+    # We calculate the user's intended share. 
+    # If your frontend doesn't send 'amount_requested' yet, we reverse the logic
+    # but the best way is to ensure your frontend sends the original base amount too.
+    
+    total_to_charge = float(req.amount)
+    # Fallback: if frontend doesn't pass requested_amount, 
+    # we assume a 3% total overhead as a safety estimate, 
+    # but ideally, you should update your Request Model to include 'amount_requested'
+    requested_amount = getattr(req, "amount_requested", total_to_charge / 1.025) 
+    
+    # The 'extra' buffer (The portion of the fee that stays with Payla)
+    # This covers the gap between (Total - Paystack Fee) and the User's Target
+    payla_buffer = total_to_charge - requested_amount
+
     reference = f"payla_{username}_{uuid.uuid4().hex[:12]}"
 
-    # 3. Save Pending Transaction to Firestore
+    # 4. Save Pending Transaction to Firestore
     transaction = {
-        "paylink_id": paylink["_id"],
+        "paylink_id": paylink_doc.id,
         "user_id": user_id,
         "paylink_username": username.lower(),
-        "amount_requested": req.amount,
-        "amount_paid": 0.0,
+        "amount_requested": requested_amount, # The "clean" amount for David
+        "amount_paid": total_to_charge,        # The "gross" amount the client pays
         "payer_email": req.payer_email,
         "payer_name": req.payer_name or "Anonymous",
         "payer_phone": req.payer_phone or "",
         "paystack_reference": reference,
-        "paystack_subaccount_code": subaccount_code, # Track the split target
+        "paystack_subaccount_code": subaccount_code,
         "status": "pending",
-        "payout_status": "split_automated", # Mark as automated via subaccount
+        "payout_status": "split_automated",
         "last_update": datetime.utcnow(),
         "created_at": datetime.utcnow(),
-        "metadata": {"type": "paylink", "notes": getattr(req, "notes", None)},
+        "metadata": {
+            "type": "paylink", 
+            "requested_amount": requested_amount,
+            "notes": getattr(req, "notes", None)
+        },
     }
 
     db.collection("paylink_transactions").document(reference).set(transaction)
 
-    # 4. Return data to Frontend (including subaccount info)
+    # 5. Return data to Frontend
     return {
         "reference": reference,
         "email": req.payer_email,
-        "amount_kobo": int(req.amount * 100),
+        "amount_kobo": int(total_to_charge * 100),
         "public_key": settings.PAYSTACK_PUBLIC_KEY,
-        "subaccount": subaccount_code, # <--- CRITICAL: For PaystackPop
-        "bearer": "subaccount",        # <--- CRITICAL: Creator pays the fee
+        "subaccount": subaccount_code, 
+        "bearer": "subaccount",
+        # This is the "Magic" field. It pulls the extra money to YOUR account
+        # instead of letting David keep the extra ₦10.56
+        "transaction_charge": int(payla_buffer * 100), 
         "metadata": {
             "user_id": user_id,
-            "paylink_id": paylink["_id"],
+            "paylink_id": paylink_doc.id,
             "paylink_username": username.lower(),
-            "payer_name": req.payer_name or "Anonymous",
+            "requested_amount": requested_amount,
             "type": "paylink"
         }
     }
-
-
+    
 # --------------------------------------------------------------
 # 7. PUBLIC: GET TRANSACTION STATUS
 # --------------------------------------------------------------

@@ -42,9 +42,13 @@ class Paylink(BaseModel):
             "paystack_reference"
         }
 
+# models/paylink_model.py
+
 class CreatePaylinkTransactionRequest(BaseModel):
     paylink_username: str
-    amount: float          # Amount the client wants to pay (e.g. 5000)
+    amount: float              # The TOTAL (Gross) amount the client pays (e.g. 1229)
+    amount_requested: float    # The BASE (Net) amount the user wanted (e.g. 1200)
     payer_email: str
     payer_name: Optional[str] = None
     payer_phone: Optional[str] = None
+    notes: Optional[str] = None # Added this to match your router's getattr usage

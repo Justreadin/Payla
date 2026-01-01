@@ -22,7 +22,6 @@ def require_login(user: Optional[User]):
         return RedirectResponse(url=f"{settings.BACKEND_URL}/entry")
     return None
 
-
 @router.get("/", response_model=Dict[str, Any])
 async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_user)):
     redirect = require_login(current_user)
@@ -32,13 +31,13 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
     user_id = current_user.id
     now = datetime.now(timezone.utc)
 
-    # === 1. User Balance (The Source of Truth) ===
-    # Use the pre-calculated total from the user document (updated by webhook)
-    # This includes both Invoices AND Paylink earnings.
+    # 1. Official Balance (Updated by Webhook for Invoices + Paylinks)
     official_total_earned = getattr(current_user, "total_earned", 0.0)
-    subaccount_id = getattr(current_user, "paystack_subaccount_id", None)
+    
+    # Check for the subaccount code specifically
+    subaccount_code = getattr(current_user, "paystack_subaccount_code", None)
 
-    # === 2. Fetch Invoices ===
+    # 2. Fetch Invoices (Existing logic is fine)
     invoices_query = await firestore_run(
         db.collection("invoices")
         .where(filter=FieldFilter("sender_id", "==", user_id))
@@ -52,68 +51,30 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
 
     for doc in invoices_query:
         inv_data = doc.to_dict()
-
-        if inv_data.get("status") == "draft":
-            continue
+        if inv_data.get("status") == "draft": continue
 
         inv_data["id"] = doc.id
-        inv_data["_id"] = doc.id 
-
         inv = Invoice(**inv_data)
 
-        if inv.due_date and inv.due_date.tzinfo is None:
-            inv.due_date = inv.due_date.replace(tzinfo=timezone.utc)
-
-        # ⏰ Auto-mark overdue invoices
-        if (
-            inv.status == "pending"
-            and inv.due_date
-            and inv.due_date < now
-        ):
-            await firestore_run(
-                db.collection("invoices")
-                .document(inv.id)
-                .update,
-                {
-                    "status": "overdue",
-                    "updated_at": now
-                }
-            )
+        # Sync Overdue Status
+        if inv.status == "pending" and inv.due_date and inv.due_date.replace(tzinfo=timezone.utc) < now:
+            await firestore_run(db.collection("invoices").document(inv.id).update, {"status": "overdue", "updated_at": now})
             inv.status = "overdue"
 
-        # === Stats aggregation ===
-        # Note: We don't calculate total_earned here anymore to avoid missing Paylink money
         if inv.status == "pending":
             pending_amount += inv.amount
-            
         elif inv.status == "overdue":
             overdue_amount += inv.amount
             pending_amount += inv.amount
             overdue_count += 1
-
         invoices.append(inv)
 
-    # === 3. Sort invoices ===
-    invoices.sort(
-        key=lambda x: (
-            0 if x.status == "overdue" else
-            1 if x.status == "pending" else
-            2 if x.status == "paid" else
-            3 if x.status == "failed" else 4,
-            -(x.created_at.timestamp() if x.created_at else 0)
-        )
-    )
-
-    # === 4. Paylink ===
-    paylink_doc = await firestore_run(
-        db.collection("paylinks").document(user_id).get
-    )
+    # 3. Paylink Data
+    paylink_doc = await firestore_run(db.collection("paylinks").document(user_id).get)
     paylink_data = paylink_doc.to_dict() if paylink_doc.exists else {}
-    paylink_url = (
-        paylink_data.get("link_url")
-        if paylink_data
-        else f"{settings.BACKEND_URL}/@{current_user.username}"
-    )
+    
+    # Ensure URL points to Frontend, not Backend
+    paylink_url = paylink_data.get("link_url") or f"{settings.FRONTEND_URL}/@{current_user.username}"
 
     return {
         "stats": {
@@ -123,26 +84,19 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
             "total_invoices": len(invoices),
             "overdue_count": overdue_count,
             "draft_count": 0,
-            "growth_trend": "0%",
             "has_earnings": official_total_earned > 0,
-            "is_subaccount_linked": bool(subaccount_id) # Useful for frontend warnings
+            "is_subaccount_linked": bool(subaccount_code) 
         },
         "invoices": [
-            {
-                **inv.dict(by_alias=True),
-                "invoice_url": (
-                    f"{settings.BACKEND_URL}{inv.invoice_url}"
-                    if inv.invoice_url
-                    else None
-                )
-            }
+            {**inv.dict(by_alias=True), "invoice_url": f"{settings.BACKEND_URL}{inv.invoice_url}" if inv.invoice_url else None}
             for inv in invoices[:50]
         ],
         "paylink": {
             "url": paylink_url,
-            "total_received": paylink_data.get("total_received", 0)
+            "total_received": round(official_total_earned, 2) # Sync this with the main stat
         }
     }
+
 
 @router.get("/refresh", response_model=Dict[str, Any])
 async def refresh_dashboard_stats(current_user: User = Depends(get_current_user)):

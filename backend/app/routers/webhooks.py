@@ -87,9 +87,16 @@ async def paystack_webhook(
                     logger.info(f"ℹ️ Invoice {invoice_id} already marked as paid.")
 
         # A2. Handle Paylink Transactions
+        # A2. Handle Paylink Transactions
         elif metadata.get("type") == "paylink":
             tx_ref = db.collection("paylink_transactions").document(reference)
             tx_doc = tx_ref.get()
+            
+            # --- THE FIX: Align metadata keys ---
+            # Look for requested_amount (from our new paylink logic) 
+            # or original_amount (from your invoice logic)
+            amount_paid_gross = event_data.get("amount", 0) / 100 
+            original_amount = metadata.get("requested_amount") or metadata.get("original_amount") or amount_paid_gross
             
             if not tx_doc.exists or tx_doc.to_dict().get("status") != "success":
                 tx_ref.set({
@@ -97,14 +104,23 @@ async def paystack_webhook(
                     "paid_at": now,
                     "payout_status": payout_status,
                     "user_id": user_id,
-                    "amount": original_amount,
-                    "total_collected": amount_paid, # Amount including fees
+                    "amount": original_amount,       # This is the 1,200
+                    "total_collected": amount_paid_gross, # This is the 1,229
                     "customer_email": event_data.get("customer", {}).get("email"),
                     "channel": event_data.get("channel")
                 }, merge=True)
                 
                 logger.info(f"✅ Paylink transaction {reference} processed. Automated: {is_automated}")
+                
                 if user_id:
+                    # 1. Update the User's Global "Total Earned" (Source of truth for Dashboard)
+                    user_ref = db.collection("users").document(user_id)
+                    user_ref.update({
+                        "total_earned": firestore.Increment(original_amount),
+                        "updated_at": now
+                    })
+
+                    # 2. Queue for internal ledger/history
                     await queue_payout(
                         user_id, 
                         original_amount, 
