@@ -98,6 +98,25 @@ async def create_or_update_subaccount(user: User, bank_code: str, account_number
         
         raise HTTPException(status_code=400, detail=data.get("message", "Subaccount creation failed"))
 
+
+async def get_paystack_subaccount_status(subaccount_code: str) -> str:
+    """Queries Paystack directly to get the live status of a subaccount."""
+    url = f"https://api.paystack.co/subaccount/{subaccount_code}"
+    headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
+    
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Paystack returns 'active', 'pending', or 'inactive'
+                return data.get("data", {}).get("status", "pending")
+            return "pending"
+        except Exception as e:
+            logger.error(f"Error checking subaccount status: {e}")
+            return "pending"
+
+
 async def resolve_account_name(bank_code: str, account_number: str) -> dict:
     url = "https://api.paystack.co/bank/resolve"
     headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
@@ -205,24 +224,43 @@ async def resolve_payout_account(bank: str, account: str, current_user: User = D
 @router.get("/earnings")
 async def earnings(current_user: User = Depends(get_current_user)):
     total_earned = getattr(current_user, "total_earned", 0.0)
-    has_bvn = hasattr(current_user, "payout_bvn") and current_user.payout_bvn
+    sub_code = getattr(current_user, "paystack_subaccount_code", None)
     
-    # Logic for the specific message you wanted
-    if not has_bvn:
-        display_status = "Action Required"
-        instruction = "Add BVN to enable automatic T+1 payouts"
-    else:
-        display_status = "Automated (T+1)"
-        instruction = "Your earnings are automatically sent to your bank."
+    # Initialize default states
+    display_status = "Action Required"
+    instruction = "Add BVN in the bank field to enable payouts"
+    is_automated = False
+
+    # 1. If we have a subaccount code, check its real status
+    if sub_code:
+        status = await get_paystack_subaccount_status(sub_code)
+        
+        if status == "active":
+            display_status = "Automated (T+1)"
+            instruction = "Your earnings are automatically sent to your bank."
+            is_automated = True
+        elif status == "pending":
+            display_status = "Pending Verification"
+            instruction = "Paystack is verifying your identity. This usually takes 24 hours."
+            is_automated = False
+        else:
+            display_status = "Account Inactive"
+            instruction = "There is an issue with your bank details. Please re-link your account."
+            is_automated = False
+            
+    # 2. Fallback: If no sub_code but user has payout data in Firestore (legacy/partial setup)
+    elif hasattr(current_user, "payout_account"):
+        display_status = "Verification Required"
+        instruction = "Complete BVN verification to activate automated payouts."
 
     return {
         "total_earnings": total_earned, 
         "available_for_payout": 0,
         "display_available": display_status,
-        "payout_instruction": instruction, # The new field
+        "payout_instruction": instruction,
         "payout_method": getattr(current_user, "payout_bank_name", "your bank"),
-        "next_payout": "Next working day",
-        "is_automated": True if has_bvn else False
+        "next_payout": "Next working day" if is_automated else "Pending setup",
+        "is_automated": is_automated
     }
 
 @router.get("/history")

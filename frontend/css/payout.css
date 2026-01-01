@@ -133,6 +133,22 @@ body {
     font-size: 0.8rem;
 }
 
+.pulse-warning {
+    animation: premium-glow 2s infinite ease-in-out;
+}
+
+@keyframes premium-glow {
+    0% { opacity: 0.8; text-shadow: 0 0 0px rgba(255, 158, 158, 0); }
+    50% { opacity: 1; text-shadow: 0 0 12px rgba(255, 158, 158, 0.4); }
+    100% { opacity: 0.8; text-shadow: 0 0 0px rgba(255, 158, 158, 0); }
+}
+
+/* Progress Ring Smoothness */
+#progress-circle {
+    transition: border-color 0.8s ease, transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background: conic-gradient(var(--neon-lime) var(--progress), transparent 0);
+}
+
 /* === GLASS MORPHISM EFFECT === */
 .glass {
   background: var(--glass-bg);
