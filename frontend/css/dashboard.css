@@ -2370,8 +2370,8 @@ body {
     min-height: 2px;
 }
 
-.bar.views { background: #6366f1; } /* Indigo */
-.bar.clicks { background: #22c55e; } /* Green */
+.bar.views { background: var(--rose-gold); } /* Indigo */
+.bar.clicks { background: var(--pearl-white) } /* Green */
 
 .date-label {
     font-size: 10px;
@@ -2401,8 +2401,8 @@ body {
     margin-right: 5px;
 }
 
-.legend-color.views { background: #6366f1; }
-.legend-color.clicks { background: #22c55e; }
+.legend-color.views { background: var(--rose-gold) }
+.legend-color.clicks { background: var(--pearl-white) }
 
 /* === TOAST === */
 .toast {
