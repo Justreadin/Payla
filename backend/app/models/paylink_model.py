@@ -47,7 +47,7 @@ class Paylink(BaseModel):
 class CreatePaylinkTransactionRequest(BaseModel):
     paylink_username: str
     amount: float              # The TOTAL (Gross) amount the client pays (e.g. 1229)
-    amount_requested: float    # The BASE (Net) amount the user wanted (e.g. 1200)
+    amount_requested: Optional[float] = None    # The BASE (Net) amount the user wanted (e.g. 1200)
     payer_email: str
     payer_name: Optional[str] = None
     payer_phone: Optional[str] = None

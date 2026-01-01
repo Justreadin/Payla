@@ -63,39 +63,34 @@ def format_date(dt_val) -> str:
 # --------------------------------------------------------------
 @router.get("/paylink/{reference}.pdf")
 async def generate_paylink_receipt(reference: str, token: str | None = None):
-    """
-    Generates a PDF receipt for Paylink transactions.
-    - Security: Requires the transaction reference as a token for access.
-    - Branding: Silver users get white-labeled receipts; Free users get Payla branding.
-    """
     # 1. Fetch Transaction Data
     txn_doc = await db.collection("paylink_transactions").document(reference).get()
     if not txn_doc.exists:
         raise HTTPException(404, "Transaction not found")
     
     txn = txn_doc.to_dict()
-    if txn.get("status") != "success":
+    
+    # Check status (Paystack sends 'success', but check both just in case)
+    if txn.get("status") not in ["success", "successful"]:
         raise HTTPException(400, "Receipt only available for successful payments")
 
-    # 2. Security Check
-    # We use the reference itself or a specific field to validate access
+    # 2. Security Check (If you use the token in the frontend, keep this)
     if token and token != reference:
-         raise HTTPException(403, "Invalid access token for this receipt")
+         raise HTTPException(403, "Invalid access token")
 
-    # 3. Fetch Merchant and Determine Branding
+    # 3. Fetch Merchant 
     user_doc = await db.collection("users").document(txn["user_id"]).get()
     user = user_doc.to_dict() if user_doc.exists else {}
     
-    is_silver = user.get("subscription_tier") == "silver"
+    # IMPORTANT: Check correct field for subscription
+    is_silver = user.get("plan") == "silver"
 
     if is_silver:
-        # Silver Branding: The Merchant's Identity
         logo_url = user.get("logo_url")
         business_name = user.get("business_name") or user.get("full_name") or "Merchant"
         primary_color = colors.HexColor(user.get("custom_invoice_colors", {}).get("primary", "#1a1a1a"))
         footer_brand = business_name
     else:
-        # Free Branding: Payla Identity
         logo_url = settings.PAYLA_LOGO_URL 
         business_name = "Payla Payments"
         primary_color = colors.HexColor("#6366f1")
@@ -105,7 +100,7 @@ async def generate_paylink_receipt(reference: str, token: str | None = None):
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.75*inch, bottomMargin=0.75*inch)
     story = []
 
-    # 4. Logo with Aspect Ratio Maintenance
+    # 4. Logo Handling (unchanged but wrapped in try/except)
     if logo_url:
         logo_data = await fetch_logo(logo_url)
         if logo_data:
@@ -119,23 +114,24 @@ async def generate_paylink_receipt(reference: str, token: str | None = None):
                 story.append(Spacer(1, 15))
             except: pass
 
-    # 5. Header Section
+    # 5. Header
     story.append(Paragraph(business_name.upper(), title_style.clone('PaylinkTitle', textColor=primary_color)))
     story.append(Paragraph("PAYMENT RECEIPT", subtitle_style))
     story.append(Spacer(1, 30))
 
-    # 6. Transaction Details Table
+    # 6. Data Mapping (FIXED FIELD NAMES)
+    # Use 'amount' (the net amount) or 'requested_amount'
+    display_amount = txn.get("amount") or txn.get("requested_amount") or 0
+    
     data = [
         ["Receipt ID", reference[:12].upper()],
-        ["Date", format_date(txn.get("created_at"))],
-        ["Amount Paid", f"₦{txn.get('amount_paid', 0):,.2f}"],
-        ["Payment Status", "SUCCESSFUL"]
+        ["Date", format_date(txn.get("paid_at") or txn.get("created_at"))],
+        ["Amount Paid", f"₦{float(display_amount):,.2f}"],
+        ["Status", "SUCCESSFUL"]
     ]
 
-    if txn.get("payer_name"): 
-        data.append(["Customer", txn["payer_name"]])
-    if txn.get("payer_email"): 
-        data.append(["Email", txn["payer_email"]])
+    if txn.get("payer_name"): data.append(["Customer", txn["payer_name"]])
+    elif txn.get("customer_email"): data.append(["Customer", txn["customer_email"]])
 
     table = Table(data, colWidths=[2.2*inch, 3.8*inch], rowHeights=28)
     table.setStyle(TableStyle([
@@ -155,7 +151,7 @@ async def generate_paylink_receipt(reference: str, token: str | None = None):
     story.append(Paragraph(thanks_text, subtitle_style.clone('Thanks', textColor=primary_color, fontSize=11)))
     story.append(Spacer(1, 60))
 
-    # 8. Footer
+    # 8. Footer (FIXED THE footer_content NameError)
     footer_text = f"""
     <font size="8" color="grey">
     This receipt was issued by {footer_brand} via Payla Intelligence.<br/>
@@ -163,17 +159,17 @@ async def generate_paylink_receipt(reference: str, token: str | None = None):
     {settings.BACKEND_URL}
     </font>
     """
-    story.append(Paragraph(footer_content if 'footer_content' in locals() else footer_text, ParagraphStyle('Footer', alignment=1)))
+    story.append(Paragraph(footer_text, ParagraphStyle('Footer', alignment=1)))
 
     doc.build(story)
     buffer.seek(0)
     
-    filename = f"Receipt_{reference[:8]}.pdf"
     return StreamingResponse(
         buffer, 
         media_type="application/pdf", 
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="Receipt_{reference[:8]}.pdf"'}
     )
+
 # --------------------------------------------------------------
 # 2. INVOICE RECEIPT
 # --------------------------------------------------------------

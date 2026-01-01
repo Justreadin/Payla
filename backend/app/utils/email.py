@@ -98,7 +98,7 @@ METADATA = {
 
 # Default Sender fallback
 SENDER_MAPPING = {
-    "noreply": "Layla • Payla <concierge@payla.ng>"
+    "noreply": "Reminder • Payla <reminder@payla.vip>"
 }
 
 # ==========================

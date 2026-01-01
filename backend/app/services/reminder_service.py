@@ -217,12 +217,14 @@ async def send_reminder_to_all_channels(rem: Reminder, invoice: dict, context: d
 async def schedule_reminders_for_invoice(invoice_id: str, payload: ReminderCreate, user_id: str) -> List[Reminder]:
     logger.info(f"[{datetime.utcnow().isoformat()}] Scheduling reminders for invoice {invoice_id}")
 
+    # 1. Fetch Invoice
     inv_doc = db.collection("invoices").document(invoice_id).get()
     if not inv_doc.exists:
         logger.error(f"Invoice {invoice_id} not found in DB")
         raise ValueError("Invoice not found")
     invoice = inv_doc.to_dict()
 
+    # 2. Status Validation
     if invoice.get("status") == "draft":
         await asyncio.sleep(0.5)
         invoice = db.collection("invoices").document(invoice_id).get().to_dict()
@@ -230,6 +232,7 @@ async def schedule_reminders_for_invoice(invoice_id: str, payload: ReminderCreat
             logger.warning(f"Cannot schedule reminders for draft invoice {invoice_id}")
             raise ValueError("Cannot schedule reminders for draft invoice")
 
+    # 3. Parse Due Date
     due_date = invoice["due_date"]
     if isinstance(due_date, str):
         due_date = datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc)
@@ -239,9 +242,7 @@ async def schedule_reminders_for_invoice(invoice_id: str, payload: ReminderCreat
     phone = invoice.get("client_phone")
     email = invoice.get("client_email")
 
-    # ---------------------------
-    # Determine channels strictly from user selection
-    # ---------------------------
+    # 4. Channel Selection
     channels: List[str] = []
     if payload.method_priority:
         for ch in payload.method_priority:
@@ -251,122 +252,96 @@ async def schedule_reminders_for_invoice(invoice_id: str, payload: ReminderCreat
                 channels.append("email")
 
     if not channels:
-        logger.warning(f"No valid channels selected for invoice {invoice_id}, skipping reminder scheduling.")
+        logger.warning(f"No valid channels selected for {invoice_id}, skipping.")
         return []
 
     # ---------------------------
-    # 🔥 FIXED: Determine reminder triggers based on user selection
+    # 🔥 FIX 1: Determine if this is a NEW or RETURNING Client globally
+    # ---------------------------
+    # We check if the sender has ever sent an invoice to this specific email/phone before
+    # (excluding the current invoice document).
+    is_globally_new = True
+    
+    if email:
+        existing_invoices = db.collection("invoices")\
+            .where("sender_id", "==", user_id)\
+            .where("client_email", "==", email)\
+            .limit(2).get()
+        # If 2 or more exist, this is a returning client
+        if len(existing_invoices) > 1:
+            is_globally_new = False
+    elif phone:
+        existing_invoices = db.collection("invoices")\
+            .where("sender_id", "==", user_id)\
+            .where("client_phone", "==", phone)\
+            .limit(2).get()
+        if len(existing_invoices) > 1:
+            is_globally_new = False
+
+    # ---------------------------
+    # 🔥 FIX 2: Generate Future Triggers Only (No Immediate Send)
     # ---------------------------
     triggers: List[datetime] = []
     now = datetime.utcnow().replace(tzinfo=timezone.utc)
-    triggers.append(now) 
 
     if payload.manual_dates:
-        # User provided specific dates
         logger.info(f"Using manual dates: {payload.manual_dates}")
         for dt_str in payload.manual_dates:
             try:
                 dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
-                if dt > now:  # Only future dates
+                if dt > now: 
                     triggers.append(dt)
-                else:
-                    logger.warning(f"Manual date {dt_str} is in the past, skipping")
             except Exception as e:
-                logger.warning(f"Invalid manual date {dt_str} for invoice {invoice_id}: {e}")
+                logger.warning(f"Invalid manual date {dt_str}: {e}")
     else:
-        # Use preset
         preset = payload.preset or "standard"
-        logger.info(f"Using preset: {preset}")
-        
-        # Calculate time until due date
-        days_until_due = (due_date.date() - now.date()).days
+        offsets = [3, 1, 0, -1] # Default standard
         
         if preset == "gentle":
-            # Single reminder 3 days before (or ASAP if less than 3 days)
-            if days_until_due >= 3:
-                reminder_date = due_date - timedelta(days=3)
-                reminder_date = reminder_date.replace(hour=DELIVERY_HOUR_UTC, minute=0, second=0, microsecond=0)
-                triggers.append(reminder_date)
-            else:
-                # Invoice due soon, send immediately
-                triggers.append(now + timedelta(minutes=1))
-                
+            offsets = [3, 0]
         elif preset == "aggressive":
-            # Multiple reminders: 4, 3, 2, 1 days before, and on due date
-            for days_before in [4, 3, 2, 1, 0]:
-                reminder_date = due_date - timedelta(days=days_before)
-                reminder_date = reminder_date.replace(hour=DELIVERY_HOUR_UTC, minute=0, second=0, microsecond=0)
-                
-                if reminder_date > now:
-                    triggers.append(reminder_date)
-                elif days_before == 0 and reminder_date.date() >= now.date():
-                    # Due date is today but time has passed, send immediately
-                    triggers.append(now + timedelta(minutes=1))
-                    
-        else:  # standard
-            # 3 days before, 1 day before, due date, 1 day after
-            standard_offsets = [3, 1, 0, -1]  # negative = days AFTER due
+            offsets = [4, 3, 2, 1, 0]
+
+        for offset in offsets:
+            reminder_date = due_date - timedelta(days=offset)
+            # Set to standard delivery hour (e.g., 10 AM WAT)
+            reminder_date = reminder_date.replace(hour=DELIVERY_HOUR_UTC, minute=0, second=0, microsecond=0)
             
-            for offset in standard_offsets:
-                reminder_date = due_date - timedelta(days=offset)
-                # Set to 10 AM WAT (9 AM UTC)
-                reminder_date = reminder_date.replace(hour=DELIVERY_HOUR_UTC, minute=0, second=0, microsecond=0)
-                
-                # Only schedule if it's in the future
-                if reminder_date > now:
-                    triggers.append(reminder_date)
-                elif offset <= 0 and reminder_date.date() >= now.date():
-                    # Due date or overdue reminders - if today, send immediately
-                    triggers.append(now + timedelta(minutes=1))
+            if reminder_date > now:
+                triggers.append(reminder_date)
 
     # Remove duplicates and sort
     triggers = sorted(list(set(triggers)))
     
     if not triggers:
-        logger.warning(f"No valid reminder triggers generated for invoice {invoice_id}")
+        logger.warning(f"No future reminder triggers for {invoice_id}")
         return []
 
-    logger.info(f"Generated {len(triggers)} reminder triggers: {[t.isoformat() for t in triggers]}")
-    logger.info(f"🕐 Reminders will be delivered at 10:00 AM WAT (9:00 AM UTC)")
-    logger.info(f"🌙 Quiet hours: 10:00 PM - 7:00 AM WAT (9:00 PM - 6:00 AM UTC)")
-
+    # 5. Create Reminders
     reminders: List[Reminder] = []
-    client_name = (invoice.get("client_name") or "there").split()[0]
-    amount_str = f"₦{invoice.get('amount', 0):,}"
-    link = invoice.get("invoice_url")
-    business_name = invoice.get("business_name") or "Payla user"
-
-    context_base = {
-        "name": client_name,
-        "amount": amount_str,
-        "due_date": due_date.strftime("%b %d"),
-        "due_date_dt": due_date,
-        "link": link,
-        "business_name": business_name,
-        "invoice_id": invoice.get("invoice_id", invoice_id)
-    }
-
-    # ---------------------------
-    # Create reminders
-    # ---------------------------
     for trigger in triggers:
+        # 🔥 FIX 3: Use the message field to flag intro status for the loop
+        # If it's the first reminder in the list AND the client is globally new, we flag for intro
+        intro_flag = "INTRO_REQUIRED" if (is_globally_new and trigger == triggers[0]) else "STANDARD_REMINDER"
+        
         rem = Reminder(
             _id=f"{invoice_id}_{int(trigger.timestamp())}",
             invoice_id=invoice_id,
             user_id=user_id, 
             channels_selected=channels,
             channel_used=[],
-            message=getattr(payload, "custom_message", "") or "",
+            # Store our logic flag in the message field if no custom message provided
+            message=getattr(payload, "custom_message", "") or intro_flag,
             next_send=trigger,
             status="pending",
             active=True
         )
 
-        # Save reminder
+        # Save to Firestore
         db.collection("reminders").document(rem.id).set(rem.dict(by_alias=True))
         reminders.append(rem)
 
-    logger.info(f"✅ Scheduled {len(reminders)} reminders for invoice {invoice_id} with channels: {channels}")
+    logger.info(f"✅ Scheduled {len(reminders)} reminders. Intro required: {is_globally_new}")
     return reminders
 
 
@@ -406,7 +381,7 @@ async def send_returning_client_notification(invoice: dict, user_name: str):
         await send_via_email(invoice["client_email"], subject, email_html)
 
 
-        
+
 # ---------------------------
 # Payment success notification to the user
 # ---------------------------
