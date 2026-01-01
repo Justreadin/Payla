@@ -207,35 +207,20 @@ async def resolve_payout_account(bank: str, account: str, current_user: User = D
 
 @router.get("/earnings")
 async def earnings(current_user: User = Depends(get_current_user)):
-    user_id = current_user.id
-    
-    # 1. Get confirmed earnings from user doc
+    # 1. Use the pre-calculated total from the User document
     total_earned = getattr(current_user, "total_earned", 0.0)
     
-    # 2. Calculate "Pending Settlement" (Paid but not yet in total_earned)
-    # This searches both collections for successful payments today
-    pending_amount = 0.0
-    
-    # Check Invoices
-    paid_invoices = db.collection("invoices")\
-        .where("sender_id", "==", user_id)\
-        .where("status", "==", "paid")\
-        .where("payout_status", "==", "settled_by_paystack").stream()
-        
-    for inv in paid_invoices:
-        # If your total_earned doesn't include invoices yet, add it here
-        pending_amount += inv.to_dict().get("amount", 0)
-
-    bank_name = getattr(current_user, "payout_bank_name", "None")
+    # We use .get() or getattr() to handle cases where the field might be missing
+    bank_name = getattr(current_user, "payout_bank_name", "your bank")
 
     return {
-        "total_earnings": total_earned + pending_amount, 
-        "available_for_payout": pending_amount, 
+        "total_earnings": total_earned, 
+        "available_for_payout": 0, # In T+1, everything is technically "processing"
         "display_available": "Automated (T+1)",
-        "payout_method": f"Settled to {bank_name}",
+        "payout_method": bank_name,
         "next_payout": "Next working day (10:00 AM)",
         "is_automated": True,
-        "fee_structure": "Your Clients Pays Fees"
+        "fee_structure": "Your Clients Pay Fees"
     }
 
 @router.get("/history")
@@ -243,44 +228,33 @@ async def payout_history(current_user: User = Depends(get_current_user)):
     user_id = current_user.id
     history = []
 
-    # 1. Fetch from Invoices
-    inv_docs = db.collection("invoices")\
-        .where("sender_id", "==", user_id)\
-        .where("status", "==", "paid")\
-        .limit(10).stream()
-
-    for doc in inv_docs:
-        d = doc.to_dict()
-        history.append({
-            "reference": d.get("_id"),
-            "amount": d.get("amount", 0),
-            "status": "Settled",
-            "source_type": "invoice",
-            "created_at": d.get("paid_at").isoformat() if d.get("paid_at") else None,
-            "description": f"Invoice: {d.get('description', 'Services')}"
-        })
-
-    # 2. Fetch from Payouts collection (Paylinks)
+    # fetch only from the Payouts collection - this includes both Invoices and Paylinks now
     payout_docs = db.collection("payouts")\
         .where("user_id", "==", user_id)\
         .order_by("created_at", direction=firestore.Query.DESCENDING)\
-        .limit(10).stream()
+        .limit(20).stream()
 
     for doc in payout_docs:
         d = doc.to_dict()
+        
+        # Determine a friendly description
+        p_type = d.get("type", "paylink")
+        description = "Invoice Payment" if p_type == "invoice" else "Paylink Payment"
+        
         history.append({
             "reference": d.get("reference"),
             "amount": d.get("amount", 0),
-            "status": d.get("status", "settled"),
-            "source_type": "paylink",
+            "status": d.get("status", "settled").capitalize(),
+            "source_type": p_type,
             "created_at": d.get("created_at").isoformat() if d.get("created_at") else None,
-            "description": "Paylink Payment"
+            "description": description
         })
 
-    # Sort combined history by date
-    history.sort(key=lambda x: x['created_at'] or '', reverse=True)
-    
+    # Sorting is already handled by the Firestore order_by, 
+    # but we'll keep the list return format consistent
     return {"history": history, "payouts": history}
+
+
 # ------------------- Helpers & Payout Status -------------------
 
 async def queue_payout(
