@@ -2,7 +2,7 @@
 import asyncio
 import logging
 import httpx
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -207,63 +207,80 @@ async def resolve_payout_account(bank: str, account: str, current_user: User = D
 
 @router.get("/earnings")
 async def earnings(current_user: User = Depends(get_current_user)):
-    # 1. Get stats from user doc
+    user_id = current_user.id
+    
+    # 1. Get confirmed earnings from user doc
     total_earned = getattr(current_user, "total_earned", 0.0)
     
-    # 2. You can also calculate "Pending Settlement" (Money paid today, arriving tomorrow)
-    # By querying transactions created today that are 'success' but not yet 'payout_recorded'
+    # 2. Calculate "Pending Settlement" (Paid but not yet in total_earned)
+    # This searches both collections for successful payments today
+    pending_amount = 0.0
     
+    # Check Invoices
+    paid_invoices = db.collection("invoices")\
+        .where("sender_id", "==", user_id)\
+        .where("status", "==", "paid")\
+        .where("payout_status", "==", "settled_by_paystack").stream()
+        
+    for inv in paid_invoices:
+        # If your total_earned doesn't include invoices yet, add it here
+        pending_amount += inv.to_dict().get("amount", 0)
+
+    bank_name = getattr(current_user, "payout_bank_name", "None")
+
     return {
-        "total_earnings": total_earned, 
-        "available_for_payout": total_earned, 
+        "total_earnings": total_earned + pending_amount, 
+        "available_for_payout": pending_amount, 
         "display_available": "Automated (T+1)",
-        "payout_method": f"Settled to {current_user.payout_bank_name}",
+        "payout_method": f"Settled to {bank_name}",
         "next_payout": "Next working day (10:00 AM)",
         "is_automated": True,
         "fee_structure": "Your Clients Pays Fees"
     }
 
-from datetime import datetime, timedelta
-
 @router.get("/history")
 async def payout_history(current_user: User = Depends(get_current_user)):
     user_id = current_user.id
-    
-    # Query the central payouts collection
-    payouts_ref = db.collection("payouts")\
-        .where(filter=FieldFilter("user_id", "==", user_id))\
-        .order_by("created_at", direction=firestore.Query.DESCENDING)\
-        .limit(20)
-    
-    docs = payouts_ref.stream()
     history = []
-    
-    for doc in docs:
-        d = doc.to_dict()
-        created_at = d.get("created_at")
-        
-        # Calculate a display arrival date if one isn't stored
-        # Paystack T+1: Next working day.
-        arrival_date = d.get("arrival_date")
-        if not arrival_date and created_at:
-            # Fallback calculation if missing in legacy records
-            arrival_date = created_at + timedelta(days=1)
-            if created_at.weekday() >= 4: # Friday-Sunday
-                days_to_monday = 7 - created_at.weekday()
-                arrival_date = created_at + timedelta(days=days_to_monday)
 
+    # 1. Fetch from Invoices
+    inv_docs = db.collection("invoices")\
+        .where("sender_id", "==", user_id)\
+        .where("status", "==", "paid")\
+        .limit(10).stream()
+
+    for doc in inv_docs:
+        d = doc.to_dict()
+        history.append({
+            "reference": d.get("_id"),
+            "amount": d.get("amount", 0),
+            "status": "Settled",
+            "source_type": "invoice",
+            "created_at": d.get("paid_at").isoformat() if d.get("paid_at") else None,
+            "description": f"Invoice: {d.get('description', 'Services')}"
+        })
+
+    # 2. Fetch from Payouts collection (Paylinks)
+    payout_docs = db.collection("payouts")\
+        .where("user_id", "==", user_id)\
+        .order_by("created_at", direction=firestore.Query.DESCENDING)\
+        .limit(10).stream()
+
+    for doc in payout_docs:
+        d = doc.to_dict()
         history.append({
             "reference": d.get("reference"),
             "amount": d.get("amount", 0),
             "status": d.get("status", "settled"),
-            "source_type": d.get("type", "paylink"), # 'invoice' or 'paylink'
-            "created_at": created_at.isoformat() if created_at else None,
-            "expected_arrival": arrival_date.isoformat() if arrival_date else None,
-            "description": f"Payment via {d.get('type', 'paylink').capitalize()}"
+            "source_type": "paylink",
+            "created_at": d.get("created_at").isoformat() if d.get("created_at") else None,
+            "description": "Paylink Payment"
         })
-        
-    return {"history": history}
+
+    # Sort combined history by date
+    history.sort(key=lambda x: x['created_at'] or '', reverse=True)
     
+    return {"history": history, "payouts": history}
 # ------------------- Helpers & Payout Status -------------------
 
 async def queue_payout(
@@ -278,74 +295,91 @@ async def queue_payout(
     Updates unified dashboard stats for both Invoices and Paylinks.
     """
     payout_ref = db.collection("payouts").document(reference)
+    
+    # Avoid duplicate processing
     if payout_ref.get().exists:
+        logger.info(f"ℹ️ Payout reference {reference} already exists. Skipping.")
         return
 
     now = datetime.now(timezone.utc)
     
     # --- T+1 Settlement Logic ---
-    # Paystack settles next business day. 
-    # If today is Friday(4), Saturday(5), or Sunday(6), arrival is Monday.
     arrival_date = now + timedelta(days=1)
-    if now.weekday() == 4: # Friday
+    if now.weekday() == 4: # Friday -> Monday
         arrival_date = now + timedelta(days=3)
-    elif now.weekday() == 5: # Saturday
+    elif now.weekday() == 5: # Saturday -> Monday
         arrival_date = now + timedelta(days=2)
 
-    # 1. Prepare detailed payout record
+    # 1. Prepare payout record for the "Recent Payouts" list
     payout_entry = {
         "user_id": user_id,
         "reference": reference,
         "amount": amount,
-        "type": payout_type, # 'invoice' or 'paylink'
+        "type": payout_type, 
         "status": "settled" if not manual_payout else "pending",
         "created_at": now,
-        "arrival_date": arrival_date, # Shown on dashboard as "Expected by..."
+        "arrival_date": arrival_date,
         "paid_at": now if not manual_payout else None,
         "is_automated": not manual_payout
     }
     
-    # 2. Update Unified User Stats (For Dashboard Revenue Charts)
+    # 2. Prepare User Dashboard Updates
     user_ref = db.collection("users").document(user_id)
-    
-    # We create a dictionary of updates to hit Firestore once
     user_updates = {
         "total_earned": firestore.Increment(amount),
-        "last_payout_at": now
+        "last_payout_at": now,
+        "updated_at": now
     }
 
-    # Separate tracking for Invoice vs Paylink for the "Insights" section
     if payout_type == "invoice":
         user_updates["total_invoice_revenue"] = firestore.Increment(amount)
     else:
         user_updates["total_paylink_revenue"] = firestore.Increment(amount)
 
     try:
-        # Use a batch to ensure everything updates or nothing updates
         batch = db.batch()
         
-        # Save to payout history
+        # A. Add to Payouts Collection
         batch.set(payout_ref, payout_entry)
         
-        # Update User Dashboard numbers
+        # B. Update User Stats
         batch.update(user_ref, user_updates)
         
-        # Update the specific transaction source
-        source_coll = "invoices" if payout_type == "invoice" else "paylink_transactions"
-        # Note: If invoices use a different ID than reference, search by field or ensure they match
-        source_ref = db.collection(source_coll).document(reference)
-        batch.update(source_ref, {
-            "payout_status": "settled_by_paystack" if not manual_payout else "payout_pending",
-            "settled_at": now
-        })
+        # C. Update the Source Transaction (Invoice or Paylink)
+        if payout_type == "invoice":
+            # Search for invoice where transaction_reference matches Paystack reference
+            # This is safer than document() because IDs vary
+            inv_query = db.collection("invoices").where("transaction_reference", "==", reference).limit(1).get()
+            
+            if inv_query:
+                # Update the specific invoice document found
+                batch.update(inv_query[0].reference, {
+                    "payout_status": "settled_by_paystack" if not manual_payout else "payout_pending",
+                    "settled_at": now
+                })
+            else:
+                # Fallback: Try document ID if query yields nothing
+                batch.update(db.collection("invoices").document(reference), {
+                    "payout_status": "settled_by_paystack" if not manual_payout else "payout_pending",
+                    "settled_at": now
+                }, merge=True)
+        else:
+            # For Paylinks, the reference is usually the document ID
+            batch.update(db.collection("paylink_transactions").document(reference), {
+                "payout_status": "settled_by_paystack" if not manual_payout else "payout_pending",
+                "settled_at": now
+            })
         
         batch.commit()
         logger.info(f"💰 Unified Payout Logged: {payout_type.upper()} | {user_id} | ₦{amount}")
 
     except Exception as e:
-        logger.error(f"Failed to process unified payout for {reference}: {e}")
-        # If batch fails, we still want the payout_entry at minimum for recovery
-        payout_ref.set(payout_entry)
+        logger.error(f"❌ Failed to process unified payout for {reference}: {e}")
+        # Final safety fallback to at least record the payout entry
+        try:
+            payout_ref.set(payout_entry)
+        except:
+            pass
 
 
 @router.get("/transaction/{reference}/payout_status")

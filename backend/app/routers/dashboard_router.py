@@ -126,7 +126,7 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
             "is_subaccount_linked": bool(subaccount_code),
             "next_settlement_estimate": next_settlement.strftime("%Y-%m-%d")
         },
-        "recent_invoices": [
+        "invoices": [
             {**inv.dict(by_alias=True), "invoice_url": f"{settings.BACKEND_URL}{inv.invoice_url}" if inv.invoice_url else None}
             for inv in sorted(invoices, key=lambda x: x.created_at or now, reverse=True)[:10]
         ],

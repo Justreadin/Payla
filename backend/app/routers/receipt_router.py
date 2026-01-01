@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import httpx
 
 from app.core.firebase import db
+from app.utils.firebase import firestore_run
 from app.models.user_model import User
 from app.core.auth import get_current_user
 from app.core.config import settings
@@ -182,7 +183,7 @@ async def generate_invoice_receipt(invoice_id: str, token: str | None = None):
     - Security: Requires the transaction reference as a token for public access.
     """
     # 1. Fetch data
-    inv_doc = await db.collection("invoices").document(invoice_id).get()
+    inv_doc = await firestore_run(db.collection("invoices").document(invoice_id).get)
     if not inv_doc.exists:
         raise HTTPException(404, "Invoice not found")
     
