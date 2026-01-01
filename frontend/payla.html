@@ -69,9 +69,6 @@
     
     <!-- Styles -->
     <link rel="stylesheet" href="css/payla.css" />
-    
-    <!-- Paystack -->
-    <script src="https://js.paystack.co/v1/inline.js"></script>
 </head>
 <body>
     <!-- Black Void Entry -->
@@ -91,7 +88,7 @@
         <section class="hero" id="hero">
             <div class="hero-left">
                 <h1 class="title">Your Unique Payment Identity</h1>
-                <p class="lead"><strong>Stop sharing bank details.</strong><em> Get paid instantly with <strong>payla.ng/@yourname</strong>, straight to your account. <strong>Client pays the fee.</strong></em></p>
+                <p class="lead"><strong>Stop sharing bank details.</strong><em> Get paid faster with <strong>payla.ng/@yourname</strong>, straight to your account. <strong>Client pays the fee.</strong></em></p>
                 
                 <div class="cta-row">
                     <button class="btn free" id="join-waitlist">[CONTINUE] TO PAYLA</button>
@@ -127,7 +124,7 @@
                                 <div class="msg right delay5">Just entered by account! Thanks Ada, appreciate the quick one</div>
                             </div>
                         </div>
-                        <div class="paid-overlay" id="paid-overlay">Paid in 12 sec</div>
+                        <div class="paid-overlay" id="paid-overlay">Client paid in 12 sec</div>
                     </div>
                 </div>
             </div>
@@ -161,7 +158,7 @@
             <div class="solution">
                 <h3>With Payla, you get:</h3>
                 <div class="features-list">
-                    <div class="feature-item"><strong>Paid instantly, no delays</strong></div>
+                    <div class="feature-item"><strong>Daily Payouts, No Delays</strong></div>
                     <div class="feature-item"><strong>Your own payment idenity → payla.ng/@yourname</strong></div>
                     <div class="feature-item"><strong>Beautiful invoices/receipts your clients remember</strong></div>
                     <div class="feature-item"><strong>Payments directly to your account</strong></div>
@@ -181,7 +178,7 @@
                 <div class="feature">✔️ Unique @yourname (never expires)</div>
                 <div class="feature">✔️ Unlimited invoices & receipts</div>
                 <div class="feature">✔️ Auto payment reminders</div>
-                <div class="feature">✔️ Payouts to local accounts</div>
+                <div class="feature">✔️ Automated Payouts to local accounts</div>
                 <div class="feature">✔️ 1 year price-lock (first 500 only)</div>
                 <div class="feature">✔️ Payments Processed by Paystack</div>
             </div>
@@ -307,6 +304,7 @@
             </div>
         </div>
     </div>
+    <script src="https://js.paystack.co/v2/inline.js"></script>
     <script type="module" src="js/payla.js"></script>
     <script type="module" src="js/web_analytics.js"></script>
 </body>
