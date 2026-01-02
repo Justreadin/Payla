@@ -169,8 +169,20 @@ async def reload():
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
+
 # ────────────────────────────────
-#  PAYLINK ROUTE — MUST BE FIRST!
+#  PRIORITY 1: STATIC ALIASES
+# ────────────────────────────────
+@app.get("/og-image.jpg", include_in_schema=False)
+async def serve_og_image():
+    # Points directly to the file inside assets
+    path = os.path.join(FRONTEND_DIR, "assets", "og-image.jpg")
+    if os.path.exists(path):
+        return FileResponse(path)
+    raise HTTPException(status_code=404, detail="Image file missing in assets folder")
+
+# ────────────────────────────────
+#  PAYLINK ROUTE — MUST BE SECOND!
 # ────────────────────────────────
 @app.get("/@{username}")
 @app.get("/@{username}/")
@@ -209,6 +221,7 @@ async def serve_invoice_page(invoice_id: str):
         media_type="text/html", 
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
     )
+
 
 # 2. Named pages: /dashboard, /payout, etc.
 @app.get("/{page_name}", include_in_schema=False)
@@ -260,12 +273,6 @@ async def serve_index():
             headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
         )
     raise HTTPException(status_code=404, detail="payla.html not found")
-
-# Add this above Section 6 in main.py
-@app.get("/og-image.jpg", include_in_schema=False)
-async def serve_og_image():
-    # Points directly to the file inside assets
-    return FileResponse(os.path.join(FRONTEND_DIR, "assets", "og-image.jpg"))
 
 # ------------------------------------------------------------
 # 6. HEALTH & USER
