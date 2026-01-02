@@ -261,6 +261,12 @@ async def serve_index():
         )
     raise HTTPException(status_code=404, detail="payla.html not found")
 
+# Add this above Section 6 in main.py
+@app.get("/og-image.jpg", include_in_schema=False)
+async def serve_og_image():
+    # Points directly to the file inside assets
+    return FileResponse(os.path.join(FRONTEND_DIR, "assets", "og-image.jpg"))
+
 # ------------------------------------------------------------
 # 6. HEALTH & USER
 # ------------------------------------------------------------
