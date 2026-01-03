@@ -218,7 +218,7 @@ async def earnings(current_user: User = Depends(get_current_user)):
         "available_for_payout": 0, # In T+1, everything is technically "processing"
         "display_available": "Automated (T+1)",
         "payout_method": bank_name,
-        "next_payout": "Next working day (10:00 AM)",
+        "next_payout": "Next working day",
         "is_automated": True,
         "fee_structure": "Your Clients Pay Fees"
     }
