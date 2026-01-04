@@ -94,8 +94,8 @@
                 <p class="lead"><strong>Stop sharing bank details.</strong><em> Get paid faster with <strong>payla.ng/@yourname</strong>, straight to your account. <strong>Client pays the fee.</strong></em></p>
                 
                 <div class="cta-row">
-                    <button class="btn free" id="join-waitlist">Create my Payla link</button>
-                    <button class="btn paid" id="lock-year">LOCK MY PAYLA YEAR (₦5,000)</button>
+                    <button class="btn free" id="join-waitlist">[CREATE] MY PAYLA LINK</button>
+                    <button class="btn paid" id="lock-year">SEE HOW IT WORKS</button>
                 </div>
 
                 <div class="social-proof">
@@ -175,8 +175,8 @@
 
         <section class="offer" aria-labelledby="offer-title">
             <div class="offer-badge">Founding Creator Offer</div>
-            <h2 id="offer-title">₦5,000 for 1 Full Year</h2>
-            <div class="price-break">Just <strong>₦400/month</strong>, 90% cheaper than competitors</div>
+            <h2 id="offer-title">Free for 1 Full Year</h2>
+            <!---<div class="price-break">Just <strong>₦0/month</strong>, 100% cheaper than competitors</div>--->
             <div class="features">
                 <div class="feature">✔️ Unique @yourname (never expires)</div>
                 <div class="feature">✔️ Unlimited invoices & receipts</div>
@@ -199,8 +199,8 @@
 
     <!-- Sticky CTA -->
     <div class="sticky-cta">
-        <button class="btn free" id="sticky-free">Create my Payla link</button>
-        <button class="btn paid" id="sticky-paid">LOCK MY PAYLA YEAR</button>
+        <button class="btn free" id="sticky-free">[CREATE] MY PAYLA LINK</button>
+        <button class="btn paid" id="sticky-paid">SEE HOW IT WORKS</button>
     </div>
 
     <!-- Premium Footer -->
@@ -258,51 +258,6 @@
             </div>
         </div>
     </footer>
-
-    <!-- Lock Payla Year Modal - Updated without username -->
-    <div class="lock-modal-overlay" id="lock-modal">
-        <div class="lock-modal">
-            <button class="lock-modal-close" id="lock-modal-close" aria-label="Close modal">✕</button>
-            <h2 class="lock-modal-title">Lock Your Payla Year</h2>
-            <p class="lock-modal-subtitle">Get 1 year of premium Payla access for ₦5,000</p>
-
-            <form id="lock-form" class="lock-form">
-                <div class="lock-form-group">
-                    <label for="lock-name">Full Name *</label>
-                    <input type="text" id="lock-name" required placeholder="Layla Johnson"/>
-                </div>
-
-                <div class="lock-form-group">
-                    <label for="lock-email">Email Address *</label>
-                    <input type="email" id="lock-email" required placeholder="you@company.com"/>
-                </div>
-
-                <div class="lock-form-group">
-                    <label for="lock-feedback">Feedback (optional)</label>
-                    <textarea id="lock-feedback" rows="3" placeholder="Share your thoughts about Payla, what you're expecting, or any feedback..."></textarea>
-                </div>
-
-                <div class="lock-form-agreement">
-                    <input type="checkbox" id="lock-agree" required />
-                    <label for="lock-agree">I understand this reservation only confirms after payment</label>
-                </div>
-
-                <button type="submit" class="lock-btn paid modal-submit" id="lock-submit-btn">
-                    <span class="lock-btn-text">LOCK MY PAYLA YEAR (₦5,000)</span>
-                    <span class="lock-btn-loading" style="display: none;">Processing...</span>
-                </button>
-                
-                <div class="lock-payment-note">
-                    <small>You'll be redirected to Paystack for secure payment</small>
-                </div>
-            </form>
-
-            <div class="lock-modal-success" id="lock-success" style="display:none;">
-                <p class="lock-success-text">Details saved! Redirecting to payment...</p>
-                <div class="lock-spinner"></div>
-            </div>
-        </div>
-    </div>
     <script src="https://js.paystack.co/v2/inline.js"></script>
     <script type="module" src="js/payla.js"></script>
     <script type="module" src="js/web_analytics.js"></script>
