@@ -86,44 +86,52 @@ async def resolve_account_name(bank_code: str, account_number: str) -> dict:
             logger.error(f"Paystack resolve failed: {e}")
             raise HTTPException(status_code=502, detail="Bank verification unavailable")
 
-async def create_or_update_subaccount(user: User, bank_code: str, account_number: str) -> str:
-    """Creates/Updates a subaccount on Paystack for automated splitting."""
+# ==================== Paystack Helpers ====================
+async def create_or_update_subaccount(
+    user_id: str, 
+    bank_code: str, 
+    account_number: str, 
+    payout_account_name: str
+) -> str:
+    """Creates/Updates Paystack subaccount using only the bank-verified account name."""
     url = "https://api.paystack.co/subaccount"
     headers = {
         "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
         "Content-Type": "application/json"
     }
     
-    # --- CRITICAL FIX: Fetch fresh user data from DB ---
-    user_doc = db.collection("users").document(user.id).get()
+    # Check for existing subaccount code in DB to determine if we PUT or POST
+    user_doc = db.collection("users").document(user_id).get()
     user_data = user_doc.to_dict() if user_doc.exists else {}
     sub_code = user_data.get("paystack_subaccount_code")
-    # --------------------------------------------------
 
+    # The payload now uses the resolved bank name for the 'business_name' field
+    # strictly to satisfy Paystack's requirement for a subaccount label.
     payload = {
-        "business_name": user.business_name or f"Merchant_{user.id[-6:]}",
+        "business_name": payout_account_name, 
         "settlement_bank": bank_code,
         "account_number": account_number,
         "percentage_charge": 0,
-        "description": f"Payla Merchant: {user.email}"
+        "description": f"Payla Payouts: {user_id}"
     }
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         if sub_code:
-            # If sub_code exists in DB, UPDATE it
-            logger.info(f"Updating existing subaccount: {sub_code}")
+            # Update existing subaccount
             resp = await client.put(f"{url}/{sub_code}", json=payload, headers=headers)
         else:
-            # If no sub_code, CREATE new
-            logger.info(f"Creating new subaccount for user: {user.id}")
+            # Create new subaccount
             resp = await client.post(url, json=payload, headers=headers)
         
         data = resp.json()
         if resp.status_code in [200, 201] and data.get("status"):
             return data["data"]["subaccount_code"]
         
-        logger.error(f"Paystack Subaccount operation failed: {data}")
-        raise HTTPException(status_code=500, detail="Provider failed to register bank account")
+        logger.error(f"Paystack Subaccount Error: {data}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Could not link bank account with payment provider"
+        )
 
 # ==================== ROUTES ====================
 
@@ -131,7 +139,6 @@ async def create_or_update_subaccount(user: User, bank_code: str, account_number
 async def save_payout_account(payload: PayoutAccountIn, current_user: User = Depends(get_current_user)):
     user_id = current_user.id
     
-    # 1. Fetch current data to see if an update is even necessary
     user_doc = db.collection("users").document(user_id).get()
     user_data = user_doc.to_dict() if user_doc.exists else {}
     
@@ -139,9 +146,8 @@ async def save_payout_account(payload: PayoutAccountIn, current_user: User = Dep
     existing_acc = user_data.get("payout_account_number")
     subaccount_code = user_data.get("paystack_subaccount_code")
 
-    # 2. Optimization: If details are identical AND we have a subaccount, just return
+    # Optimization: If details are identical, skip
     if existing_bank == payload.bank_code and existing_acc == payload.account_number and subaccount_code:
-        logger.info(f"No changes detected for user {user_id}. Skipping Paystack update.")
         return PayoutAccountOut(
             bank_code=user_data.get("payout_bank"),
             account_number=user_data.get("payout_account_number"),
@@ -151,15 +157,18 @@ async def save_payout_account(payload: PayoutAccountIn, current_user: User = Dep
             updated_at=user_data.get("updated_at", datetime.now(timezone.utc))
         )
 
-    # 3. If details changed or new, resolve official bank info
+    # 1. Resolve official bank info FIRST
     resolved = await resolve_account_name(payload.bank_code, payload.account_number)
     
-    # 4. Register/Update with Paystack
+    # 2. Register/Update with Paystack using the RESOLVED name
     new_subaccount_code = await create_or_update_subaccount(
-        current_user, payload.bank_code, payload.account_number
+        user_id, 
+        payload.bank_code, 
+        payload.account_number,
+        resolved["account_name"] # <--- Pass the resolved name here
     )
 
-    # 5. Update Firestore
+    # 3. Update Firestore
     now = datetime.now(timezone.utc)
     update_data = {
         "payout_bank": payload.bank_code,
@@ -182,7 +191,6 @@ async def save_payout_account(payload: PayoutAccountIn, current_user: User = Dep
         subaccount_code=new_subaccount_code,
         updated_at=now
     )
-
     
 @router.get("/account", response_model=Optional[PayoutAccountOut])
 async def get_payout_account(current_user: User = Depends(get_current_user)):

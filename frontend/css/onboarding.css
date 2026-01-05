@@ -77,6 +77,44 @@ body {
   border: 1px solid var(--glass-border);
 }
 
+
+/* === CUSTOM SCROLLBARS – LUXURY DESIGN === */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(232, 180, 184, 0.05);
+  border-radius: 4px;
+  margin: 2px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, var(--rose-gold), rgba(232, 180, 184, 0.7));
+  border-radius: 4px;
+  border: 1px solid rgba(232, 180, 184, 0.3);
+  box-shadow: 0 0 8px rgba(232, 180, 184, 0.2);
+  transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, var(--rose-gold), rgba(232, 180, 184, 0.9));
+  box-shadow: 0 0 12px rgba(232, 180, 184, 0.4);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rose-gold) rgba(232, 180, 184, 0.05);
+}
+
+
+
 /* === TOPBAR - MOBILE FIRST === */
 .topbar {
   position: fixed;
@@ -185,6 +223,7 @@ body {
   color: var(--rose-gold);
 }
 
+
 /* === MAIN ONBOARDING CONTENT - MOBILE FIRST === */
 .onboarding {
   margin-top: 60px;
@@ -203,6 +242,40 @@ body {
   box-shadow: 
     0 20px 60px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Container for the navigation buttons */
+.step-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    margin-top: 30px;
+    background: transparent;
+    transition: all 0.3s ease;
+}
+
+/* Sticky logic for Step 4 */
+/* When Step 4 is active, we turn the actions into a floating bar */
+.onboarding-card:has(#step-4.active) .step-actions {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    margin: 0 -40px -40px -40px; /* Offset the card padding */
+    background: rgba(15, 15, 15, 0.8); /* Match your dark theme */
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 100;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .onboarding-card:has(#step-4.active) .step-actions {
+        margin: 0 -20px 0px 0px;
+        padding: 15px 20px;
+    }
 }
 
 /* Left Section - Mobile */
@@ -1384,7 +1457,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .modal-icon.success {
-  background: linear-gradient(135deg, var(--rose-gold), var(--gold-dust));
+  background: var(--rose-gold);
   color: var(--obsidian);
 }
 

@@ -106,9 +106,10 @@ async def complete_onboarding(
             "presell_end_date": None
         })
 
-    # 5a. Create Paystack Subaccount
+    # 5a. Create Paystack Subaccount using the BANK-VERIFIED name
     subaccount_code = await create_paystack_subaccount(
-        business_name=update_data["business_name"],
+        # Use resolved["account_name"] instead of business_name to ensure settlement success
+        business_name=resolved["account_name"], 
         bank_code=payload.payout_bank,
         account_number=payload.payout_account_number
     )
