@@ -16,6 +16,7 @@ from app.tasks.reminder_service_loop import reminder_loop
 from app.tasks.billing_service_loop import billing_service_loop
 from app.tasks.marketing_service_loop import marketing_loop
 from fastapi.responses import StreamingResponse
+from reminder_cleanup import purge_locked_and_old_reminders, repeat_purge_forever
 import time
 import threading
 import subprocess
@@ -336,6 +337,7 @@ async def start_background_tasks():
     Start all background async tasks
     """
     # Start reminder processing loop
+    asyncio.create_task(repeat_purge_forever())
     asyncio.create_task(reminder_loop())
     logger.info("✅ Async reminder loop started")
     
