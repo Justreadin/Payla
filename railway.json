@@ -1,9 +1,11 @@
 {
-  "rootDirectory": "/",
-  "build": {
-    "command": "pip install -r backend/requirements.txt"
-  },
-  "start": {
-    "command": "python backend/run.py"
-  }
+  "services": [
+    {
+      "name": "payla",
+      "rootDirectory": "backend",
+      "build": "pip install -r requirements.txt",
+      "start": "python main.py",
+      "include": ["../frontend"]   // <--- include folder outside root
+    }
+  ]
 }
