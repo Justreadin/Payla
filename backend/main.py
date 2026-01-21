@@ -147,12 +147,28 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # 5. FRONTEND STATIC FILES (Serve HTML/CSS/JS)
 # ------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
 
+# Look for /frontend in two places: 
+# 1. One level up (if running from backend/main.py)
+# 2. Same level (if Railway root is handled differently)
+parent_frontend = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
+local_frontend = os.path.abspath(os.path.join(BASE_DIR, "frontend"))
+
+if os.path.exists(os.path.join(parent_frontend, "payla.html")):
+    FRONTEND_DIR = parent_frontend
+elif os.path.exists(os.path.join(local_frontend, "payla.html")):
+    FRONTEND_DIR = local_frontend
+else:
+    # Fallback to parent but log the error
+    FRONTEND_DIR = parent_frontend
+    print(f"CRITICAL: Frontend folder not found at {parent_frontend} or {local_frontend}")
+
+# Now mount using the detected FRONTEND_DIR
 if os.path.exists(FRONTEND_DIR):
     app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
     app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
+    # ... any other mounts
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
     logger.info(f"Frontend static directories mounted from {FRONTEND_DIR}")
 else:
@@ -231,7 +247,7 @@ async def serve_html_page(page_name: str, request: Request):
     if page_name.endswith(".html"):
         page_name = page_name[:-5]
 
-    # Security: block bad paths
+    # Security: block bad pathsh
     if ".." in page_name or page_name.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid page")
 
