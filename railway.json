@@ -1,0 +1,5 @@
+{
+  "rootDirectory": "/",
+  "build": "pip install -r backend/requirements.txt",
+  "start": "python backend/run.py"
+}
