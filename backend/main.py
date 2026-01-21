@@ -147,14 +147,11 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # 5. FRONTEND STATIC FILES (Serve HTML/CSS/JS)
 # ------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")  # now points to /app/backend/frontend
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")  # /app/backend/frontend
 
 if os.path.exists(FRONTEND_DIR):
-    app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
-    app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
-    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-    logger.info(f"Frontend static directories mounted from {FRONTEND_DIR}")
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+    logger.info(f"Frontend fully mounted from {FRONTEND_DIR}")
 else:
     logger.warning(f"Frontend directory not found at {FRONTEND_DIR}")
 
