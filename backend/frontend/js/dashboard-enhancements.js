@@ -4,20 +4,14 @@
 import { dashboard } from './dashboard.js';
 import { API_BASE } from './config.js';
 
-document.addEventListener('DOMContentLoaded', async () => {
-    if (!dashboard) {
-        console.error('Dashboard not loaded yet');
-        return;
-    }
-
-    await dashboard.loadDashboardData();
-
-    window.enhancements = new DashboardEnhancements();
-});
-
-
+// SINGLE initialization - removed duplicate listeners
 class DashboardEnhancements {
     constructor() {
+        // Force log to verify API_BASE value
+        console.log('🔧 DashboardEnhancements initialized');
+        console.log('📍 API_BASE from config:', API_BASE);
+        console.log('🌐 Current hostname:', window.location.hostname);
+        
         this.API_BASE = API_BASE;
         this.init();
     }
@@ -73,10 +67,9 @@ class DashboardEnhancements {
             });
         }
 
-        // Paylink toggle (FIXED — use click instead of change)
+        // Paylink toggle
         if (this.paylinkToggle) {
             this.paylinkToggle.addEventListener('click', (e) => {
-                // The checkbox state will already reflect new state on click
                 const isActive = e.target.checked;
                 console.log("Toggle clicked:", isActive);
                 this.handlePaylinkToggle(isActive);
@@ -126,6 +119,8 @@ class DashboardEnhancements {
                 return;
             }
 
+            console.log('🔄 Loading enhancement data from:', this.API_BASE);
+
             // Load notifications
             const notificationsResponse = await fetch(`${this.API_BASE}/dashboard/notifications`, {
                 headers: {
@@ -135,9 +130,9 @@ class DashboardEnhancements {
             
             if (notificationsResponse.ok) {
                 this.notifications = await notificationsResponse.json();
-                console.log('Loaded notifications:', this.notifications.length);
+                console.log('✅ Loaded notifications:', this.notifications.length);
             } else {
-                console.error('Failed to load notifications:', notificationsResponse.status);
+                console.error('❌ Failed to load notifications:', notificationsResponse.status);
             }
 
             // Load analytics
@@ -149,13 +144,13 @@ class DashboardEnhancements {
             
             if (analyticsResponse.ok) {
                 this.analyticsData = await analyticsResponse.json();
-                console.log('Loaded analytics data');
+                console.log('✅ Loaded analytics data');
             } else {
-                console.error('Failed to load analytics:', analyticsResponse.status);
+                console.error('❌ Failed to load analytics:', analyticsResponse.status);
             }
 
         } catch (error) {
-            console.error('Error loading enhancement data:', error);
+            console.error('❌ Error loading enhancement data:', error);
         }
     }
 
@@ -163,7 +158,6 @@ class DashboardEnhancements {
         return localStorage.getItem('idToken') || '';
     }
 
-    // Initialize paylink toggle state
     initializePaylinkToggle() {
         const paylink = dashboard?.dashboardData?.paylink;
         if (!paylink) {
@@ -191,7 +185,6 @@ class DashboardEnhancements {
         }
     }
 
-    // Handle toggle state changes
     async handlePaylinkToggle(isActive) {
         if (this.isProcessingToggle) {
             console.log('Toggle operation already in progress, skipping');
@@ -209,7 +202,6 @@ class DashboardEnhancements {
             }
         } catch (error) {
             console.error('Toggle operation failed:', error);
-            // Revert toggle state on error
             if (this.paylinkToggle) {
                 this.paylinkToggle.checked = !isActive;
             }
@@ -242,14 +234,12 @@ class DashboardEnhancements {
             throw new Error(errorData.detail || 'Failed to activate paylink');
         }
 
-        // Update UI
         if (this.statusBadge) {
             this.statusBadge.textContent = 'Active';
             this.statusBadge.classList.remove('inactive');
             this.statusBadge.classList.add('active');
         }
 
-        // Update local data
         if (dashboard?.dashboardData?.paylink) {
             dashboard.dashboardData.paylink.active = true;
         }
@@ -269,12 +259,11 @@ class DashboardEnhancements {
 
         console.log('Starting deactivation process...');
 
-        // Show confirmation modal
         const confirmed = await this.showDeactivationConfirmation();
         if (!confirmed) {
             console.log('Deactivation cancelled by user');
             if (this.paylinkToggle) {
-                this.paylinkToggle.checked = true; // Revert to active
+                this.paylinkToggle.checked = true;
             }
             return;
         }
@@ -296,14 +285,12 @@ class DashboardEnhancements {
             throw new Error(errorData.detail || 'Failed to deactivate paylink');
         }
 
-        // Update UI
         if (this.statusBadge) {
             this.statusBadge.textContent = 'Inactive';
             this.statusBadge.classList.remove('active');
             this.statusBadge.classList.add('inactive');
         }
 
-        // Update local data
         if (dashboard?.dashboardData?.paylink) {
             dashboard.dashboardData.paylink.active = false;
         }
@@ -315,7 +302,6 @@ class DashboardEnhancements {
         console.log('Paylink deactivated successfully');
     }
 
-    // Show deactivation confirmation modal
     showDeactivationConfirmation() {
         return new Promise((resolve) => {
             const modal = document.createElement('div');
@@ -367,7 +353,6 @@ class DashboardEnhancements {
                 resolve(true);
             });
 
-            // Close on overlay click
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     cleanup();
@@ -375,7 +360,6 @@ class DashboardEnhancements {
                 }
             });
 
-            // Close on Escape key
             const handleEscape = (e) => {
                 if (e.key === 'Escape') {
                     document.removeEventListener('keydown', handleEscape);
@@ -387,7 +371,6 @@ class DashboardEnhancements {
         });
     }
 
-    // Show error modal when toggle operation fails
     showToggleErrorModal(intendedState, error) {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
@@ -431,15 +414,12 @@ class DashboardEnhancements {
         return url.replace(/^https?:\/\//, '');
     }
 
-
     updatePaylinkInfo() {
         const paylink = dashboard?.dashboardData?.paylink;
-        // Get the fresh analytics data we loaded in loadEnhancementData()
         const analytics = this.analyticsData; 
 
         if (!paylink) return;
 
-        // 1. Update Paylink URL Display
         const urlEl = document.getElementById('paylink-url');
         if (urlEl) {
             const fullUrl = paylink.url || `https://payla.ng/@${dashboard.dashboardData.user.username}`;
@@ -453,12 +433,9 @@ class DashboardEnhancements {
             userEl.dataset.userUrl = userUrl;
         }
 
-        // 2. DATA SOURCE FIX: Use Analytics first, fallback to Paylink object
         const totalReceived = analytics?.total_received ?? paylink.total_received ?? 0;
         const totalTransactions = analytics?.total_transactions ?? paylink.total_transactions ?? 0;
         
-        // Success Rate Logic Fix:
-        // If backend provides a string like "85%", use it. Otherwise calculate based on attempts.
         let successRate = "0%";
         if (analytics?.success_rate) {
             successRate = analytics.success_rate;
@@ -466,13 +443,11 @@ class DashboardEnhancements {
             successRate = `${Math.round((totalReceived / paylink.total_requested) * 100)}%`;
         }
 
-        // 3. Update the UI Elements
         const receivedEl = document.getElementById('paylink-received');
         const transactionsEl = document.getElementById('paylink-transactions');
         const successRateEl = document.getElementById('paylink-success-rate');
 
         if (receivedEl) {
-            // Formats 1229 into 1,229
             receivedEl.textContent = `₦${totalReceived.toLocaleString()}`;
         }
         if (transactionsEl) {
@@ -580,7 +555,6 @@ class DashboardEnhancements {
             });
 
             if (response.ok) {
-                // Update local state
                 const notification = this.notifications.find(n => n.id === notificationId);
                 if (notification) {
                     notification.read = true;
@@ -604,7 +578,7 @@ class DashboardEnhancements {
         document.body.style.overflow = 'auto';
     }
 
-async renderAnalytics() {
+    async renderAnalytics() {
         if (!this.analyticsContent) return;
 
         if (!this.analyticsData) {
@@ -619,18 +593,13 @@ async renderAnalytics() {
         }
 
         const analytics = this.analyticsData;
-
-        // Metrics Calculation
         const totalReceived = analytics.total_received ?? 0;
         const totalTransactions = analytics.total_transactions ?? 0;
         const totalRequested = analytics.total_requested ?? 0;
-        // FIX: Compare transaction count to requested attempts
         const successRate = totalRequested > 0 ? Math.round((totalTransactions / totalRequested) * 100) : 0;    
-        
         const pageViews = analytics.page_views ?? 0;
         const transferClicks = analytics.transfer_clicks ?? 0;
         const conversionRate = pageViews > 0 ? Math.round((transferClicks / pageViews) * 100) : 0;
-
         const dailyViews = analytics.daily_page_views ?? {};
         const dailyClicks = analytics.daily_transfer_clicks ?? {};
 
@@ -674,11 +643,9 @@ async renderAnalytics() {
     }
 
     generateTrendChart(dailyViews, dailyClicks) {
-        // Get last 7 days keys
         const dates = Object.keys(dailyViews).sort().slice(-7);
         if (dates.length === 0) return '<p class="no-data">No trend data available yet</p>';
 
-        // Find max value to scale the bars relative to the highest peak
         const maxViews = Math.max(...Object.values(dailyViews), 1); 
         const maxClicks = Math.max(...Object.values(dailyClicks), 1);
         const overallMax = Math.max(maxViews, maxClicks);
@@ -688,7 +655,6 @@ async renderAnalytics() {
                 ${dates.map(date => {
                     const views = dailyViews[date] || 0;
                     const clicks = dailyClicks[date] || 0;
-                    // Calculate heights
                     const vHeight = (views / overallMax) * 100;
                     const cHeight = (clicks / overallMax) * 100;
                     
@@ -725,7 +691,6 @@ async renderAnalytics() {
         }
     }
 
-
     setupAutoRefresh(interval = 300000) {
         setInterval(async () => {
             try {
@@ -761,7 +726,6 @@ async renderAnalytics() {
     }
 
     setupSmoothAnimations() {
-        // Add smooth transitions for filter buttons
         const filterBtns = document.querySelectorAll('.filter-btn');
         filterBtns.forEach(btn => {
             btn.addEventListener('mouseenter', () => {
@@ -774,15 +738,17 @@ async renderAnalytics() {
     }
 }
 
-// Initialize enhancements when DOM is loaded
+// SINGLE initialization point - wait for dashboard to load first
 let enhancements;
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof dashboard !== 'undefined') {
-        enhancements = new DashboardEnhancements();
-    } else {
-        console.error('Dashboard core not initialized. Enhancements disabled.');
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!dashboard) {
+        console.error('Dashboard not loaded yet');
+        return;
     }
+
+    await dashboard.loadDashboardData();
+    enhancements = new DashboardEnhancements();
+    window.enhancements = enhancements;
 });
 
-// Export for potential module usage
 export { DashboardEnhancements, enhancements };
