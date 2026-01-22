@@ -5,8 +5,6 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
-from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 import uvicorn
 from firebase_admin import credentials, firestore
 from app.scripts.migrate_waitlist import migrate
@@ -98,7 +96,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # ------------------------------------------------------------
 # 4. ROUTERS (API ROUTES)
