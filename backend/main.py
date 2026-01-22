@@ -97,10 +97,6 @@ if settings.ENVIRONMENT == "production":
         trusted_hosts="*"
     )
 
-    app.add_middleware(
-        HTTPSRedirectMiddleware
-    )
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
