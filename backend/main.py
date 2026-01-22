@@ -20,9 +20,7 @@ from reminder_cleanup import purge_locked_and_old_reminders, repeat_purge_foreve
 import time
 import threading
 import subprocess
-# main.py
 import multiprocessing
-#from app.core.celery_app import celery_app
 from celery.bin import beat
 
 # ------------------------------------------------------------
@@ -155,7 +153,24 @@ else:
     logger.info(f"✅ FRONTEND_DIR found: {FRONTEND_DIR}")
     logger.info(f"📁 Frontend contents: {os.listdir(FRONTEND_DIR)}")
 
-    # ---- Static subfolders (EXPLICIT & SAFE) ----
+    # ---- Custom StaticFiles class with proper MIME types ----
+    from starlette.staticfiles import StaticFiles as StarletteStaticFiles
+    
+    class CustomStaticFiles(StarletteStaticFiles):
+        """StaticFiles with explicit MIME type support"""
+        
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            # Add custom MIME types
+            import mimetypes
+            mimetypes.add_type("application/javascript", ".js")
+            mimetypes.add_type("application/javascript", ".mjs")
+            mimetypes.add_type("text/css", ".css")
+            mimetypes.add_type("application/json", ".json")
+            mimetypes.add_type("image/svg+xml", ".svg")
+            mimetypes.add_type("application/manifest+json", ".webmanifest")
+
+    # ---- Static subfolders with proper MIME types ----
     static_mounts = {
         "js": "js",
         "css": "css",
@@ -168,7 +183,7 @@ else:
         if os.path.exists(folder_path):
             app.mount(
                 f"/{mount_path}",
-                StaticFiles(directory=folder_path),
+                CustomStaticFiles(directory=folder_path),
                 name=f"frontend-{mount_path}",
             )
             logger.info(f"🟢 Mounted /{mount_path} → {folder_path}")
@@ -188,7 +203,7 @@ else:
     if os.path.exists(manifest_path):
         @app.get("/site.webmanifest", include_in_schema=False)
         async def site_manifest():
-            return FileResponse(manifest_path)
+            return FileResponse(manifest_path, media_type="application/manifest+json")
         logger.info("🟢 /site.webmanifest alias enabled")
 
 
@@ -210,10 +225,9 @@ async def reload():
 # ────────────────────────────────
 @app.get("/og-image.jpg", include_in_schema=False)
 async def serve_og_image():
-    # Points directly to the file inside assets
     path = os.path.join(FRONTEND_DIR, "assets", "og-image.jpg")
     if os.path.exists(path):
-        return FileResponse(path)
+        return FileResponse(path, media_type="image/jpeg")
     raise HTTPException(status_code=404, detail="Image file missing in assets folder")
 
 # ────────────────────────────────
@@ -232,7 +246,6 @@ async def serve_paylink_page(username: str):
     with open(paylink_path, "r", encoding="utf-8") as f:
         html_content = f.read()
 
-    # Inject username and API base directly into JS
     inject_script = f"""
     <script>
         window.PAYLINK_USERNAME = "{username}";
@@ -254,7 +267,10 @@ async def serve_invoice_page(invoice_id: str):
     return FileResponse(
         html_path, 
         media_type="text/html", 
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "X-Content-Type-Options": "nosniff"
+        }
     )
 
 
@@ -265,36 +281,35 @@ async def serve_html_page(page_name: str, request: Request):
     if page_name.endswith(".html"):
         page_name = page_name[:-5]
 
-    # Security: block bad pathsh
+    # Security: block bad paths
     if ".." in page_name or page_name.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid page")
 
-    # ───────────────────────────────────────────
     # Serve file if /frontend/{page_name}.html exists
-    # ───────────────────────────────────────────
     html_path = os.path.join(FRONTEND_DIR, f"{page_name}.html")
     if os.path.exists(html_path):
         return FileResponse(
             html_path,
             media_type="text/html",
-            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "X-Content-Type-Options": "nosniff"
+            }
         )
 
-    # ───────────────────────────────────────────
     # Serve /frontend/{page_name}/index.html
-    # ───────────────────────────────────────────
     dir_path = os.path.join(FRONTEND_DIR, page_name)
     index_path = os.path.join(dir_path, "index.html")
     if os.path.exists(index_path):
         return FileResponse(
             index_path,
             media_type="text/html",
-            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "X-Content-Type-Options": "nosniff"
+            }
         )
 
-    # ───────────────────────────────────────────
-    # Not found
-    # ───────────────────────────────────────────
     raise HTTPException(status_code=404, detail=f"Page '{page_name}' not found")
 
 # 3. Root → payla.html
@@ -305,7 +320,10 @@ async def serve_index():
         return FileResponse(
             index_path, 
             media_type="text/html",
-            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "X-Content-Type-Options": "nosniff"
+            }
         )
     raise HTTPException(status_code=404, detail="payla.html not found")
 
@@ -370,47 +388,14 @@ async def start_background_tasks():
     """
     Start all background async tasks
     """
-    # Start reminder processing loop
     asyncio.create_task(repeat_purge_forever())
     asyncio.create_task(reminder_loop())
     logger.info("✅ Async reminder loop started")
     
-    # Start reminder cleanup loop
     asyncio.create_task(billing_service_loop())
     logger.info("✅ Async billing loop started")
     asyncio.create_task(marketing_loop())
     logger.info("✅ Async marketing/conversion loop started")
-
-
-"""
-def start_celery_worker():
-    subprocess.Popen([
-        "celery",
-        "-A", "app.core.celery_app.celery_app",
-        "worker",
-        "--concurrency=30",
-        "--loglevel=INFO",
-    ])
-
-
-def start_celery_beat():
-    subprocess.Popen([
-        "celery",
-        "-A", "app.core.celery_app.celery_app",
-        "beat",
-        "--loglevel=INFO",
-    ])
-
-
-@app.on_event("startup")
-def startup_celery():
-    # Worker
-    threading.Thread(target=start_celery_worker, daemon=True).start()
-    # Beat
-    threading.Thread(target=start_celery_beat, daemon=True).start()
-    logger.info("Celery worker and beat started in background threads.")
-"""
-
 
 
 # ------------------------------------------------------------
@@ -425,17 +410,13 @@ async def log_requests(request: Request, call_next):
         logger.exception(f"💥 Exception during {request.method} {request.url.path}: {e}")
         raise
     logger.info(f"⬅️ {request.method} {request.url.path} → {response.status_code}")
-    return response  # <--- RETURN THE RESPONSE
-
+    return response
 
 
 # ------------------------------------------------------------
 # 10. Frontend Reload
 # ------------------------------------------------------------
-
-# Track the last modified timestamp
 frontend_last_change = time.time()
-
 FRONTEND_WATCH_DIR = os.path.join(FRONTEND_DIR)
 
 def watch_frontend():
@@ -444,7 +425,6 @@ def watch_frontend():
 
     while True:
         try:
-            # Get newest modification time of ANY file inside /frontend
             for root, dirs, files in os.walk(FRONTEND_WATCH_DIR):
                 for f in files:
                     path = os.path.join(root, f)
