@@ -1,3 +1,40 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:aca2b8819b4d663e9a5a87a4231246c73bb9c89e7d82e911484630295656a28c
-size 1397
+// config.js
+
+const ENV = {
+    local: {
+        API_BASE: 'http://127.0.0.1:8000/api',
+        BACKEND_BASE: 'http://127.0.0.1:8000',
+        PAYSTACK_PUBLIC_KEY: 'pk_live_5fd633509cfb0a377962ec6bb97bdd3a142bd465' 
+    },
+    production: {
+        API_BASE: 'https://payla.ng/api',
+        BACKEND_BASE: 'https://payla.ng',
+        PAYSTACK_PUBLIC_KEY: 'pk_live_5fd633509cfb0a377962ec6bb97bdd3a142bd465'
+    }
+};
+
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const CURRENT_ENV = isLocal ? ENV.local : ENV.production;
+
+// ==========================================
+// LUXURY BRAND PROTECTION (PRODUCTION ONLY)
+// ==========================================
+if (!isLocal) {
+    const noOp = () => {};
+    console.log = noOp;
+    console.info = noOp;
+    console.debug = noOp;
+    console.warn = noOp;
+
+    // Stylish Security Greeting
+    console.error(
+        "%c PAYLA SECURITY ", 
+        "background: #0A0A0A; color: #E8B4B8; font-size: 20px; font-weight: bold; border: 1px solid #E8B4B8; padding: 4px;"
+    );
+    console.error("This is a browser feature intended for developers. Do not paste code here.");
+}
+
+export const API_BASE = CURRENT_ENV.API_BASE;
+export const BACKEND_BASE = CURRENT_ENV.BACKEND_BASE;
+export const PAYSTACK_PUBLIC_KEY = CURRENT_ENV.PAYSTACK_PUBLIC_KEY;
+export { isLocal };
