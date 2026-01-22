@@ -545,5 +545,7 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.DEBUG,
         log_level="debug",
-        access_log=True
+        access_log=True,
+        proxy_headers=True,      # 👈 Add this: Trusts the headers from Nginx/Load Balancer
+        forwarded_allow_ips="*"  # 👈 Add this: Allows the headers from any IP (safe if Nginx is local)
     )
