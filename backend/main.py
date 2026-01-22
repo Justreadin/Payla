@@ -84,6 +84,22 @@ class CustomProxyHeadersMiddleware(BaseHTTPMiddleware):
         
         return await call_next(request)
 
+class SafeHTTPSRedirectMiddleware(BaseHTTPMiddleware):
+    """
+    Redirect HTTP to HTTPS safely, using the scheme set by CustomProxyHeadersMiddleware.
+    Prevents infinite redirect loops behind proxies.
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Only redirect if the current scheme is HTTP
+        if request.url.scheme == "http":
+            url = request.url.replace(scheme="https")
+            return JSONResponse(
+                status_code=307,
+                headers={"Location": str(url)},
+                content={"detail": "Redirecting to HTTPS"}
+            )
+        return await call_next(request)
+
 
 # ------------------------------------------------------------
 # 2. FASTAPI APP
@@ -116,9 +132,7 @@ origins = [
 app.add_middleware(CustomProxyHeadersMiddleware)
 
 if settings.ENVIRONMENT == "production":
-    app.add_middleware(
-        HTTPSRedirectMiddleware
-    )
+    app.add_middleware(SafeHTTPSRedirectMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
