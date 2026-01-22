@@ -124,7 +124,7 @@ class DashboardEnhancements {
             console.log('🔄 Loading enhancement data from:', this.API_BASE);
 
             // Load notifications
-            const notificationsResponse = await fetch(`${this.API_BASE}/dashboard/notifications`, {
+            const notificationsResponse = await fetch(`${this.API_BASE}/dashboard/notifications/`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -221,7 +221,7 @@ class DashboardEnhancements {
 
         console.log('Activating paylink...');
 
-        const response = await fetch(`${this.API_BASE}/paylinks/me/activate`, {
+        const response = await fetch(`${this.API_BASE}/paylinks/me/activate/`, {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -272,7 +272,7 @@ class DashboardEnhancements {
 
         console.log('User confirmed deactivation, making API call...');
 
-        const response = await fetch(`${this.API_BASE}/paylinks/me/deactivate`, {
+        const response = await fetch(`${this.API_BASE}/paylinks/me/deactivate/`, {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${token}`,

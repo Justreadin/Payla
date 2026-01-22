@@ -167,7 +167,6 @@ def get_mime_type(filename: str) -> str:
         '.mjs': 'application/javascript',
         '.css': 'text/css',
         '.json': 'application/json',
-        '.svg': 'image/svg+xml',
         '.png': 'image/png',
         '.jpg': 'image/jpeg',
         '.jpeg': 'image/jpeg',
