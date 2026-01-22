@@ -147,13 +147,50 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # 5. FRONTEND STATIC FILES (Serve HTML/CSS/JS)
 # ------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")  # /app/backend/frontend
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 
-if os.path.exists(FRONTEND_DIR):
-    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
-    logger.info(f"Frontend fully mounted from {FRONTEND_DIR}")
+if not os.path.exists(FRONTEND_DIR):
+    logger.error(f"❌ FRONTEND_DIR not found: {FRONTEND_DIR}")
 else:
-    logger.warning(f"Frontend directory not found at {FRONTEND_DIR}")
+    logger.info(f"✅ FRONTEND_DIR found: {FRONTEND_DIR}")
+    logger.info(f"📁 Frontend contents: {os.listdir(FRONTEND_DIR)}")
+
+    # ---- Static subfolders (EXPLICIT & SAFE) ----
+    static_mounts = {
+        "js": "js",
+        "css": "css",
+        "assets": "assets",
+    }
+
+    for mount_path, folder_name in static_mounts.items():
+        folder_path = os.path.join(FRONTEND_DIR, folder_name)
+
+        if os.path.exists(folder_path):
+            app.mount(
+                f"/{mount_path}",
+                StaticFiles(directory=folder_path),
+                name=f"frontend-{mount_path}",
+            )
+            logger.info(f"🟢 Mounted /{mount_path} → {folder_path}")
+        else:
+            logger.warning(f"⚠️ Missing frontend/{folder_name} — /{mount_path} not mounted")
+
+    # ---- Optional: favicon + manifest aliases (browser-safe) ----
+    favicon_path = os.path.join(FRONTEND_DIR, "assets", "favicon.ico")
+    manifest_path = os.path.join(FRONTEND_DIR, "assets", "site.webmanifest")
+
+    if os.path.exists(favicon_path):
+        @app.get("/favicon.ico", include_in_schema=False)
+        async def favicon():
+            return FileResponse(favicon_path)
+        logger.info("🟢 /favicon.ico alias enabled")
+
+    if os.path.exists(manifest_path):
+        @app.get("/site.webmanifest", include_in_schema=False)
+        async def site_manifest():
+            return FileResponse(manifest_path)
+        logger.info("🟢 /site.webmanifest alias enabled")
+
 
 @app.get("/reload")
 async def reload():
