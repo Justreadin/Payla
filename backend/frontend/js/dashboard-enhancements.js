@@ -11,6 +11,8 @@ class DashboardEnhancements {
         console.log('🔧 DashboardEnhancements initialized');
         console.log('📍 API_BASE from config:', API_BASE);
         console.log('🌐 Current hostname:', window.location.hostname);
+        console.error(`%c🔧 ENHANCEMENTS INIT`, 'color: #ff00ff; font-size: 16px; font-weight: bold;');
+        console.error(`%c📍 API_BASE: ${API_BASE}`, 'color: #ff00ff; font-size: 14px;');
         
         this.API_BASE = API_BASE;
         this.init();
