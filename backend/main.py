@@ -273,6 +273,38 @@ async def health_check():
         logger.error(f"Health check failed: {e}")
         return JSONResponse(status_code=503, content={"status": "unhealthy", "error": str(e)})
 
+@app.get("/debug/check-js", tags=["System"])
+async def debug_check():
+    """Debug endpoint to check JS file serving"""
+    js_path = os.path.join(FRONTEND_DIR, "js", "payla.js")
+    web_analytics_path = os.path.join(FRONTEND_DIR, "js", "web_analytics.js")
+    
+    def check_file(path):
+        exists = os.path.exists(path)
+        content_preview = ""
+        file_size = 0
+        if exists:
+            file_size = os.path.getsize(path)
+            with open(path, 'r', encoding='utf-8') as f:
+                content_preview = f.read(200)
+        return {
+            "path": path,
+            "exists": exists,
+            "size": file_size,
+            "preview": content_preview
+        }
+    
+    return {
+        "frontend_dir": FRONTEND_DIR,
+        "frontend_dir_exists": os.path.exists(FRONTEND_DIR),
+        "js_dir": os.path.join(FRONTEND_DIR, "js"),
+        "js_dir_exists": os.path.exists(os.path.join(FRONTEND_DIR, "js")),
+        "js_dir_contents": os.listdir(os.path.join(FRONTEND_DIR, "js")) if os.path.exists(os.path.join(FRONTEND_DIR, "js")) else [],
+        "payla_js": check_file(js_path),
+        "web_analytics_js": check_file(web_analytics_path)
+    }
+
+
 @app.get("/me")
 async def me(user = Depends(get_current_user)):
     return user
