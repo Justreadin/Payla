@@ -5,7 +5,6 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 import uvicorn
 from firebase_admin import credentials, firestore
@@ -64,43 +63,6 @@ logging_config = {
 logging.config.dictConfig(logging_config)
 logger = logging.getLogger("payla")
 
-
-class CustomProxyHeadersMiddleware(BaseHTTPMiddleware):
-    """
-    Custom middleware to handle X-Forwarded-For and X-Forwarded-Proto headers,
-    replacing ProxyHeadersMiddleware from newer Starlette versions.
-    """
-    async def dispatch(self, request, call_next):
-        # Override client IP if header exists
-        x_forwarded_for = request.headers.get("x-forwarded-for")
-        if x_forwarded_for:
-            # Take the first IP in the list
-            request.scope["client"] = (x_forwarded_for.split(",")[0].strip(), 0)
-        
-        # Override scheme if header exists
-        x_forwarded_proto = request.headers.get("x-forwarded-proto")
-        if x_forwarded_proto:
-            request.scope["scheme"] = x_forwarded_proto
-        
-        return await call_next(request)
-
-class SafeHTTPSRedirectMiddleware(BaseHTTPMiddleware):
-    """
-    Redirect HTTP to HTTPS safely, using the scheme set by CustomProxyHeadersMiddleware.
-    Prevents infinite redirect loops behind proxies.
-    """
-    async def dispatch(self, request: Request, call_next):
-        # Only redirect if the current scheme is HTTP
-        if request.url.scheme == "http":
-            url = request.url.replace(scheme="https")
-            return JSONResponse(
-                status_code=307,
-                headers={"Location": str(url)},
-                content={"detail": "Redirecting to HTTPS"}
-            )
-        return await call_next(request)
-
-
 # ------------------------------------------------------------
 # 2. FASTAPI APP
 # ------------------------------------------------------------
@@ -128,11 +90,11 @@ origins = [
     "https://payla.ng",
 ]
 
-# Add custom proxy middleware
-app.add_middleware(CustomProxyHeadersMiddleware)
-
 if settings.ENVIRONMENT == "production":
-    app.add_middleware(SafeHTTPSRedirectMiddleware)
+
+    app.add_middleware(
+        HTTPSRedirectMiddleware
+    )
 
 app.add_middleware(
     CORSMiddleware,
