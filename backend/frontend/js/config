@@ -17,14 +17,6 @@ const isLocal = window.location.hostname === 'localhost' || window.location.host
 const CURRENT_ENV = isLocal ? ENV.local : ENV.production;
 
 // ==========================================
-// CRITICAL DEBUG - ALWAYS LOG API_BASE
-// ==========================================
-console.error(`%c🔧 CONFIG LOADED`, 'color: #00ff00; font-size: 16px; font-weight: bold;');
-console.error(`%c📍 isLocal: ${isLocal}`, 'color: #00ff00; font-size: 14px;');
-console.error(`%c📍 API_BASE: ${CURRENT_ENV.API_BASE}`, 'color: #00ff00; font-size: 14px;');
-console.error(`%c📍 BACKEND_BASE: ${CURRENT_ENV.BACKEND_BASE}`, 'color: #00ff00; font-size: 14px;');
-
-// ==========================================
 // LUXURY BRAND PROTECTION (PRODUCTION ONLY)
 // ==========================================
 if (!isLocal) {
@@ -36,7 +28,7 @@ if (!isLocal) {
 
     // Stylish Security Greeting
     console.error(
-        "%c⚡ PAYLA SECURITY ", 
+        "%c PAYLA SECURITY ", 
         "background: #0A0A0A; color: #E8B4B8; font-size: 20px; font-weight: bold; border: 1px solid #E8B4B8; padding: 4px;"
     );
     console.error("This is a browser feature intended for developers. Do not paste code here.");
