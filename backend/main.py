@@ -2,7 +2,7 @@ import os
 import logging
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
@@ -98,7 +98,7 @@ app.add_middleware(
 )
 
 # ------------------------------------------------------------
-# 4. ROUTERS (API ROUTES FIRST - BEFORE STATIC FILES)
+# 4. ROUTERS (API ROUTES)
 # ------------------------------------------------------------
 from app.routers import (
     user_router,
@@ -141,62 +141,128 @@ app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
 app.include_router(marketing_router.router, tags=["Marketing"])
 
 # ------------------------------------------------------------
-# 5. STATIC FILE MOUNTS (BEFORE HTML ROUTES)
+# 5. SETUP PATHS
 # ------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-
-# Mount uploads first
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 if not os.path.exists(FRONTEND_DIR):
     logger.error(f"❌ FRONTEND_DIR not found: {FRONTEND_DIR}")
 else:
     logger.info(f"✅ FRONTEND_DIR found: {FRONTEND_DIR}")
-    logger.info(f"📁 Frontend contents: {os.listdir(FRONTEND_DIR)}")
 
-    # ---- Custom StaticFiles class with proper MIME types ----
-    from starlette.staticfiles import StaticFiles as StarletteStaticFiles
+# ------------------------------------------------------------
+# 6. EXPLICIT STATIC FILE HANDLERS (HIGHEST PRIORITY)
+# ------------------------------------------------------------
+
+# Helper function to get MIME type
+def get_mime_type(filename: str) -> str:
+    """Get correct MIME type for a file"""
+    import mimetypes
+    mimetypes.init()
     
-    class CustomStaticFiles(StarletteStaticFiles):
-        """StaticFiles with explicit MIME type support"""
-        
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            # Add custom MIME types
-            import mimetypes
-            mimetypes.add_type("application/javascript", ".js")
-            mimetypes.add_type("application/javascript", ".mjs")
-            mimetypes.add_type("text/css", ".css")
-            mimetypes.add_type("application/json", ".json")
-            mimetypes.add_type("image/svg+xml", ".svg")
-            mimetypes.add_type("application/manifest+json", ".webmanifest")
-
-    # ---- CRITICAL: Mount static files BEFORE HTML routes ----
-    static_mounts = {
-        "js": "js",
-        "css": "css",
-        "assets": "assets",
+    # Explicit mappings to ensure correct types
+    mime_map = {
+        '.js': 'application/javascript',
+        '.mjs': 'application/javascript',
+        '.css': 'text/css',
+        '.json': 'application/json',
+        '.svg': 'image/svg+xml',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.ico': 'image/x-icon',
+        '.webmanifest': 'application/manifest+json',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+        '.eot': 'application/vnd.ms-fontobject',
     }
+    
+    ext = os.path.splitext(filename)[1].lower()
+    return mime_map.get(ext, mimetypes.guess_type(filename)[0] or 'application/octet-stream')
 
-    for mount_path, folder_name in static_mounts.items():
-        folder_path = os.path.join(FRONTEND_DIR, folder_name)
+# JavaScript files - MUST BE FIRST
+@app.get("/js/{file_path:path}", include_in_schema=False)
+async def serve_js(file_path: str):
+    """Serve JavaScript files with correct MIME type"""
+    full_path = os.path.join(FRONTEND_DIR, "js", file_path)
+    
+    # Security check
+    if not os.path.abspath(full_path).startswith(os.path.abspath(os.path.join(FRONTEND_DIR, "js"))):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail=f"JS file not found: {file_path}")
+    
+    logger.info(f"🟢 Serving JS: {file_path} from {full_path}")
+    
+    return FileResponse(
+        full_path,
+        media_type="application/javascript",
+        headers={
+            "Content-Type": "application/javascript; charset=utf-8",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "public, max-age=31536000" if not settings.DEBUG else "no-cache"
+        }
+    )
 
-        if os.path.exists(folder_path):
-            app.mount(
-                f"/{mount_path}",
-                CustomStaticFiles(directory=folder_path),
-                name=f"frontend-{mount_path}",
-            )
-            logger.info(f"🟢 Mounted /{mount_path} → {folder_path}")
-        else:
-            logger.warning(f"⚠️ Missing frontend/{folder_name} — /{mount_path} not mounted")
+# CSS files
+@app.get("/css/{file_path:path}", include_in_schema=False)
+async def serve_css(file_path: str):
+    """Serve CSS files with correct MIME type"""
+    full_path = os.path.join(FRONTEND_DIR, "css", file_path)
+    
+    if not os.path.abspath(full_path).startswith(os.path.abspath(os.path.join(FRONTEND_DIR, "css"))):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail=f"CSS file not found: {file_path}")
+    
+    logger.info(f"🟢 Serving CSS: {file_path}")
+    
+    return FileResponse(
+        full_path,
+        media_type="text/css",
+        headers={
+            "Content-Type": "text/css; charset=utf-8",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "public, max-age=31536000" if not settings.DEBUG else "no-cache"
+        }
+    )
+
+# Assets (images, fonts, etc.)
+@app.get("/assets/{file_path:path}", include_in_schema=False)
+async def serve_assets(file_path: str):
+    """Serve asset files with correct MIME type"""
+    full_path = os.path.join(FRONTEND_DIR, "assets", file_path)
+    
+    if not os.path.abspath(full_path).startswith(os.path.abspath(os.path.join(FRONTEND_DIR, "assets"))):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail=f"Asset not found: {file_path}")
+    
+    mime_type = get_mime_type(file_path)
+    logger.info(f"🟢 Serving asset: {file_path} as {mime_type}")
+    
+    return FileResponse(
+        full_path,
+        media_type=mime_type,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "public, max-age=31536000" if not settings.DEBUG else "no-cache"
+        }
+    )
+
+# Uploads
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ------------------------------------------------------------
-# 6. SPECIFIC ROUTES (BEFORE CATCH-ALL)
+# 7. SPECIFIC ROUTES
 # ------------------------------------------------------------
 
-# Health check
 @app.get("/health", tags=["System"])
 async def health_check():
     try:
@@ -211,32 +277,28 @@ async def health_check():
 async def me(user = Depends(get_current_user)):
     return user
 
-# Favicon
-favicon_path = os.path.join(FRONTEND_DIR, "assets", "favicon.ico")
-if os.path.exists(favicon_path):
-    @app.get("/favicon.ico", include_in_schema=False)
-    async def favicon():
-        return FileResponse(favicon_path)
-    logger.info("🟢 /favicon.ico alias enabled")
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    favicon_path = os.path.join(FRONTEND_DIR, "assets", "favicon.ico")
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path, media_type="image/x-icon")
+    raise HTTPException(status_code=404, detail="Favicon not found")
 
-# Manifest
-manifest_path = os.path.join(FRONTEND_DIR, "assets", "site.webmanifest")
-if os.path.exists(manifest_path):
-    @app.get("/site.webmanifest", include_in_schema=False)
-    async def site_manifest():
+@app.get("/site.webmanifest", include_in_schema=False)
+async def site_manifest():
+    manifest_path = os.path.join(FRONTEND_DIR, "assets", "site.webmanifest")
+    if os.path.exists(manifest_path):
         return FileResponse(manifest_path, media_type="application/manifest+json")
-    logger.info("🟢 /site.webmanifest alias enabled")
+    raise HTTPException(status_code=404, detail="Manifest not found")
 
-# OG Image
 @app.get("/og-image.jpg", include_in_schema=False)
 async def serve_og_image():
     path = os.path.join(FRONTEND_DIR, "assets", "og-image.jpg")
     if os.path.exists(path):
         return FileResponse(path, media_type="image/jpeg")
-    raise HTTPException(status_code=404, detail="Image file missing in assets folder")
+    raise HTTPException(status_code=404, detail="OG image not found")
 
-# Reload endpoint
-@app.get("/reload")
+@app.get("/reload", include_in_schema=False)
 async def reload():
     async def event_stream():
         last = frontend_last_change
@@ -248,34 +310,32 @@ async def reload():
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 # ------------------------------------------------------------
-# 7. HTML ROUTES (AFTER STATIC MOUNTS, BEFORE CATCH-ALL)
+# 8. HTML ROUTES
 # ------------------------------------------------------------
 
-# Invoice public page
 @app.get("/i/{invoice_id}", include_in_schema=False)
 async def serve_invoice_page(invoice_id: str):
     html_path = os.path.join(FRONTEND_DIR, "i", "public_invoice.html")
     if not os.path.exists(html_path):
-        raise HTTPException(status_code=404, detail="public_invoice.html not found")
+        raise HTTPException(status_code=404, detail="Invoice page not found")
     return FileResponse(
         html_path, 
-        media_type="text/html", 
+        media_type="text/html; charset=utf-8", 
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "X-Content-Type-Options": "nosniff"
         }
     )
 
-# Paylink route
-@app.get("/@{username}")
-@app.get("/@{username}/")
+@app.get("/@{username}", include_in_schema=False)
+@app.get("/@{username}/", include_in_schema=False)
 async def serve_paylink_page(username: str):
     """Serve paylink.html for any /@username"""
     username = username.strip().lower()
     paylink_path = os.path.join(FRONTEND_DIR, "paylink.html")
 
     if not os.path.exists(paylink_path):
-        raise HTTPException(status_code=404, detail="paylink.html not found in frontend/")
+        raise HTTPException(status_code=404, detail="Paylink page not found")
 
     with open(paylink_path, "r", encoding="utf-8") as f:
         html_content = f.read()
@@ -288,65 +348,69 @@ async def serve_paylink_page(username: str):
     """
     html_content = html_content.replace("</head>", inject_script + "\n</head>")
 
-    return HTMLResponse(html_content)
+    return HTMLResponse(
+        html_content,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "X-Content-Type-Options": "nosniff"
+        }
+    )
 
-# Root → payla.html
 @app.get("/", include_in_schema=False)
 async def serve_index():
     index_path = os.path.join(FRONTEND_DIR, "payla.html")
-    if os.path.exists(index_path):
-        return FileResponse(
-            index_path, 
-            media_type="text/html",
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "X-Content-Type-Options": "nosniff"
-            }
-        )
-    raise HTTPException(status_code=404, detail="payla.html not found")
+    if not os.path.exists(index_path):
+        raise HTTPException(status_code=404, detail="Index page not found")
+    return FileResponse(
+        index_path, 
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "X-Content-Type-Options": "nosniff"
+        }
+    )
 
 # ------------------------------------------------------------
-# 8. CATCH-ALL ROUTE (MUST BE LAST!)
+# 9. CATCH-ALL FOR OTHER HTML PAGES (MUST BE LAST!)
 # ------------------------------------------------------------
 @app.get("/{page_name}", include_in_schema=False)
-async def serve_html_page(page_name: str, request: Request):
-    # Remove .html extension
+async def serve_html_page(page_name: str):
+    # Remove .html extension if present
     if page_name.endswith(".html"):
         page_name = page_name[:-5]
 
-    # Security: block bad paths
-    if ".." in page_name or page_name.startswith("/"):
-        raise HTTPException(status_code=400, detail="Invalid page")
+    # Security: block directory traversal
+    if ".." in page_name or "/" in page_name or page_name.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid page name")
 
-    # Serve file if /frontend/{page_name}.html exists
+    # Try {page_name}.html
     html_path = os.path.join(FRONTEND_DIR, f"{page_name}.html")
     if os.path.exists(html_path):
         return FileResponse(
             html_path,
-            media_type="text/html",
+            media_type="text/html; charset=utf-8",
             headers={
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "X-Content-Type-Options": "nosniff"
             }
         )
 
-    # Serve /frontend/{page_name}/index.html
-    dir_path = os.path.join(FRONTEND_DIR, page_name)
-    index_path = os.path.join(dir_path, "index.html")
+    # Try {page_name}/index.html
+    index_path = os.path.join(FRONTEND_DIR, page_name, "index.html")
     if os.path.exists(index_path):
         return FileResponse(
             index_path,
-            media_type="text/html",
+            media_type="text/html; charset=utf-8",
             headers={
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "X-Content-Type-Options": "nosniff"
             }
         )
 
-    raise HTTPException(status_code=404, detail=f"Page '{page_name}' not found")
+    raise HTTPException(status_code=404, detail=f"Page not found: {page_name}")
 
 # ------------------------------------------------------------
-# 9. GLOBAL EXCEPTION HANDLER
+# 10. GLOBAL EXCEPTION HANDLER
 # ------------------------------------------------------------
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -361,25 +425,26 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # ------------------------------------------------------------
-# 10. STARTUP EVENT
+# 11. STARTUP EVENTS
 # ------------------------------------------------------------
 @app.on_event("startup")
 async def startup_event():
-    logger.info(f"Payla API started | Env: {settings.ENVIRONMENT} | Debug: {settings.DEBUG}")
-    logger.info(f"Frontend: {settings.FRONTEND_URL}")
+    logger.info(f"🚀 Payla API started | Env: {settings.ENVIRONMENT} | Debug: {settings.DEBUG}")
+    logger.info(f"📁 Frontend: {settings.FRONTEND_URL}")
     if hasattr(settings, "PAYSTACK_WEBHOOK_URL"):
-        logger.info(f"Paystack webhook: {settings.PAYSTACK_WEBHOOK_URL}")
+        logger.info(f"🔗 Paystack webhook: {settings.PAYSTACK_WEBHOOK_URL}")
 
     if not os.getenv("MIGRATION_DONE"):
         logger.info("Running waitlist migration...")
         try:
             migrate()
             os.environ["MIGRATION_DONE"] = "true"
-            logger.info("Waitlist migration complete.")
+            logger.info("✅ Waitlist migration complete")
         except Exception as e:
-            logger.error(f"Migration failed: {e}")
+            logger.error(f"❌ Migration failed: {e}")
     else:
-        logger.info("Waitlist already migrated.")
+        logger.info("✅ Waitlist already migrated")
+    
     auto_start_launch_emails()
 
 @app.on_event("startup")
@@ -387,15 +452,16 @@ async def start_background_tasks():
     """Start all background async tasks"""
     asyncio.create_task(repeat_purge_forever())
     asyncio.create_task(reminder_loop())
-    logger.info("✅ Async reminder loop started")
+    logger.info("✅ Reminder loop started")
     
     asyncio.create_task(billing_service_loop())
-    logger.info("✅ Async billing loop started")
+    logger.info("✅ Billing loop started")
+    
     asyncio.create_task(marketing_loop())
-    logger.info("✅ Async marketing/conversion loop started")
+    logger.info("✅ Marketing loop started")
 
 # ------------------------------------------------------------
-# 11. REQUEST LOGGING MIDDLEWARE
+# 12. REQUEST LOGGING MIDDLEWARE
 # ------------------------------------------------------------
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -409,18 +475,17 @@ async def log_requests(request: Request, call_next):
     return response
 
 # ------------------------------------------------------------
-# 12. Frontend Reload Watcher
+# 13. FRONTEND RELOAD WATCHER (DEV ONLY)
 # ------------------------------------------------------------
 frontend_last_change = time.time()
-FRONTEND_WATCH_DIR = os.path.join(FRONTEND_DIR)
 
 def watch_frontend():
     global frontend_last_change
     last_mtime = 0
-
+    
     while True:
         try:
-            for root, dirs, files in os.walk(FRONTEND_WATCH_DIR):
+            for root, dirs, files in os.walk(FRONTEND_DIR):
                 for f in files:
                     path = os.path.join(root, f)
                     mtime = os.path.getmtime(path)
@@ -428,16 +493,16 @@ def watch_frontend():
                         last_mtime = mtime
                         frontend_last_change = time.time()
         except Exception as e:
-            print("Watch error:", e)
+            logger.error(f"Watch error: {e}")
         time.sleep(1)
 
-# Start watcher thread only in DEV
 if settings.DEBUG:
     thread = threading.Thread(target=watch_frontend, daemon=True)
     thread.start()
+    logger.info("👀 Frontend file watcher started")
 
 # ------------------------------------------------------------
-# 13. RUN LOCALLY
+# 14. RUN LOCALLY
 # ------------------------------------------------------------
 if __name__ == "__main__":
     uvicorn.run(
