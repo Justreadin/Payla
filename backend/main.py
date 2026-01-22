@@ -5,6 +5,8 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 import uvicorn
 from firebase_admin import credentials, firestore
 from app.scripts.migrate_waitlist import migrate
@@ -89,6 +91,16 @@ origins = [
     "https://payla.ng",
 ]
 
+if settings.ENVIRONMENT == "production":
+    app.add_middleware(
+        ProxyHeadersMiddleware,
+        trusted_hosts="*"
+    )
+
+    app.add_middleware(
+        HTTPSRedirectMiddleware
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -96,6 +108,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ------------------------------------------------------------
 # 4. ROUTERS (API ROUTES)
@@ -372,12 +385,15 @@ async def serve_paylink_page(username: str):
     with open(paylink_path, "r", encoding="utf-8") as f:
         html_content = f.read()
 
+    assert settings.BACKEND_URL, "BACKEND_URL must be set in production"
+
     inject_script = f"""
     <script>
         window.PAYLINK_USERNAME = "{username}";
-        window.PAYLINK_API_BASE = "{settings.BACKEND_URL or 'http://127.0.0.1:8000'}/api/paylinks";
+        window.PAYLINK_API_BASE = "{settings.BACKEND_URL.rstrip('/')}/api/paylinks";
     </script>
     """
+
     html_content = html_content.replace("</head>", inject_script + "\n</head>")
 
     return HTMLResponse(

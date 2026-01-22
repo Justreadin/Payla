@@ -121,11 +121,10 @@ class DashboardEnhancements {
                 return;
             }
 
-            const secureApiBase = this.API_BASE.replace('http://', 'https://');
-            console.error(`%c🔄 Loading from: ${secureApiBase}`, 'color: #00ff00; font-size: 14px;');
+            console.log('🔄 Loading enhancement data from:', this.API_BASE);
 
             // Load notifications
-            const notificationsResponse = await fetch(`${secureApiBase}/dashboard/notifications`, {
+            const notificationsResponse = await fetch(`${this.API_BASE}/dashboard/notifications`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
