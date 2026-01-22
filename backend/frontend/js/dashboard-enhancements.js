@@ -14,11 +14,22 @@ class DashboardEnhancements {
         //console.error(`%c🔧 ENHANCEMENTS INIT`, 'color: #ff00ff; font-size: 16px; font-weight: bold;');
         //console.error(`%c📍 API_BASE: ${API_BASE}`, 'color: #ff00ff; font-size: 14px;');
         
+        if (window.enhancementsInstance) {
+            return window.enhancementsInstance;
+        }
+        window.enhancementsInstance = this;
+
         this.API_BASE = API_BASE;
+        
+        // 2. STATE LOCKS: Prevent double-clicks and double-triggers
+        this.isProcessingToggle = false;
+        this.initialized = false; 
+
         this.init();
     }
 
     init() {
+        if (this.initialized) return;
         // Enhancement DOM Elements
         this.copyLinkBtn = document.getElementById('copy-link-btn');
         this.notificationsBtn = document.getElementById('notifications-btn');
@@ -45,6 +56,7 @@ class DashboardEnhancements {
 
         // Initialize Enhancements
         this.initEnhancements();
+        this.initialized = true;
     }
 
     setupEnhancementListeners() {
@@ -98,6 +110,30 @@ class DashboardEnhancements {
                 this.closeAnalyticsModal();
             }
         });
+
+        const urlEl = document.getElementById('paylink-url');
+        if (urlEl) {
+            urlEl.style.cursor = 'pointer'; // Make it look clickable
+            urlEl.addEventListener('click', () => {
+                const fullUrl = urlEl.dataset.fullUrl;
+                if (fullUrl) {
+                    // Open the link in a new tab
+                    window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                }
+            });
+        }
+
+        // Optional: Do the same for the user-paylink element if it exists
+        const userEl = document.getElementById('user-paylink');
+        if (userEl) {
+            userEl.style.cursor = 'pointer';
+            userEl.addEventListener('click', () => {
+                const userUrl = userEl.dataset.userUrl;
+                if (userUrl) {
+                    window.open(userUrl, '_blank', 'noopener,noreferrer');
+                }
+            });
+        }
     }
 
     async initEnhancements() {
@@ -188,15 +224,14 @@ class DashboardEnhancements {
     }
 
     async handlePaylinkToggle(isActive) {
-        if (this.isProcessingToggle) {
-            console.log('Toggle operation already in progress, skipping');
-            return;
-        }
-
-        this.isProcessingToggle = true;
-        console.log('Processing toggle change to:', isActive);
+        if (this.isProcessingToggle) return;
 
         try {
+            this.isProcessingToggle = true;
+            
+            // Disable the toggle visually while loading
+            if (this.paylinkToggle) this.paylinkToggle.disabled = true;
+
             if (isActive) {
                 await this.activatePaylink();
             } else {
@@ -204,12 +239,12 @@ class DashboardEnhancements {
             }
         } catch (error) {
             console.error('Toggle operation failed:', error);
-            if (this.paylinkToggle) {
-                this.paylinkToggle.checked = !isActive;
-            }
+            // Revert the toggle state on failure
+            if (this.paylinkToggle) this.paylinkToggle.checked = !isActive;
             this.showToggleErrorModal(isActive, error);
         } finally {
             this.isProcessingToggle = false;
+            if (this.paylinkToggle) this.paylinkToggle.disabled = false;
         }
     }
 
@@ -743,14 +778,25 @@ class DashboardEnhancements {
 // SINGLE initialization point - wait for dashboard to load first
 let enhancements;
 document.addEventListener('DOMContentLoaded', async () => {
+    // Check if instance already exists on window (added safety for hot-reloads)
+    if (window.enhancementsInstance) return;
+
     if (!dashboard) {
         console.error('Dashboard not loaded yet');
         return;
     }
 
-    await dashboard.loadDashboardData();
-    enhancements = new DashboardEnhancements();
-    window.enhancements = enhancements;
+    try {
+        // Ensure core data is there before enhancements try to read it
+        if (!dashboard.dashboardData) {
+            await dashboard.loadDashboardData();
+        }
+        
+        enhancements = new DashboardEnhancements();
+        window.enhancements = enhancements;
+    } catch (err) {
+        console.error("Enhancement Init Error:", err);
+    }
 });
 
 export { DashboardEnhancements, enhancements };

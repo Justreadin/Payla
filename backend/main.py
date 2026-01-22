@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+from pathlib import Path
 from firebase_admin import credentials, firestore
 from app.scripts.migrate_waitlist import migrate
 from app.tasks.launch_emails import auto_start_launch_emails
@@ -256,7 +257,13 @@ async def serve_assets(file_path: str):
     )
 
 # Uploads
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+BASE_DIR = Path(__file__).resolve().parent  # backend/
+UPLOADS_DIR = BASE_DIR / "uploads"
+
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+app.mount("/logos", StaticFiles(directory="uploads/logos"), name="logos")
 
 # ------------------------------------------------------------
 # 7. SPECIFIC ROUTES
@@ -302,6 +309,16 @@ async def debug_check():
         "payla_js": check_file(js_path),
         "web_analytics_js": check_file(web_analytics_path)
     }
+
+@app.get("/debug/uploads")
+async def debug_uploads():
+    return {
+        "cwd": os.getcwd(),
+        "uploads_exists": os.path.exists("uploads"),
+        "uploads_contents": os.listdir("uploads") if os.path.exists("uploads") else None,
+        "logos_contents": os.listdir("uploads/logos") if os.path.exists("uploads/logos") else None,
+    }
+
 
 
 @app.get("/me")

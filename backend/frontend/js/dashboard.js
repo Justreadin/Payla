@@ -3,13 +3,21 @@
 import { API_BASE } from './config.js';
 class PaylaDashboard {
     constructor() {
+        if (window.paylaInstance) {
+            console.warn('⚠️ Prevented double instantiation of Dashboard');
+            return window.paylaInstance;
+        }
+        window.paylaInstance = this;
         this.API_BASE = API_BASE;
         this.refreshInterval = null;
         this.isRefreshing = false;
+        this.isSubmitting = false;
         this.init();
     }
 
     init() {
+        if (this.initialized) return; 
+        this.initialized = true;
         // Core DOM Elements
         this.avatarBtn = document.getElementById('avatar-btn');
         this.dropdown = document.getElementById('dropdown');

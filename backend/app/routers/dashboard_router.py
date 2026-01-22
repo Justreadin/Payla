@@ -126,9 +126,14 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
             "is_subaccount_linked": bool(subaccount_code),
             "next_settlement_estimate": next_settlement.strftime("%Y-%m-%d")
         },
+        # Replace the "invoices" list comprehension at the end of get_dashboard_data:
         "invoices": [
             {**inv.dict(by_alias=True), "invoice_url": f"{settings.BACKEND_URL}{inv.invoice_url}" if inv.invoice_url else None}
-            for inv in sorted(invoices, key=lambda x: x.created_at or now, reverse=True)[:10]
+            for inv in sorted(
+                invoices, 
+                key=lambda x: (x.created_at if x.created_at.tzinfo else x.created_at.replace(tzinfo=timezone.utc)) if x.created_at else now, 
+                reverse=True
+            )[:10]
         ],
         "paylink": {
             "url": paylink_url,

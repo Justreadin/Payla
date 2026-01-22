@@ -124,16 +124,18 @@ class SubscriptionManager {
 
     showPlanSelectionModal() {
         // Check if user already has Silver
-        if (this.subscriptionStatus?.plan === 'silver') {
+        if (this.subscriptionStatus?.plan === 'silver' && this.subscriptionStatus?.is_active) {
             this.showToast('You already have an active Silver subscription!', 'info');
             return;
         }
-        // Inside showPlanSelectionModal()
+
+        // Logic for Title and Subtitle based on status
         const isExpired = this.subscriptionStatus?.is_active === false;
+        const trialUsed = this.subscriptionStatus?.trial_days_left <= 0;
+        
         const title = isExpired ? "Renew Your Silver Access" : "Choose Billing Cycle";
         const subtitle = isExpired ? "Your trial has ended. Pick a plan to reactivate your link." : "Select how you want to pay for Payla Silver";
 
-        // Create modal HTML
         const modalHTML = `
             <div class="modal-overlay" id="plan-selection-modal">
                 <div class="modal">
@@ -186,10 +188,11 @@ class SubscriptionManager {
                         </div>
                     </div>
 
+                    ${!trialUsed ? `
                     <div class="billing-note">
                         <i class="fas fa-shield-alt"></i>
-                        <span>14-day free trial included. Cancel before trial ends to avoid charges.</span>
-                    </div>
+                        <span>Cancel before trial ends to avoid charges.</span>
+                    </div>` : ''}
                 </div>
             </div>
         `;
@@ -314,23 +317,28 @@ class SubscriptionManager {
     }
 
     async verifyPaymentWithBackend(reference) {
-        // This now correctly matches your FastAPI route: /subscription/verify/sub_monthly_...
-        const response = await fetch(`${this.API_BASE}/subscription/verify/${reference}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${this.getAuthToken()}`,
-                'Content-Type': 'application/json'
-            }
-        });
+        try {
+            const response = await fetch(`${this.API_BASE}/subscription/verify/${reference}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.getAuthToken()}`,
+                    'Content-Type': 'application/json'
+                }
+            });
 
-        if (response.ok) {
             const result = await response.json();
-            // result.status should contain the updated user object from the backend
-            this.subscriptionStatus = result.status; 
-            this.updateUI();
-            this.showSuccessModal();
-        } else {
-            this.showError("Verification failed. Please contact support.");
+
+            if (response.ok && result.status) {
+                // Update local state with the new user data from backend
+                this.subscriptionStatus = result.status; 
+                this.updateUI(); // Refresh the buttons and badges immediately
+                this.showSuccessModal();
+            } else {
+                throw new Error(result.detail || "Verification failed");
+            }
+        } catch (error) {
+            console.error('Verification Error:', error);
+            this.showError("Verification failed. Please contact support with reference: " + reference);
         }
     }
     showSuccessModal() {
@@ -406,60 +414,104 @@ class SubscriptionManager {
         const countdown = document.getElementById('countdown');
         const heroUpgradeButton = document.getElementById('hero-upgrade');
 
-        if (plan === 'silver' && is_active) {
-            // User has active Silver subscription
+        if (!heroTitle || !heroSubtitle || !countdown) return;
+
+        // Default styles reset
+        countdown.style.display = 'inline-block';
+        countdown.style.border = 'none';
+        countdown.style.background = 'rgba(255, 255, 255, 0.1)';
+        countdown.style.color = 'inherit';
+
+        // SITUATION 1: Active Paid Subscription
+        if (is_active && plan === 'silver') {
             heroTitle.textContent = 'Payla Silver Active 🎉';
             heroSubtitle.textContent = 'You have full access to all premium features';
-            countdown.style.display = 'none';
             
+            countdown.textContent = `Current Plan: Silver`;
+            countdown.style.background = 'rgba(16, 185, 129, 0.15)'; // Soft Green
+            countdown.style.color = '#10b981';
+
             if (heroUpgradeButton) {
-                heroUpgradeButton.innerHTML = '<i class="fas fa-crown"></i> Manage Subscription';
+                heroUpgradeButton.innerHTML = '<i class="fas fa-crown"></i> Active Member';
+                heroUpgradeButton.disabled = true;
+                heroUpgradeButton.style.opacity = '0.7';
+                heroUpgradeButton.style.cursor = 'default';
             }
-            
-        } else if (plan === 'free' && is_active && trial_days_left > 0) {
-            // User is in free trial
+        } 
+        // SITUATION 2: Active Trial (Not yet paid)
+        else if (is_active && plan !== 'silver') {
             heroTitle.textContent = 'Upgrade to Payla Silver';
-            heroSubtitle.textContent = `Your free trial ends in ${trial_days_left} days`;
-            countdown.textContent = `${trial_days_left} days left in trial`;
+            heroSubtitle.textContent = `Experience the full power of professional invoicing`;
             
-        } else if (plan === 'free' && !is_active) {
-            // Trial expired
-            heroTitle.textContent = 'Upgrade to Payla Silver';
-            heroSubtitle.textContent = 'Your trial has ended. Upgrade to continue using premium features.';
-            countdown.textContent = 'Trial expired — Upgrade to continue';
-            countdown.style.background = 'rgba(239, 68, 68, 0.1)';
-            countdown.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+            countdown.textContent = `Current Plan: Silver`;
+            countdown.style.background = 'rgba(255, 255, 255, 0.1)';
+
+            if (heroUpgradeButton) {
+                heroUpgradeButton.innerHTML = '<i class="fas fa-rocket"></i> Upgrade to Silver';
+                heroUpgradeButton.disabled = false;
+                heroUpgradeButton.style.opacity = '1';
+            }
+        } 
+        // SITUATION 3: Expired (Either Trial or Paid)
+        else {
+            heroTitle.textContent = 'Silver Access Expired';
+            heroSubtitle.textContent = 'Your premium access has ended. Choose a plan to reactivate your features.';
+            
+            countdown.textContent = 'Expired — Action Required';
+            countdown.style.background = 'rgba(239, 68, 68, 0.1)'; // Soft Red
             countdown.style.color = '#ef4444';
-            
-        } else {
-            // Default state
-            heroTitle.textContent = 'Upgrade to Payla Silver';
-            heroSubtitle.textContent = 'Get full access to premium features';
-            countdown.textContent = 'Start your 14-day free trial';
+            countdown.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+
+            if (heroUpgradeButton) {
+                heroUpgradeButton.innerHTML = '<i class="fas fa-sync"></i> Renew Subscription';
+                heroUpgradeButton.disabled = false;
+                heroUpgradeButton.style.opacity = '1';
+            }
         }
     }
 
-    updatePlanCards(plan) {
+    updatePlanCards(plan, is_active) {
         const silverCard = document.getElementById('silver-plan');
         const silverButton = document.getElementById('silver-upgrade');
-        
-        if (plan === 'silver') {
-            // User already has Silver
-            if (silverCard) {
-                silverCard.classList.add('activated');
-                
-                if (silverButton) {
-                    silverButton.innerHTML = '<i class="fas fa-crown"></i> Active Subscription';
-                    silverButton.disabled = true;
-                    silverButton.classList.remove('btn-primary');
-                    silverButton.classList.add('btn-secondary');
-                }
-                
-                const statusHint = silverCard.querySelector('.status-hint');
-                if (statusHint) {
-                    statusHint.textContent = 'You are currently on this plan';
-                    statusHint.style.color = 'var(--success)';
-                }
+        const statusHint = silverCard?.querySelector('.status-hint');
+
+        const isSilverActive = (plan === 'silver' && is_active);
+
+        if (!silverCard) return;
+
+        if (isSilverActive) {
+            // Lock the card visually
+            silverCard.classList.add('activated');
+            silverCard.style.borderColor = '#10b981';
+            
+            if (silverButton) {
+                silverButton.innerHTML = '<i class="fas fa-check-circle"></i> Current Plan';
+                silverButton.disabled = true;
+                silverButton.className = 'btn-secondary full'; // Change color to look "inactive"
+                silverButton.style.cursor = 'not-allowed';
+            }
+            
+            if (statusHint) {
+                statusHint.innerHTML = '<i class="fas fa-shield-alt"></i> You are currently on this plan';
+                statusHint.style.color = '#10b981';
+                statusHint.style.fontWeight = '600';
+            }
+        } else {
+            // Reset to default "Sale" state
+            silverCard.classList.remove('activated');
+            silverCard.style.borderColor = '';
+
+            if (silverButton) {
+                silverButton.innerHTML = '<i class="fas fa-rocket"></i> Upgrade to Silver';
+                silverButton.disabled = false;
+                silverButton.className = 'btn-primary full';
+                silverButton.style.cursor = 'pointer';
+            }
+
+            if (statusHint) {
+                statusHint.textContent = '200+ creators upgraded this week';
+                statusHint.style.color = '';
+                statusHint.style.fontWeight = '400';
             }
         }
     }

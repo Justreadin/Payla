@@ -19,6 +19,7 @@ from app.core.analytics import (
     increment_paylink_metric,
     log_paylink_event
 )
+from app.core.subscription import can_access_silver_features
 
 from fastapi import BackgroundTasks
 from app.routers.payout_router import queue_payout
@@ -265,24 +266,29 @@ async def get_paylink_by_username(username: str):
     data["_id"] = docs[0].id
     owner_id = data.get("user_id")
 
-    # 3. Check the OWNER'S subscription (The "Paid Feature" Gatekeeper)
-    # We fetch the owner's user record to see if they have Silver/Gold/Opal
+    # 3. Check the OWNER'S subscription/trial/grace status
     user_doc = db.collection("users").document(owner_id).get()
-    
     if not user_doc.exists:
         raise HTTPException(status_code=404, detail="Paylink owner not found")
 
     user_data = user_doc.to_dict()
-    current_plan = user_data.get("plan", "free").lower()
+    
+    # Initialize the User model with owner data to use the judge
+    owner_user = User(**user_data)
+    
+    # Manually attach subscription_end for the logic in core/subscription.py
+    if "subscription_end" in user_data:
+        setattr(owner_user, "subscription_end", user_data["subscription_end"])
 
-    # If the owner is not on a paid plan, block public access
-    if current_plan not in ["silver", "gold", "opal", "trial"]:
+    # ENFORCEMENT: Check Hierarchy (Presell > Paid > Grace > Trial)
+    if not can_access_silver_features(owner_user):
+        logger.warning(f"Access denied for Paylink @{username_clean}: Owner subscription expired.")
         raise HTTPException(
-            status_code=403, 
-            detail="This Paylink requires a Payla Silver subscription to be active."
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="This Paylink is currently unavailable. If you are the owner, please check your subscription status."
         )
 
-    # 4. Check if the link is manually deactivated
+    # 4. Check if the link is manually deactivated by the user
     if not data.get("active", True):
         raise HTTPException(status_code=404, detail="Paylink is currently inactive")
 

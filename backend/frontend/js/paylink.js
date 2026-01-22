@@ -113,7 +113,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // ================= Logo with preload =================
             if (owner.logo_url) {
-                const logoUrl = owner.logo_url.startsWith('http') ? owner.logo_url : `${BACKEND_URL}${owner.logo_url}`;
+                const logoUrl = owner.logo_url.startsWith('http') 
+                ? owner.logo_url 
+                : owner.logo_url.startsWith('/uploads') 
+                    ? `${BACKEND_URL}${owner.logo_url}` 
+                    : `${BACKEND_URL}/uploads${owner.logo_url}`;
                 const img = new Image();
                 img.onload = () => {
                     previewLogo.style.backgroundImage = `url(${logoUrl})`;
@@ -251,6 +255,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const data = await initRes.json();
+            console.log('Paystack key used:', data.public_key || PAYSTACK_PUBLIC_KEY);
+            
 
             // ================= CRITICAL SUBACCOUNT MAPPING =================
             PaystackPop.setup({

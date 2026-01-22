@@ -28,7 +28,6 @@ PLANS = {
         "description": "₦75,000 per year (Save ₦15,000!)"
     }
 }
-
 @router.get("/status")
 async def get_status(user: User = Depends(get_current_user)):
     # 1. Get fresh data from Firestore
@@ -37,75 +36,67 @@ async def get_status(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="User not found")
     
     data = doc.to_dict()
-    # Add document ID back to data for the User model
-    data["_id"] = user.id
+    from app.core.subscription import parse_firestore_datetime, has_active_subscription, is_trial_active
     
-    # 2. Create User object using your existing logic
+    # Create User object and attach dynamic fields
     current_user = User(**data)
-    
-    # 3. Manually map subscription_end if it exists in Firestore (as per your core fix)
     if "subscription_end" in data:
         setattr(current_user, "subscription_end", data["subscription_end"])
 
     now = datetime.now(timezone.utc)
 
-    # --- STATUS LOGIC ---
-
-    # A. Check Presell (1 Year Free)
-    presell_active = False
-    if current_user.plan == "presell" and current_user.presell_end_date:
-        # Parse firestore date safely
-        from app.core.subscription import parse_firestore_datetime
-        p_end = parse_firestore_datetime(current_user.presell_end_date)
+    # --- 1. Check Presell Status ---
+    if current_user.plan == "presell":
+        p_end = parse_firestore_datetime(getattr(current_user, "presell_end_date", None))
         if p_end and p_end > now:
-            presell_active = True
-            days_left = (p_end - now).days
             return {
                 "plan": "presell",
                 "is_active": True,
-                "message": f"Presell Access Active ({days_left} days left)",
+                "trial_used": True,
+                "message": f"Presell Active ({(p_end - now).days} days left)",
                 "next_billing": p_end,
                 "can_use_premium": True,
                 "billing": "yearly"
             }
 
-    # B. Check Paid Subscription (Silver/Gold/Opal)
-    from app.core.subscription import has_active_subscription
-    if has_active_subscription(current_user):
+    # --- 2. Check Paid Subscription (Silver/Gold/Opal) ---
+    # This uses your core.subscription logic (including 7-day grace period)
+    is_paid_active = has_active_subscription(current_user)
+    
+    if is_paid_active:
         return {
-            "plan": current_user.plan,
-            "billing": data.get("billing_cycle", "monthly"),
+            "plan": data.get("plan", "silver"), 
             "is_active": True,
-            "message": f"Payla {current_user.plan.capitalize()} Active",
+            "trial_used": True,
+            "message": f"Payla {data.get('plan', 'Silver').capitalize()} Active",
             "next_billing": data.get("subscription_end"),
-            "can_use_premium": True
+            "can_use_premium": True,
+            "billing": data.get("billing_cycle", "monthly")
         }
 
-    # C. Check Trial Logic (for users not paying and not on presell)
-    from app.core.subscription import is_trial_active, parse_firestore_datetime
-    trial_active = is_trial_active(current_user)
+    # --- 3. Check Trial Logic ---
+    trial_end_dt = parse_firestore_datetime(getattr(current_user, "trial_end_date", None))
     
-    trial_end_dt = parse_firestore_datetime(current_user.trial_end_date)
-    
-    # If trial date is missing but they aren't on a paid plan, repair it
+    # Repair missing trial dates if necessary
     if not trial_end_dt:
         created_at = parse_firestore_datetime(data.get("created_at")) or now
         trial_end_dt = created_at + timedelta(days=14)
         db.collection("users").document(user.id).update({"trial_end_date": trial_end_dt})
-        trial_active = trial_end_dt > now
 
-    days_left = (trial_end_dt - now).days if trial_end_dt > now else 0
+    trial_active = trial_end_dt > now
+    trial_used = trial_end_dt < now # If it's in the past, they've used it
 
+    # If they aren't paying and trial is over, they are officially 'free'
     return {
-        "plan": current_user.plan if not trial_active else "free-trial",
+        "plan": "free-trial" if trial_active else "free",
         "is_active": trial_active,
-        "trial_days_left": max(0, days_left),
-        "message": "Free trial active" if trial_active else "Trial expired — Upgrade to continue",
+        "trial_used": trial_used,
+        "trial_days_left": max(0, (trial_end_dt - now).days),
+        "message": "Free trial active" if trial_active else "Subscription expired",
         "can_use_premium": trial_active,
         "billing": None
     }
-
-
+    
 @router.get("/plans")
 async def get_plans():
     return {"plans": PLANS}
