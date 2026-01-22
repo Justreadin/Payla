@@ -6,8 +6,8 @@
     <title>Payla Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <link href="css/dashboard.css" rel="stylesheet">
-    <link href="css/analytics.css" rel="stylesheet">
+    <link href="css/dashboard.css?v=2" rel="stylesheet">
+    <link href="css/analytics.css?v=2" rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
     <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png">
@@ -279,10 +279,14 @@
         <i class="fas fa-check-circle"></i>
         <span id="toast-message">Copied!</span>
     </div>
-    <script type="module" src="/js/presell.js"></script>
-    <script type="module" src="/js/dashboard.js"></script>
-    <script type="module" src="/js/dashboard-enhancements.js"></script>
-  <script>
+    
+    <!-- FIXED: Added cache-busting version numbers to force fresh load -->
+    <script type="module" src="/js/config.js?v=3"></script>
+    <script type="module" src="/js/presell.js?v=3"></script>
+    <script type="module" src="/js/dashboard.js?v=3"></script>
+    <script type="module" src="/js/dashboard-enhancements.js?v=3"></script>
+    
+    <script>
     document.addEventListener("DOMContentLoaded", () => {
         const logoutLink = document.getElementById("logout-link");
 
