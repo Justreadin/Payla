@@ -1,6 +1,7 @@
 // Payla Dashboard - Core Luxury Fintech Experience
 // Core dashboard functionality: invoices, stats, auth, and basic data management
 import { API_BASE } from './config.js';
+import { authFetch, showUpgradeToast, showUpgradeModal } from './upgrade-handler.js';
 class PaylaDashboard {
     constructor() {
         if (window.paylaInstance) {
@@ -277,7 +278,7 @@ class PaylaDashboard {
 
     async loadDashboardData() {
         try {
-            const response = await fetch(`${this.API_BASE}/dashboard/`, {
+            const response = await authFetch(`${this.API_BASE}/dashboard/`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -302,10 +303,22 @@ class PaylaDashboard {
             console.log('📋 Invoices:', this.dashboardData.invoices.length);
 
             // Map invoices with proper ID handling
-            this.allInvoices = this.dashboardData.invoices.map(inv => ({
-                ...inv,
-                id: inv._id || inv.id // Use _id from backend, fallback to id
-            }));
+            this.allInvoices = this.dashboardData.invoices.map(inv => {
+                let cleanId = inv._id || inv.id;
+                let rawLink = inv.link || inv.invoice_url || `/i/${cleanId}`;
+                
+                // FIX: If the link is doubled (e.g., https://payla.nghttps://payla.ng...)
+                // we split it and take the last valid occurrence.
+                if (rawLink.includes('https://payla.nghttps://payla.ng')) {
+                    rawLink = rawLink.replace('https://payla.nghttps://payla.ng', 'https://payla.ng');
+                }
+
+                return {
+                    ...inv,
+                    id: cleanId,
+                    link: rawLink
+                };
+            });
 
             // Debug: Log invoice statuses
             const statusBreakdown = this.allInvoices.reduce((acc, inv) => {
@@ -320,6 +333,10 @@ class PaylaDashboard {
             console.log('⏰ Overdue Invoices:', overdueInvoices.length, overdueInvoices);
 
         } catch (error) {
+            if (error.message === 'Upgrade Required') {
+                // Already handled by authFetch - user saw modal
+                return;
+            }
             console.error('Error loading dashboard data:', error);
             throw error;
         }
@@ -925,6 +942,12 @@ class PaylaDashboard {
             this.updateFilterCounts();
 
         } catch (error) {
+            if (error.message === 'Upgrade Required') {
+                // Modal already shown, just clean up UI
+                this.hideLoadingState();
+                this.closeQuickInvoice();
+                return;
+            }
             console.error('Error creating quick invoice:', error);
             this.hideLoadingState();
             this.showToast('Failed to send invoice. Please try again.', true);
@@ -939,15 +962,21 @@ class PaylaDashboard {
     showInvoiceLinkModal(invoiceUrl, invoiceId) {
         let modal = document.getElementById('invoice-link-modal');
 
-        // 1. SANITIZER: Fix double domain issue from backend
-        // This looks for "payla.nghttps" and removes the "payla.ng" prefix
-        let sanitizedUrl = invoiceUrl;
-        if (sanitizedUrl.includes('payla.nghttp')) {
-            sanitizedUrl = sanitizedUrl.replace('payla.nghttp', 'http');
+        // 1. IMPROVED SANITIZER: Handles both double protocol and double domain
+        let fullUrl = invoiceUrl;
+        
+        // Fix "https://https://"
+        if (fullUrl.includes('https://https://')) {
+            fullUrl = fullUrl.replace('https://https://', 'https://');
+        }
+        
+        // Fix "https://payla.nghttps://payla.ng"
+        if (fullUrl.includes('payla.nghttps://')) {
+            fullUrl = fullUrl.replace('https://payla.nghttps://', 'https://');
         }
 
-        // 2. Formatting for display
-        const fullUrl = sanitizedUrl;
+        // 2. Formatting for display (payla.ng/i/...)
+        // This removes the protocol entirely for the UI view
         const displayUrl = fullUrl.replace(/^https?:\/\//, '');
 
         if (!modal) {
@@ -965,7 +994,7 @@ class PaylaDashboard {
                     <div class="link-container" style="margin: 20px 0;">
                         <div class="link-display" title="Click to preview invoice">
                             <i class="fas fa-link"></i>
-                            <span class="link" id="invoice-link-url" style="cursor: pointer; text-decoration: underline;"></span>
+                            <span class="link" id="invoice-link-url" style="cursor: pointer;"></span>
                         </div>
                         <button class="copy-link-btn" id="copy-invoice-link-btn">
                             <i class="fas fa-copy"></i>
@@ -992,18 +1021,18 @@ class PaylaDashboard {
 
             // Copy full URL (with https)
             modal.querySelector('#copy-invoice-link-btn').addEventListener('click', () => {
-                const fullLink = modal.querySelector('#invoice-link-url').dataset.fullUrl;
-                navigator.clipboard.writeText(fullLink).then(() => {
+                // Always copy the FULL URL (with https) so the link is clickable for the client
+                const linkToCopy = modal.querySelector('#invoice-link-url').dataset.fullUrl;
+                navigator.clipboard.writeText(linkToCopy).then(() => {
                     this.showToast('Invoice link copied!');
                 });
             });
 
             // Share WhatsApp (with https)
             modal.querySelector('#share-whatsapp-btn').addEventListener('click', () => {
-                const fullLink = modal.querySelector('#invoice-link-url').dataset.fullUrl;
-                const message = `Hello! Here's your invoice: ${fullLink}`;
-                const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-                window.open(whatsappUrl, '_blank');
+                const linkToShare = modal.querySelector('#invoice-link-url').dataset.fullUrl;
+                const message = `Hello! Here's your invoice: ${linkToShare}`;
+                window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
             });
 
             // Close on overlay click
@@ -1023,20 +1052,11 @@ class PaylaDashboard {
             });
         }
 
-        // --- Update Content for current invoice ---
         const linkEl = modal.querySelector('#invoice-link-url');
-
         if (linkEl) {
-            linkEl.textContent = '';
-            // Clear previous content and set clean display text
-            linkEl.textContent = displayUrl; 
+            linkEl.textContent = displayUrl; // Shows: payla.ng/i/favour...
+            linkEl.dataset.fullUrl = fullUrl; // Stores: https://payla.ng/i/favour...
             
-            // Store the full URL in a data attribute for the copy/share buttons
-            linkEl.dataset.fullUrl = fullUrl;
-
-            linkEl.style.textDecoration = 'none';
-            
-            // Preview on click
             linkEl.onclick = () => {
                 window.open(fullUrl, '_blank', 'noopener');
             };
@@ -1078,7 +1098,16 @@ class PaylaDashboard {
         const invoice = this.allInvoices.find(inv => inv.id === invoiceId);
 
         if (invoice && invoice.invoice_url) {
-            navigator.clipboard.writeText(invoice.invoice_url).then(() => {
+            // --- THE FIX START ---
+            let cleanUrl = invoice.invoice_url;
+            
+            // Check if the URL contains the domain twice and fix it
+            if (cleanUrl.includes('payla.nghttps://payla.ng')) {
+                cleanUrl = cleanUrl.replace('https://payla.nghttps://payla.ng', 'https://payla.ng');
+            }
+            // --- THE FIX END ---
+
+            navigator.clipboard.writeText(cleanUrl).then(() => {
                 this.showToast('Invoice link copied ♡');
             });
         } else {
@@ -1093,8 +1122,7 @@ class PaylaDashboard {
             btn.classList.add('success');
             setTimeout(() => btn.classList.remove('success'), 1000);
         }
-
-    };
+    }
 
     remindClient(card) {
         const invoiceId = typeof card === 'string' ? card : card.getAttribute('data-id');
@@ -1124,14 +1152,21 @@ class PaylaDashboard {
     showToast(message, isError = false, duration = 3000) {
         this.toastMessage.textContent = message;
         this.toast.className = 'toast';
-        if (isError) this.toast.classList.add('error');
+        
+        // Handle type-specific styling
+        if (isError) {
+            this.toast.classList.add('error');
+        } else if (typeof isError === 'string') {
+            // Allow passing 'warning' or 'success' as second parameter
+            this.toast.classList.add(isError);
+        }
+        
         this.toast.classList.add('show');
 
         setTimeout(() => {
-            this.toast.classList.remove('show');
+            this.toast.classList.remove('show', 'error', 'warning', 'success');
         }, duration);
     }
-
 
     setupResponsiveBehavior() {
         window.addEventListener('resize', () => {

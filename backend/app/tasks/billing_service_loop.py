@@ -20,14 +20,29 @@ async def send_billing_email(user_id, user, template_key, new_status):
         if not user_email:
             return
 
+        # Prepare all possible variables the template might want
+        user_name_short = (user.get("full_name") or "Creator").split()[0]
         context = {
-            "user_name": (user.get("full_name") or "Creator").split()[0],
+            "user_name": user_name_short,
+            "name": user_name_short, # Add 'name' as a fallback
             "username": user.get("username") or "creator",
             "billing_url": "https://payla.ng/subscription",
+            "plan": user.get("plan") or "free"
         }
 
         html = generate_billing_content(template_key, context)
-        subject = BILLING_TEMPLATES[template_key]["subject"].format(name=context["user_name"])
+        
+        # FIX: Get the subject template safely
+        template_data = BILLING_TEMPLATES.get(template_key, {})
+        subject_template = template_data.get("subject", "Billing Update")
+
+        # FIX: Use kwargs (**context) to provide ALL variables to the format function
+        # This prevents KeyError if the template uses {user_name} instead of {name}
+        try:
+            subject = subject_template.format(**context)
+        except KeyError:
+            # Final fallback if keys are still missing
+            subject = subject_template.replace("{name}", user_name_short).replace("{user_name}", user_name_short)
 
         # CALL THE INDEPENDENT DISPATCHER
         success = await dispatch_billing_email(
@@ -45,8 +60,9 @@ async def send_billing_email(user_id, user, template_key, new_status):
             logger.info(f"✅ Subscription nudge ({new_status}) sent to {user_email}")
 
     except Exception as e:
-        logger.error(f"Failed to process billing nudge for {user_id}: {e}")
-
+        # This catch-all will now log the specific missing key if it still fails
+        logger.error(f"Failed to process billing nudge for {user_id}: {str(e)}")
+        
 async def check_billing_status():
     now = datetime.now(timezone.utc)
     three_days_from_now = now + timedelta(days=3)

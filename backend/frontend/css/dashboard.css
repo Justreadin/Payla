@@ -2416,7 +2416,7 @@ body {
   border-radius: 12px;
   font-weight: 600;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-  z-index: 1001;
+  z-index: 5001;
   opacity: 0;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   border-left: 4px solid var(--rose-gold);
@@ -2424,6 +2424,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  outline: none;
 }
 
 .toast i {

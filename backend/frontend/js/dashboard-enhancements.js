@@ -3,6 +3,7 @@
 
 import { dashboard } from './dashboard.js';
 import { API_BASE } from './config.js';
+import { authFetch, showUpgradeToast, showUpgradeModal } from './upgrade-handler.js';
 
 // SINGLE initialization - removed duplicate listeners
 class DashboardEnhancements {
@@ -174,7 +175,7 @@ class DashboardEnhancements {
             }
 
             // Load analytics
-            const analyticsResponse = await fetch(`${this.API_BASE}/dashboard/analytics/`, {
+            const analyticsResponse = await authFetch(`${this.API_BASE}/dashboard/analytics/`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

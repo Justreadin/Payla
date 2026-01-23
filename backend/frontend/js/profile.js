@@ -1,4 +1,5 @@
 import { BACKEND_BASE } from './config.js';
+import { authFetch, showUpgradeToast, showUpgradeModal } from './upgrade-handler.js';
 // ── Backend URL ──
 const BACKEND_URL = BACKEND_BASE;
 
@@ -38,10 +39,21 @@ let lastUsernameChange = null;
 
 // ── Helpers ──
 function showToast(message, type = 'info') {
-    toastMessage.textContent = message;
+    let text = message;
+
+    if (typeof message === 'object' && message !== null) {
+        text =
+            message.message ||
+            message.detail?.message ||
+            JSON.stringify(message);
+    }
+
+    toastMessage.textContent = String(text);
     toast.classList.add('show', type);
+
     setTimeout(() => toast.classList.remove('show', type), 4000);
-    console.log('[TOAST]', message);
+
+    console.log('[TOAST]', text);
 }
 
 function formatPhoneNumber(phone) {
@@ -53,31 +65,25 @@ function formatPhoneNumber(phone) {
     return phone;
 }
 
-/**
- * Interprets backend responses that signal an upgrade/forbidden requirement.
- * Backend sends 403 + detail object for require_silver; older code expected 402 — updated.
- * If detected, we show the upgrade modal and a toast.
- * Returns true if the caller should stop further processing.
- */
 function checkUpgradeRequired(response, data) {
-    // If backend returns 403 with structured detail -> upgrade required
-    if (response.status === 403 && data && typeof data.detail === 'object') {
-        const detail = data.detail;
-        const message = detail.message || 'This feature requires a paid plan';
-        showToast(message, 'warning');
-        console.warn('[UPGRADE_REQUIRED]', detail);
+    if (
+        response.status === 403 &&
+        data?.detail?.code?.startsWith('require_')
+    ) {
+        const { message, required_plan } = data.detail;
+
+        showToast(message || 'This feature requires a paid plan', 'warning');
+
+        // 🔥 THIS is the missing part
+        showUpgradeModal(required_plan || 'silver');
+
+        console.warn('[UPGRADE_REQUIRED]', data.detail);
         return true;
     }
 
-    // Some endpoints might respond 401
     if (response.status === 401) {
         showToast('Unauthorized — please log in again', 'error');
-        return true;
-    }
-
-    // Some endpoints return 400 with a detail message
-    if (response.status >= 400 && response.status < 500 && data && data.detail && typeof data.detail === 'string') {
-        showToast(data.detail, 'error');
+        window.location.href = '/entry';
         return true;
     }
 
@@ -320,6 +326,8 @@ async function saveProfile() {
         });
 
         const data = await res.json();
+
+        if (checkUpgradeRequired(res, data)) return;
         
         // Final catch for profile update errors
         if (res.status >= 400) {

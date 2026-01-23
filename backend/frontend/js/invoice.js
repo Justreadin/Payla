@@ -1,6 +1,8 @@
 import { InvoiceAPI } from './invoiceapi.js';
 const api = InvoiceAPI;
 import { BACKEND_BASE } from './config.js';
+// At the top of invoice.js
+import { authFetch, showUpgradeToast, showUpgradeModal } from './upgrade-handler.js';
 
 // ==================== DOM ELEMENTS ====================
 const toggleButtons = document.querySelectorAll('.preview-toggle-btn');
@@ -45,25 +47,6 @@ let userProfile = {};
 let autosaveTimer;
 let autosavePromise = null;
 // ==================== HELPER ====================
-async function authFetch(url, options = {}) {
-  const token = localStorage.getItem('idToken');
-  if (!token) {
-    showToast('User not authenticated', 'error');
-    window.location.href = '/entry';
-    throw new Error('Unauthorized: No token');
-  }
-
-  const headers = { Authorization: `Bearer ${token}`, ...(options.headers || {}) };
-  const res = await fetch(url, { ...options, headers });
-
-  if (res.status === 401) {
-    showToast('Unauthorized — please log in again', 'error');
-    window.location.href = '/entry';
-    throw new Error('Unauthorized');
-  }
-
-  return res;
-}
 
 function setDisplayLink(el, fullUrl) {
   if (!el || !fullUrl) return;
@@ -451,6 +434,8 @@ function showToast(msg='Draft saved') {
   setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
+
+// ==================== UPDATED: AUTOSAVE WITH ERROR HANDLING ====================
 function scheduleAutosave() {
   clearTimeout(autosaveTimer);
 
@@ -459,16 +444,45 @@ function scheduleAutosave() {
       const data = collectInvoiceData();
       try {
         if (currentInvoiceId) {
-          await api.updateDraft(currentInvoiceId, data);
+          const res = await authFetch(`${api.BACKEND_URL}/api/invoices/${currentInvoiceId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+          
+          if (!res.ok) {
+            throw new Error('Update failed');
+          }
+          
         } else {
-          const draft = await api.saveDraft(data);
+          const res = await authFetch(`${api.BACKEND_URL}/api/invoices/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+          
+          if (!res.ok) {
+            throw new Error('Save failed');
+          }
+          
+          const draft = await res.json();
           currentInvoiceId = draft._id || draft.id;
           api.setCurrentInvoiceId(currentInvoiceId);
         }
-        showToast();
+        
+        showToast('Draft saved');
         resolve(currentInvoiceId);
+        
       } catch (err) {
+        // Check if it's an upgrade requirement
+        if (err.message === 'Upgrade Required') {
+          showToast('Upgrade to save invoices', 'warning');
+          resolve(null);
+          return;
+        }
+        
         console.error('Autosave failed:', err);
+        showToast('Failed to save draft', 'error');
         resolve(null);
       }
     }, 1500);
