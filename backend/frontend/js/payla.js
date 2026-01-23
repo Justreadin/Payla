@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         footer: document.querySelector('.footer')
     };
 
-    const REDIRECT_URL = "https://payla.ng/@favour";
+    const REDIRECT_URL = "https://payla.ng/@payla";
 
     // ===== STICKY CTA BEHAVIOR =====
     function setupStickyCTA() {
