@@ -363,9 +363,23 @@ body {
   flex-shrink: 0;
 }
 
+.toggle-password {
+  position: absolute;
+  right: 15px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.5); /* Matching your glass theme */
+  transition: color 0.3s ease;
+  z-index: 10;
+}
+
+.toggle-password:hover {
+  color: #fff;
+}
+
 .form-input {
   flex: 1;
   padding: 16px;
+  padding-right: 45px;
   background: transparent;
   border: none;
   color: var(--text-primary);

@@ -3,16 +3,6 @@ import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/1
 import { auth } from './firebasesdk.js';
 import { BACKEND_BASE } from './config.js';
 
-// Global Production Mute
-if (window.location.hostname === 'payla.ng') {
-    const noOp = () => {};
-    console.log = noOp;
-    console.info = noOp;
-    console.debug = noOp;
-    console.warn = noOp; 
-    // We leave console.error active so you can still see if the site crashes
-}
-
 // Configuration
 const BACKEND_URL = BACKEND_BASE;
 
@@ -352,10 +342,36 @@ function initializeEnterKeySupport() {
     });
 }
 
+function setupPasswordToggles() {
+    const toggles = [
+        { iconId: 'toggleLoginPassword', inputId: 'loginPassword' },
+        { iconId: 'toggleSignupPassword', inputId: 'signupPassword' }
+    ];
+
+    toggles.forEach(item => {
+        const icon = document.getElementById(item.iconId);
+        const input = document.getElementById(item.inputId);
+
+        if (icon && input) {
+            icon.addEventListener('click', () => {
+                // Toggle the type attribute
+                const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+                input.setAttribute('type', type);
+                
+                // Toggle the eye / eye-slash icon
+                icon.classList.toggle('fa-eye');
+                icon.classList.toggle('fa-eye-slash');
+            });
+        }
+    });
+}
+
+
 // -----------------------------
 // INIT
 // -----------------------------
 function initializeApp() {
+    setupPasswordToggles();
     initializeEnterKeySupport();
 
     // Hide all error messages initially
