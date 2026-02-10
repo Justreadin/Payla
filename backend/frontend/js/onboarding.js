@@ -529,10 +529,26 @@ async function completeOnboarding() {
 // ---------------------------
 // Success modal
 // ---------------------------
+// ---------------------------
+// Success modal
+// ---------------------------
 function showSuccessModal() {
+    // 1. Show the success UI
     successModal.classList.add('open');
+    
+    // 2. Copy link to clipboard (your existing logic)
     const paylink = `${ONBOARDING_STATE.baseUrl}/@${ONBOARDING_STATE.formData.username}`;
     navigator.clipboard.writeText(paylink);
+
+    // 3. FIRE X ADS PIXEL (The Fix)
+    // We check if 'twq' exists first so the app doesn't crash if an ad-blocker is on
+    if (typeof twq === 'function') {
+        twq('event', 'tw-r4oqa-r4p9b', {
+            email_address: null, // Optional: You can pass hashed email if you want later
+            status: 'completed'
+        });
+        console.log("X Pixel Fired: Lead"); 
+    }
 }
 
 // ---------------------------
