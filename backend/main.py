@@ -428,7 +428,7 @@ async def serve_index():
 @app.head("/", include_in_schema=False)
 async def head_index():
     return Response(status_code=200)
-    
+
 @app.get("/{page_name}", include_in_schema=False)
 async def serve_html_page(page_name: str):
     # Remove .html extension if present
@@ -558,16 +558,3 @@ if settings.DEBUG:
     thread.start()
     logger.info("👀 Frontend file watcher started")
 
-# ------------------------------------------------------------
-# 14. RUN LOCALLY
-# ------------------------------------------------------------
-if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.DEBUG,
-        log_level="debug",
-        access_log=True,
-        proxy_headers=True,      # 👈 Add this: Trusts the headers from Nginx/Load Balancer
-        forwarded_allow_ips="*"  # 👈 Add this: Allows the headers from any IP (safe if Ng
