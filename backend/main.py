@@ -421,9 +421,14 @@ async def serve_index():
         }
     )
 
+
 # ------------------------------------------------------------
 # 9. CATCH-ALL FOR OTHER HTML PAGES (MUST BE LAST!)
 # ------------------------------------------------------------
+@app.head("/", include_in_schema=False)
+async def head_index():
+    return Response(status_code=200)
+    
 @app.get("/{page_name}", include_in_schema=False)
 async def serve_html_page(page_name: str):
     # Remove .html extension if present
@@ -474,6 +479,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             "request_id": request.headers.get("X-Request-ID"),
         },
     )
+
 
 # ------------------------------------------------------------
 # 11. STARTUP EVENTS
@@ -564,5 +570,4 @@ if __name__ == "__main__":
         log_level="debug",
         access_log=True,
         proxy_headers=True,      # 👈 Add this: Trusts the headers from Nginx/Load Balancer
-        forwarded_allow_ips="*"  # 👈 Add this: Allows the headers from any IP (safe if Nginx is local)
-    )
+        forwarded_allow_ips="*"  # 👈 Add this: Allows the headers from any IP (safe if Ng

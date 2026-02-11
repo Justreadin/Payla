@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- SEO Meta Tags -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PAYLA: Premium Payment Identity for Creators | Get Paid Faster & Beautifully</title>
@@ -10,7 +9,6 @@
     <meta name="author" content="Payla Signature Ltd">
     <meta name="robots" content="index, follow, max-image-preview:large">
     
-    <!-- Open Graph / Social Media -->
     <meta property="og:title" content="PAYLA: Premium Payment Identity for Creators">
     <meta property="og:description" content="Your elegant payment identity. Get paid faster with branded paylinks and beautiful invoices.">
     <meta property="og:type" content="website">
@@ -25,7 +23,6 @@
     <meta name="twitter:description" content="Get paid faster with elegant branded paylinks and beautiful invoices.">
     <meta name="twitter:image" content="https://payla.ng/og-image.jpg">
     
-    <!-- Structured Data / JSON-LD -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
@@ -34,27 +31,13 @@
         "description": "Premium payment identity platform for creators with elegant branded paylinks and beautiful invoicing",
         "applicationCategory": "FinanceApplication",
         "operatingSystem": "Web",
-        "provider": {
-            "@type": "Organization",
-            "name": "Payla"
-            },
-        "offers": {
-            "@type": "Offer",
-            "price": "5000",
-            "priceCurrency": "NGN"
-        },
-        "aggregateRating": {
-            "@type": "AggregateRating",
-            "ratingValue": "4.9",
-            "reviewCount": "127"
-        }
+        "provider": { "@type": "Organization", "name": "Payla" },
+        "offers": { "@type": "Offer", "price": "5000", "priceCurrency": "NGN" },
+        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "127" }
     }
     </script>
     
-    <!-- Canonical URL -->
     <link rel="canonical" href="https://payla.ng">
-    
-    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
     <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png">
@@ -62,16 +45,14 @@
     <link rel="manifest" href="/site.webmanifest">
     <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     
-    <!-- Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
     
-    <!-- Styles -->
     <link rel="stylesheet" href="css/payla.css" />
+    
     <script>
     !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
     },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
@@ -80,12 +61,6 @@
     </script>
 </head>
 <body>
-    <!-- Black Void Entry -->
-    <div class="void-entry">
-        <div class="void-logo">P</div>
-    </div>
-
-    <!-- Header -->
     <header class="header" id="header">
         <a class="logo" href="#hero" aria-label="Payla Home">
             <div>PAYLA</div>
@@ -109,7 +84,6 @@
                 </div>
             </div>
 
-            <!-- iPhone Mockup -->
             <div class="iphone-wrap">
                 <div class="iphone" id="iphone">
                     <div class="notch"><div class="dynamic-island"></div></div>
@@ -139,7 +113,6 @@
             </div>
         </section>
 
-        <!-- Why Payla -->
         <section class="why-payla" aria-labelledby="why-payla-title">
             <div class="why-header">
                 <h2 id="why-payla-title">We built Payla because we were tired of:</h2>
@@ -181,7 +154,6 @@
         <section class="offer" aria-labelledby="offer-title">
             <div class="offer-badge">Founding Creator Offer</div>
             <h2 id="offer-title">Free for 1 Full Year</h2>
-            <!---<div class="price-break">Just <strong>₦0/month</strong>, 100% cheaper than competitors</div>--->
             <div class="features">
                 <div class="feature">✔️ Unique @yourname (never expires)</div>
                 <div class="feature">✔️ Unlimited invoices & receipts</div>
@@ -202,13 +174,11 @@
         </section>
     </main>
 
-    <!-- Sticky CTA -->
     <div class="sticky-cta">
         <button class="btn free" id="sticky-free">[CREATE] MY PAYLA LINK</button>
         <button class="btn paid" id="sticky-paid">SEE HOW IT WORKS</button>
     </div>
 
-    <!-- Premium Footer -->
     <footer class="footer" role="contentinfo">
         <div class="footer-gradient"></div>
         <div class="footer-container">
@@ -263,8 +233,9 @@
             </div>
         </div>
     </footer>
-    <script src="https://js.paystack.co/v2/inline.js"></script>
-    <script type="module" src="/js/payla.js"></script>
-    <script type="module" src="/js/web_analytics.js"></script>
+    
+    <script src="https://js.paystack.co/v2/inline.js" defer></script>
+    <script type="module" src="/js/payla.js" defer></script>
+    <script type="module" src="/js/web_analytics.js" defer></script>
 </body>
 </html>

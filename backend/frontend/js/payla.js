@@ -1,4 +1,4 @@
-// payla.js - UI & Interaction Edition
+// payla.js - FAST EDITION
 import { 
   trackLandingView, 
   trackContinueClick, 
@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const elements = {
         header: document.getElementById('header'),
         joinBtns: document.querySelectorAll('#join-waitlist, #sticky-free'),
-        // Both buttons that should redirect to Favour's link
         seeHowItWorksBtns: document.querySelectorAll('#lock-year, #sticky-paid'),
         stickyCta: document.querySelector('.sticky-cta'),
         footer: document.querySelector('.footer')
@@ -22,64 +21,56 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupStickyCTA() {
         if (!elements.stickyCta || !elements.footer) return;
         let ticking = false;
-        let isHidden = false;
 
         function updateStickyCTA() {
             if (ticking) return;
             ticking = true;
             requestAnimationFrame(() => {
                 const footerRect = elements.footer.getBoundingClientRect();
-                // Hide CTA when footer is visible
                 const shouldHide = footerRect.top <= window.innerHeight - elements.stickyCta.offsetHeight - 20;
 
-                if (shouldHide !== isHidden) {
-                    isHidden = shouldHide;
-                    elements.stickyCta.style.opacity = shouldHide ? '0' : '1';
-                    elements.stickyCta.style.transform = shouldHide ? 'translateX(-50%) translateY(100px)' : 'translateX(-50%) translateY(0)';
-                    elements.stickyCta.style.pointerEvents = shouldHide ? 'none' : 'auto';
-                }
+                // Simple visibility toggle (Less math = Faster)
+                elements.stickyCta.style.opacity = shouldHide ? '0' : '1';
+                elements.stickyCta.style.pointerEvents = shouldHide ? 'none' : 'auto';
+                // Reset transform slightly to avoid GPU glitches
+                elements.stickyCta.style.transform = shouldHide ? 'translateX(-50%) translateY(20px)' : 'translateX(-50%) translateY(0)';
+                
                 ticking = false;
             });
         }
 
-        updateStickyCTA();
         window.addEventListener('scroll', updateStickyCTA, { passive: true });
-        window.addEventListener('resize', updateStickyCTA, { passive: true });
+        updateStickyCTA(); // Run once on load
     }
 
     // ===== INITIALIZATION =====
     function init() {
-        // Track initial landing
+        // 1. Track Landing immediately
         trackLandingView();
 
-        // Header scroll effect
+        // 2. Setup Header Scroll (Lightweight)
         window.addEventListener('scroll', () => { 
-            elements.header?.classList.toggle('scrolled', window.scrollY > 40); 
+            if(elements.header) {
+                elements.header.classList.toggle('scrolled', window.scrollY > 40); 
+            }
         }, { passive: true });
 
-        // [CREATE] MY PAYLA LINK Buttons
+        // 3. Setup Buttons
         elements.joinBtns.forEach(btn => btn.addEventListener('click', () => {
             trackContinueClick("hero_or_sticky");
             window.location.href = "/entry";
         }));
 
-        // SEE HOW IT WORKS Buttons (Redirect to @favour)
         elements.seeHowItWorksBtns.forEach(btn => btn.addEventListener('click', () => {
-            trackLockYearClick("hero_or_sticky"); // Keep analytics if desired
+            trackLockYearClick("hero_or_sticky");
             window.location.href = REDIRECT_URL;
         }));
 
+        // 4. Setup Sticky CTA
         setupStickyCTA();
 
-        // Remove loading overlay
-        setTimeout(() => {
-            const voidEntry = document.querySelector('.void-entry');
-            if (voidEntry) {
-                voidEntry.style.opacity = '0';
-                voidEntry.style.pointerEvents = 'none';
-                setTimeout(() => voidEntry.remove(), 1000);
-            }
-        }, 2400);
+        // 🚨 REMOVED: The setTimeout(2400) "Void" block. 
+        // The site will now be interactive instantly.
     }
 
     init();
