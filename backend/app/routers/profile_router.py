@@ -1,22 +1,30 @@
 # routers/profile_router.py → FINAL FIXED & BULLETPROOF (2025)
 from datetime import datetime, timedelta, timezone
 from app.core.subscription import require_silver
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request, status
-from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from pydantic import BaseModel
 from app.core.auth import get_current_user
 from app.core.firebase import db
 from app.models.user_model import User
 from typing import Optional
-import os
-import shutil
 import uuid
+import cloudinary
+import cloudinary.uploader
+from app.core.config import settings
+import logging
+
+# Initialize logger
+logger = logging.getLogger("payla")
 
 router = APIRouter(prefix="/profile", tags=["Profile"])
 
-# Directory to store uploaded logos
-UPLOAD_DIR = "uploads/logos"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# ─── CLOUDINARY CONFIGURATION ───
+cloudinary.config(
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
+    secure=True
+)
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -105,7 +113,7 @@ async def update_profile(
 
 
 # =============================
-# UPLOAD LOGO — FIXED
+# UPLOAD LOGO — CLOUDINARY FIXED
 # =============================
 @router.post("/upload-logo")
 async def upload_logo(
@@ -115,24 +123,59 @@ async def upload_logo(
     if current_user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/svg+xml"]:
-        raise HTTPException(status_code=400, detail="Invalid file type. Only images allowed.")
+    # Debug Config (Check if Env Vars are actually loaded)
+    logger.debug(f"DEBUG: CloudName: {settings.CLOUDINARY_CLOUD_NAME}")
+    logger.debug(f"DEBUG: APIKey Loaded: {bool(settings.CLOUDINARY_API_KEY)}")
+
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/svg+xml"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type.")
 
     try:
-        file_ext = file.filename.split(".")[-1].lower()
-        if file_ext not in ["jpg", "jpeg", "png", "webp", "svg"]:
-            raise HTTPException(status_code=400, detail="Invalid file extension")
+        # CRITICAL: Rewind the file pointer to the start
+        file.file.seek(0)
+        
+        logger.info(f"📤 Attempting Cloudinary upload for user: {current_user.id}")
 
-        filename = f"{current_user.id}_{uuid.uuid4().hex[:12]}.{file_ext}"
-        file_path = os.path.join(UPLOAD_DIR, filename)
+        upload_result = cloudinary.uploader.upload(
+            file.file,
+            folder="payla/logos",
+            public_id=f"user_{current_user.id}_logo",
+            overwrite=True,
+            resource_type="auto"
+        )
 
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        logo_url = upload_result.get("secure_url")
 
-        logo_url = f"/uploads/logos/{filename}"
-        db.collection("users").document(current_user.id).update({"logo_url": logo_url})
+        if not logo_url:
+            # This logs the full response from Cloudinary if URL is missing
+            logger.error(f"❌ Cloudinary Response missing URL. Full Result: {upload_result}")
+            raise Exception("Cloudinary did not return a secure URL.")
 
-        return {"message": "Logo uploaded successfully", "logo_url": logo_url}
+        db.collection("users").document(current_user.id).update({
+            "logo_url": logo_url,
+            "updated_at": datetime.now(timezone.utc)
+        })
+
+        logger.info(f"✅ Successful Upload: {logo_url}")
+
+        return {
+            "message": "Logo uploaded successfully", 
+            "logo_url": logo_url
+        }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        # Capture the full traceback for the logs
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"❌ CLOUDINARY CRASH: {str(e)}\n{error_details}")
+        
+        # Check for specific "General Error" triggers
+        if "Errno -2" in str(e) or "gaierror" in str(e):
+             detail_msg = "DNS/Connection Error: Check if your server has internet access."
+        elif "Must supply" in str(e):
+             detail_msg = "Config Error: Cloudinary credentials are missing from your environment variables."
+        else:
+             detail_msg = f"Cloud upload failed: {str(e)}"
+             
+        raise HTTPException(status_code=500, detail=detail_msg)

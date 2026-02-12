@@ -110,14 +110,20 @@ document.addEventListener('DOMContentLoaded', function () {
             if (silverBadge) {
                 silverBadge.parentElement.style.display = isPremium ? 'flex' : 'none';
             }
-
-            // ================= Logo with preload =================
+            
+            // ================= Logo with preload (Cloudinary Optimized) =================
             if (owner.logo_url) {
-                const logoUrl = owner.logo_url.startsWith('http') 
-                ? owner.logo_url 
-                : owner.logo_url.startsWith('/uploads') 
-                    ? `${BACKEND_URL}${owner.logo_url}` 
-                    : `${BACKEND_URL}/uploads${owner.logo_url}`;
+                let logoUrl = owner.logo_url;
+
+                // If it's a Cloudinary URL, inject auto-optimization parameters
+                if (logoUrl.includes('cloudinary.com')) {
+                    // This inserts /f_auto,q_auto/ right after /upload/ in the URL
+                    logoUrl = logoUrl.replace('/upload/', '/upload/f_auto,q_auto/');
+                } else if (!logoUrl.startsWith('http')) {
+                    // Fallback for old local uploads
+                    logoUrl = `${BACKEND_URL}${owner.logo_url}`;
+                }
+
                 const img = new Image();
                 img.onload = () => {
                     previewLogo.style.backgroundImage = `url(${logoUrl})`;

@@ -670,6 +670,24 @@ h1, h2, h3, .logo-main {
     z-index: -1;
 }
 
+/* Elite Loading State Styles */
+.fa-circle-notch {
+    font-size: 24px;
+    animation: elite-spin 1s linear infinite;
+    filter: drop-shadow(0 0 5px var(--rose-glow));
+}
+
+@keyframes elite-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+#logoPreview {
+    transition: filter 0.5s ease, background-image 0.5s ease;
+    background-size: cover;
+    background-position: center;
+}
+
 @keyframes logoPulse {
     0%, 100% { opacity: 0.3; transform: scale(1); }
     50% { opacity: 0.6; transform: scale(1.05); }

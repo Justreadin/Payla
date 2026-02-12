@@ -87,7 +87,7 @@ async function updateInvoiceUI(invoice) {
     document.getElementById('previewName').textContent = invoice.sender_business_name || 'Business';
     document.getElementById('previewHandle').textContent = `payla.ng/@${invoice.sender_username || 'username'}`;
 
-    // 2. Fetch the LIVE Owner Profile (Just like your Paylink does)
+    // 2. Fetch the LIVE Owner Profile
     let owner = {};
     try {
         const ownerRes = await fetch(`${API_URL}/api/users/${invoice.sender_id}`);
@@ -96,38 +96,45 @@ async function updateInvoiceUI(invoice) {
         console.warn('Could not load owner profile for logo sync');
     }
 
-    // 3. Logo Logic with Preloader (The "Fixed" Way)
+    // 3. Optimized Logo Logic
     const logoImg = document.getElementById('previewLogo');
     const logoInitials = document.getElementById('previewLogoInitials');
     
-    // Check invoice first, then live owner profile
-    const logoPath = invoice.sender_logo || owner.logo_url || owner.logo;
+    // Priority: Invoice record -> Live Owner Profile
+    let logoPath = invoice.sender_logo || owner.logo_url || owner.logo;
     const displayName = invoice.sender_business_name || owner.business_name || 'Business';
 
     if (logoPath) {
-        const fullUrl = logoPath.startsWith('http') ? logoPath : `${API_URL}${logoPath}`;
+        let fullUrl = logoPath.startsWith('http') ? logoPath : `${API_URL}${logoPath}`;
         
-        // Use the Image Preloader logic from your Paylink
+        // 🔥 CLOUDINARY OPTIMIZATION: Inject auto-format and auto-quality
+        if (fullUrl.includes('cloudinary.com')) {
+            fullUrl = fullUrl.replace('/upload/', '/upload/f_auto,q_auto/');
+        }
+
+        // Image Preloader logic
         const img = new Image();
         img.onload = () => {
             logoImg.style.backgroundImage = `url('${fullUrl}')`;
             logoImg.style.backgroundSize = 'cover';
             logoImg.style.backgroundPosition = 'center';
+            logoImg.style.filter = 'none'; // Ensure no leftover filters
             logoInitials.style.display = 'none';
         };
         img.onerror = () => {
-            // Fallback if image link is broken
             logoInitials.textContent = displayName.substring(0, 2).toUpperCase();
             logoInitials.style.display = 'flex';
         };
+        
+        // Show a slight blur/loading state while the cloud image fetches
+        logoImg.style.filter = 'blur(2px)';
         img.src = fullUrl;
     } else {
-        // Fallback if no logo exists
         logoInitials.textContent = displayName.substring(0, 2).toUpperCase();
         logoInitials.style.display = 'flex';
         logoImg.style.backgroundImage = 'none';
     }
-
+    
     // 3. Status logic
     const daysLeft = getDaysLeft(invoice.due_date);
     const dueStatus = document.getElementById('dueStatus');

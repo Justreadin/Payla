@@ -102,6 +102,13 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str
     BASE_URL: str
 
+    # ────────────────────────────────
+    # 10. CLOUDINARY
+    # ────────────────────────────────
+    CLOUDINARY_CLOUD_NAME: str = Field(..., env="CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY: str = Field(..., env="CLOUDINARY_API_KEY")
+    CLOUDINARY_API_SECRET: str = Field(..., env="CLOUDINARY_API_SECRET")
+
     class Config:
         case_sensitive = False
         env_file = ".env"

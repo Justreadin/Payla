@@ -356,7 +356,20 @@ logoUploadInput.addEventListener('change', async function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
+    // 1. Validation
     if (file.size > 2 * 1024 * 1024) return showToast('File too large! Max 2MB', 'error');
+
+    // 2. Immediate "Elite" Loading State
+    // We show a local preview immediately so the user isn't staring at a blank screen
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        logoPreview.style.backgroundImage = `url(${event.target.result})`;
+        logoPreview.style.filter = 'blur(4px) brightness(0.7)'; // "Processing" look
+        logoInitials.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+        logoInitials.style.display = 'flex';
+        logoInitials.style.color = 'var(--rose-gold)';
+    };
+    reader.readAsDataURL(file);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -373,28 +386,50 @@ logoUploadInput.addEventListener('change', async function(e) {
 
         const data = await res.json();
 
-        if (checkUpgradeRequired(res, data)) return;
+        if (checkUpgradeRequired(res, data)) {
+            resetLogoUI(); // Helper to clear loading if upgrade needed
+            return;
+        }
+
         if (res.status >= 400) {
             showToast(data.detail || data.message || 'Upload failed', 'error');
+            resetLogoUI();
             return;
         }
 
         if (data.logo_url) {
             const fullUrl = data.logo_url.startsWith('http') ? data.logo_url : `${BACKEND_URL}${data.logo_url}`;
-            logoPreview.style.backgroundImage = `url(${fullUrl})`;
-            logoInitials.style.display = 'none';
-
-            showToast('Logo uploaded successfully', 'success');
+            
+            // 3. Smooth Transition to Final Cloud Image
+            const img = new Image();
+            img.onload = () => {
+                logoPreview.style.backgroundImage = `url(${fullUrl})`;
+                logoPreview.style.filter = 'none'; // Clear the blur
+                logoInitials.style.display = 'none';
+                showToast('Logo updated on the cloud', 'success');
+            };
+            img.src = fullUrl;
         } else {
-    // ensure gradient shows
-            logoPreview.style.backgroundImage = ''; // allow CSS gradient
-            logoInitials.style.display = 'flex';
+            resetLogoUI();
         }
     } catch (err) {
         console.error(err);
         showToast('Failed to upload logo', 'error');
+        resetLogoUI();
     }
 });
+
+// Helper to reset UI state on failure/cancel
+function resetLogoUI() {
+    logoPreview.style.filter = 'none';
+    // Logic to restore initials or previous state if needed
+    if (!logoPreview.style.backgroundImage || logoPreview.style.backgroundImage === 'none') {
+        logoInitials.style.display = 'flex';
+        logoInitials.innerHTML = originalInitials || 'P'; // Use a stored value or default
+    } else {
+        logoInitials.style.display = 'none';
+    }
+}
 
 [fullNameInput, businessNameInput, whatsappNumberInput, taglineInput].forEach(input => {
     input.addEventListener('input', () => {
