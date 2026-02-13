@@ -764,6 +764,10 @@ body {
             text-transform: uppercase;
             white-space: nowrap;
         }
+        .sticky-cta h5 {
+            color: var(--rose-gold);
+            font-size: 12px;
+        }
 
         .sticky-cta .btn {
             flex: 1;
