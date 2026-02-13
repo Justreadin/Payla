@@ -9,8 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== ELEMENTS =====
     const elements = {
         header: document.getElementById('header'),
-        joinBtns: document.querySelectorAll('#sticky-free'),
-        seeHowItWorksBtns: document.querySelectorAll('#lock-year, #sticky-paid'),
+        joinBtns: document.querySelectorAll('#sticky-paid'),
+        seeHowItWorksBtns: document.querySelectorAll('#lock-year'),
         stickyCta: document.querySelector('.sticky-cta'),
         footer: document.querySelector('.footer')
     };
