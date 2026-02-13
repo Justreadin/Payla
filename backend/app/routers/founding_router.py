@@ -268,8 +268,6 @@ async def founding_signup(request: FoundingSignupRequest):
             }
         )
 
-from fastapi.responses import RedirectResponse
-
 @router.get("/verify-email")
 async def verify_founding_email(token: str):
     """
@@ -288,7 +286,7 @@ async def verify_founding_email(token: str):
             logger.warning(f"Invalid verification token: {token}")
             # Redirect to entry with error param (optional)
             return RedirectResponse(
-                url=f"{settings.FRONTEND_URL}/entry?verification=failed",
+                url=f"{settings.FRONTEND_URL}/entry",
                 status_code=302
             )
         
@@ -300,7 +298,7 @@ async def verify_founding_email(token: str):
         
         if not username:
             return RedirectResponse(
-                url=f"{settings.FRONTEND_URL}/entry?verification=failed",
+                url=f"{settings.FRONTEND_URL}/entry",
                 status_code=302
             )
         
