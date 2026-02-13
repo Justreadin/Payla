@@ -286,7 +286,7 @@ async def verify_founding_email(token: str):
             logger.warning(f"Invalid verification token: {token}")
             # Redirect to entry with error param (optional)
             return RedirectResponse(
-                url=f"{settings.FRONTEND_URL}/entry",
+                url=f"{settings.FRONTEND_URL}entry",
                 status_code=302
             )
         
@@ -298,14 +298,14 @@ async def verify_founding_email(token: str):
         
         if not username:
             return RedirectResponse(
-                url=f"{settings.FRONTEND_URL}/entry",
+                url=f"{settings.FRONTEND_URL}entry",
                 status_code=302
             )
         
         # Check if already verified
         if user_data.get("email_verified"):
             return RedirectResponse(
-                url=f"{settings.FRONTEND_URL}/entry",
+                url=f"{settings.FRONTEND_URL}entry",
                 status_code=302
             )
         
@@ -347,14 +347,14 @@ async def verify_founding_email(token: str):
         
         # Redirect to entry page - this is the key fix!
         return RedirectResponse(
-            url=f"{settings.FRONTEND_URL}/entry",
+            url=f"{settings.FRONTEND_URL}entry",
             status_code=302
         )
         
     except Exception as e:
         logger.error(f"🔥 Verification failed: {str(e)}")
         return RedirectResponse(
-            url=f"{settings.FRONTEND_URL}/entry",
+            url=f"{settings.FRONTEND_URL}entry",
             status_code=302
         )
 
