@@ -4,8 +4,31 @@
 // ====================================================
 import { BACKEND_BASE } from './config.js';
 import { PAYSTACK_PUBLIC_KEY } from './config.js';
+
+// Import analytics
+import {
+  trackPaylinkPageView,
+  trackTransferButtonClicked,
+  trackPaymentModalOpened,
+  trackPaymentModalClosed,
+  trackPaymentAttempt,
+  trackPaymentSuccess,
+  trackPaymentFailed,
+  trackReceiptDownloaded,
+  trackReceiptPrinted,
+  trackPaylinkLoadSuccess,
+  trackPaylinkLoadFailed,
+  trackEmailClicked,
+  trackWhatsAppClicked,
+  trackAmountEntered,
+  trackAmountFocus
+} from "./paylink_analytics.js";
+
 document.addEventListener('DOMContentLoaded', function () {
     const BACKEND_URL = BACKEND_BASE;
+    
+    // Track page load start time for performance metrics
+    const pageLoadStart = performance.now();
 
     // ================= DOM ELEMENTS =================
     const loadingState        = document.getElementById('loadingState');
@@ -24,6 +47,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const silverBadge         = document.getElementById('previewPlanName'); // Verified badge
     const loadingSignature    = document.getElementById('loadingSignature'); // @username
+
+    // Contact elements for tracking
+    const emailContainer = previewEmail?.closest('.contact-card');
+    const whatsappContainer = previewWhatsapp?.closest('.contact-card');
 
     // Modals
     const paystackModal  = document.getElementById('paystackModal');
@@ -47,11 +74,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const path = window.location.pathname;
     const username = path.split('/').pop().replace(/^@/, '').trim();
     if (!username) {
+        trackPaylinkLoadFailed('unknown', 'no_username_in_url');
         showErrorState();
         return;
     }
     document.title = `@${username} • Payla`;
     if (loadingSignature) loadingSignature.textContent = `@${username}`;
+
+    // Track page view
+    trackPaylinkPageView(username);
 
     // ================= PHONE FORMATTER =================
     function formatPhoneNumber(phone) {
@@ -74,21 +105,52 @@ document.addEventListener('DOMContentLoaded', function () {
         previewLogoInitials.style.display = 'block';
     }
 
-    // Page view analytics
+    // Page view analytics (server-side)
     fetch(`${BACKEND_URL}/api/paylinks/${username}/analytics/view`, { method: 'POST' });
 
     // Transfer button click
     transferBtn.addEventListener('click', () => {
+        trackTransferButtonClicked(username);
         fetch(`${BACKEND_URL}/api/paylinks/${username}/analytics/transfer`, { method: 'POST' });
         openPaystackModal();
     });
+
+    // Track contact interactions
+    if (emailContainer) {
+        emailContainer.addEventListener('click', () => {
+            trackEmailClicked(username);
+        });
+    }
+
+    if (whatsappContainer) {
+        whatsappContainer.addEventListener('click', () => {
+            trackWhatsAppClicked(username);
+        });
+    }
+
+    // Track amount input interactions
+    if (paymentAmount) {
+        paymentAmount.addEventListener('focus', () => {
+            trackAmountFocus(username);
+        });
+        
+        paymentAmount.addEventListener('blur', (e) => {
+            const amount = parseFloat(e.target.value);
+            if (!isNaN(amount) && amount > 0) {
+                trackAmountEntered(username, amount);
+            }
+        });
+    }
 
     // ================= LOAD PAYLINK + PROFILE =================
     async function initPaylinkPage() {
         try {
             // 1. Get Paylink
             const paylinkRes = await fetch(`${BACKEND_URL}/api/paylinks/${username}`);
-            if (!paylinkRes.ok) throw new Error('Paylink not found');
+            if (!paylinkRes.ok) {
+                trackPaylinkLoadFailed(username, 'paylink_not_found');
+                throw new Error('Paylink not found');
+            }
             const paylink = await paylinkRes.json();
 
             // 2. Get Owner Profile
@@ -151,9 +213,14 @@ document.addEventListener('DOMContentLoaded', function () {
             // ================= Show page =================
             loadingState.classList.add('hidden');
             paylinkContent.classList.remove('hidden');
+            
+            // Track successful load with performance
+            const loadTime = performance.now() - pageLoadStart;
+            trackPaylinkLoadSuccess(username, Math.round(loadTime));
 
         } catch (err) {
             console.error('Failed to load paylink:', err);
+            trackPaylinkLoadFailed(username, err.message || 'unknown_error');
             showErrorState();
         }
     }
@@ -168,11 +235,13 @@ document.addEventListener('DOMContentLoaded', function () {
         paystackModal.classList.remove('hidden');
         setTimeout(() => paystackModal.classList.add('open'), 10);
         paymentAmount.focus();
+        trackPaymentModalOpened(username);
     }
 
     function closePaystackModal() {
         paystackModal.classList.remove('open');
         setTimeout(() => paystackModal.classList.add('hidden'), 300);
+        trackPaymentModalClosed(username, 'close_button');
     }
 
     function closeSuccessModal() {
@@ -184,9 +253,20 @@ document.addEventListener('DOMContentLoaded', function () {
     modalClose?.addEventListener('click', closePaystackModal);
     successClose?.addEventListener('click', closeSuccessModal);
     closeSuccess?.addEventListener('click', closeSuccessModal);
-    printReceipt?.addEventListener('click', () => window.print());
+    
+    // Track print receipt
+    printReceipt?.addEventListener('click', () => {
+        trackReceiptPrinted(transactionId?.textContent || 'unknown', username);
+        window.print();
+    });
 
-    paystackModal?.addEventListener('click', e => e.target === paystackModal && closePaystackModal());
+    paystackModal?.addEventListener('click', e => {
+        if (e.target === paystackModal) {
+            trackPaymentModalClosed(username, 'overlay_click');
+            closePaystackModal();
+        }
+    });
+    
     successModal?.addEventListener('click', e => e.target === successModal && closeSuccessModal());
 
 // ================= PAYMENT – SUBACCOUNT COMPATIBLE =================
@@ -194,11 +274,24 @@ document.addEventListener('DOMContentLoaded', function () {
         const rawAmount = paymentAmount.value.trim();
         const email = payerEmail.value.trim();
 
-        if (!rawAmount || rawAmount < 1000) return showToast('Minimum amount is ₦1,000', 'error');
-        if (!email.includes('@')) return showToast('Enter a valid email', 'error');
+        if (!rawAmount || rawAmount < 1000) {
+            showToast('Minimum amount is ₦1,000', 'error');
+            return;
+        }
+        if (!email.includes('@')) {
+            showToast('Enter a valid email', 'error');
+            return;
+        }
 
         let amount = parseFloat(rawAmount);
-        if (isNaN(amount)) return showToast('Invalid amount', 'error');
+        if (isNaN(amount)) {
+            showToast('Invalid amount', 'error');
+            return;
+        }
+
+        // Track payment attempt
+        const emailDomain = email.split('@')[1];
+        trackPaymentAttempt(username, amount, emailDomain);
 
         // ================= ADD FEES SO CREATOR GETS FULL AMOUNT =================
         // Because 'bearer' = 'subaccount', Paystack deducts fees from the creator.
@@ -275,6 +368,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 metadata: data.metadata,
                 callback: (response) => {
                     closePaystackModal();
+                    
+                    // Track successful payment
+                    trackPaymentSuccess(
+                        username, 
+                        amount, 
+                        response.reference,
+                        data.transaction_id || response.reference
+                    );
+                    
                     showSuccessScreen({
                         amount: amount, 
                         recipient: previewName.textContent,
@@ -286,11 +388,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 onClose: () => {
                     processPayment.disabled = false;
                     processPayment.innerHTML = '<i class="fas fa-lock"></i> Pay with Paystack';
+                    
+                    // Track payment modal closed without completing
+                    trackPaymentModalClosed(username, 'payment_cancelled');
                 }
             }).openIframe();
 
         } catch (err) {
             console.error(err);
+            trackPaymentFailed(username, amount, err.message || 'unknown_error');
             showToast(err.message || 'Payment failed.', 'error');
             processPayment.disabled = false;
             processPayment.innerHTML = '<i class="fas fa-lock"></i> Pay with Paystack';
@@ -314,6 +420,7 @@ document.addEventListener('DOMContentLoaded', function () {
             receiptBtn.onclick = () => {
                 const url = `${BACKEND_URL}/api/receipt/paylink/${data.reference}.pdf`;
                 window.open(url, '_blank');
+                trackReceiptDownloaded(data.reference, username);
             };
             actionsDiv.insertBefore(receiptBtn, actionsDiv.firstChild);
         }

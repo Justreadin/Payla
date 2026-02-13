@@ -2,6 +2,25 @@
 // Configuration
 // ---------------------------
 import { BACKEND_BASE } from './config.js';
+
+// Import analytics
+import { 
+  trackOnboardingPageView,
+  trackStepViewed,
+  trackStepCompleted,
+  trackNextClicked,
+  trackBackClicked,
+  trackUsernameCheck,
+  trackBusinessNameEntered,
+  trackBankSelected,
+  trackAccountVerified,
+  trackPlanSelected,
+  trackOnboardingStarted,
+  trackOnboardingCompleted,
+  trackOnboardingFailed,
+  trackPreviewViewed
+} from "./onboarding_analytics.js";
+
 if (!localStorage.getItem('idToken')) {
     window.location.replace('/entry');
 }
@@ -10,6 +29,7 @@ const ONBOARDING_STATE = {
     currentStep: 1,
     totalSteps: 5,
     baseUrl: BACKEND_BASE,
+    userData: null,
     formData: {
         username: '',
         businessName: '',
@@ -27,6 +47,14 @@ const ONBOARDING_STATE = {
     }
 };
 
+// Step names for analytics
+const STEP_NAMES = {
+    1: 'username',
+    2: 'business',
+    3: 'payout',
+    4: 'plan',
+    5: 'preview'
+};
 
 async function guardOnboardingAccess() {
     const token = ensureAuthenticated();
@@ -126,6 +154,11 @@ async function initializeOnboarding() {
     await loadBanks();
     await loadUserData();
     updateUI();
+    
+    // Track onboarding start
+    trackOnboardingStarted();
+    trackOnboardingPageView();
+    trackStepViewed(1, STEP_NAMES[1]);
 }
 
 
@@ -177,6 +210,9 @@ async function loadBanks() {
 // ---------------------------
 // Load current user data from backend
 // ---------------------------
+// ---------------------------
+// Load current user data from backend
+// ---------------------------
 async function loadUserData() {
     const token = ensureAuthenticated();
     if (!token) return;
@@ -189,6 +225,9 @@ async function loadUserData() {
             return;
         }
         const user = await res.json();
+        
+        // Store user data in state for later use
+        ONBOARDING_STATE.userData = user;
 
         if (user.plan === 'presell') {
             ONBOARDING_STATE.formData.plan = 'presell';
@@ -283,13 +322,28 @@ function handleUsernameInput(e) {
     }
     updatePreview();
 }
+
 function handleBusinessNameInput(e) {
-    ONBOARDING_STATE.formData.businessName = e.target.value.trim();
+    const businessName = e.target.value.trim();
+    ONBOARDING_STATE.formData.businessName = businessName;
+    
+    // Track business name entry (only if not empty)
+    if (businessName.length > 0) {
+        trackBusinessNameEntered(businessName.length);
+    }
+    
     updatePreview();
     updateUI();
 }
+
 function handlePayoutBankChange(e) {
-    ONBOARDING_STATE.formData.payoutBank = e.target.value;
+    const bankCode = e.target.value;
+    ONBOARDING_STATE.formData.payoutBank = bankCode;
+
+    // Track bank selection
+    if (bankCode) {
+        trackBankSelected(bankCode);
+    }
 
     ONBOARDING_STATE.validation.payoutAccount.isVerified = false;
     ONBOARDING_STATE.validation.payoutAccount.accountName = null;
@@ -340,10 +394,16 @@ function selectPlan(plan) {
         card.classList.toggle('active', card.dataset.plan === plan);
     });
 
+    // Track plan selection
+    trackPlanSelected(plan);
+
     updateFinalPreview();
     updateUI();
 }
 
+// ---------------------------
+// Username availability
+// ---------------------------
 // ---------------------------
 // Username availability
 // ---------------------------
@@ -352,12 +412,42 @@ async function checkUsernameAvailability(username) {
     showUsernameStatus('loading', 'Checking availability...');
 
     try {
-        // This endpoint does NOT require auth
-        const res = await fetch(`${BACKEND_URL}/api/onboarding/validate-username?username=${username}`);
+        // Get the current user ID from the token or from the /me endpoint
+        // Since we already loaded user data, we can use the stored user ID
+        // Let's get it from the user data we loaded
+        const token = localStorage.getItem('idToken');
+        
+        // First, let's decode the token to get the user ID (Firebase UID)
+        // Or we can use the user data we already loaded
+        let userId = '';
+        
+        // Option 1: If you have the user data in memory
+        if (ONBOARDING_STATE.userData && ONBOARDING_STATE.userData.id) {
+            userId = ONBOARDING_STATE.userData.id;
+        } else {
+            // Option 2: Decode the JWT token (simpler)
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                userId = payload.user_id || payload.uid || payload.sub;
+            } catch (e) {
+                console.warn('Could not decode token', e);
+            }
+        }
+        
+        // Build URL with current_user_id parameter
+        let url = `${BACKEND_URL}/api/onboarding/validate-username?username=${username}`;
+        if (userId) {
+            url += `&current_user_id=${userId}`;
+        }
+        
+        const res = await fetch(url);
         const data = await res.json();
 
         ONBOARDING_STATE.validation.username.isValid = data.available;
         showUsernameStatus(data.available ? 'success' : 'error', data.message);
+        
+        // Track username check
+        trackUsernameCheck(username, data.available);
     } catch (err) {
         console.error('Username check failed:', err);
         ONBOARDING_STATE.validation.username.isValid = false;
@@ -391,6 +481,9 @@ async function verifyPayoutAccount(bankCode, accountNumber) {
 
             ONBOARDING_STATE.validation.payoutAccount.isVerified = true;
             ONBOARDING_STATE.validation.payoutAccount.accountName = data.account_name;
+            
+            // Track successful account verification
+            trackAccountVerified(true, bankCode);
         } else {
             payoutStatus.className = 'status error';
             payoutStatus.innerHTML =
@@ -398,6 +491,9 @@ async function verifyPayoutAccount(bankCode, accountNumber) {
 
             ONBOARDING_STATE.validation.payoutAccount.isVerified = false;
             ONBOARDING_STATE.validation.payoutAccount.accountName = null;
+            
+            // Track failed account verification
+            trackAccountVerified(false, bankCode);
         }
     } catch (err) {
         console.error('Payout verification failed:', err);
@@ -405,6 +501,9 @@ async function verifyPayoutAccount(bankCode, accountNumber) {
         payoutStatus.innerHTML = `<i class="fas fa-times-circle"></i> Verification failed`;
         ONBOARDING_STATE.validation.payoutAccount.isVerified = false;
         ONBOARDING_STATE.validation.payoutAccount.accountName = null;
+        
+        // Track verification error
+        trackAccountVerified(false, bankCode);
     }
 
     updateUI();
@@ -515,13 +614,21 @@ async function completeOnboarding() {
 
         if (!res.ok) {
             const err = await res.json();
+            trackOnboardingFailed(err.detail || 'Onboarding failed');
             alert(err.detail || 'Error completing onboarding');
             return;
         }
 
+        // Track successful onboarding completion
+        trackOnboardingCompleted(
+            ONBOARDING_STATE.formData.username, 
+            ONBOARDING_STATE.formData.plan
+        );
+
         showSuccessModal();
     } catch (err) {
         console.error('Onboarding failed:', err);
+        trackOnboardingFailed(err.message);
         alert('Failed to complete onboarding. Please try again.');
     }
 }
@@ -555,19 +662,47 @@ function showSuccessModal() {
 // Navigation
 // ---------------------------
 function goToNextStep() {
+    const fromStep = ONBOARDING_STATE.currentStep;
+    const fromStepName = STEP_NAMES[fromStep];
+    
     if (ONBOARDING_STATE.currentStep < ONBOARDING_STATE.totalSteps) {
         ONBOARDING_STATE.currentStep++;
+        const toStep = ONBOARDING_STATE.currentStep;
+        const toStepName = STEP_NAMES[toStep];
+        
+        // Track step navigation
+        trackNextClicked(fromStepName, toStepName);
+        trackStepViewed(toStep, toStepName);
+        
+        // Track step completion
+        trackStepCompleted(fromStep, fromStepName);
+        
         window.scrollTo({ top: 0, behavior: 'smooth' }); // Add this
         updateUI();
-        if (ONBOARDING_STATE.currentStep === 5) updateFinalPreview();
+        
+        // Track preview view when reaching step 5
+        if (ONBOARDING_STATE.currentStep === 5) {
+            updateFinalPreview();
+            trackPreviewViewed();
+        }
     } else {
         completeOnboarding();
     }
 }
 
 function goToPreviousStep() {
+    const fromStep = ONBOARDING_STATE.currentStep;
+    const fromStepName = STEP_NAMES[fromStep];
+    
     if (ONBOARDING_STATE.currentStep > 1) {
         ONBOARDING_STATE.currentStep--;
+        const toStep = ONBOARDING_STATE.currentStep;
+        const toStepName = STEP_NAMES[toStep];
+        
+        // Track back navigation
+        trackBackClicked(fromStepName, toStepName);
+        trackStepViewed(toStep, toStepName);
+        
         updateUI();
     }
 }

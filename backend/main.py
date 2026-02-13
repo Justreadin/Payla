@@ -119,7 +119,8 @@ from app.routers import (
     presell_router,
     token_gate,
     webhooks,
-    marketing_router
+    marketing_router,
+    founding_router
 )
 
 app.include_router(auth_router.router, prefix="/api", tags=["Auth"])
@@ -140,6 +141,7 @@ app.include_router(presell_router.router, prefix="/api", tags=["Presell"])
 app.include_router(token_gate.router, prefix="/api", tags=["Token_Gate"])
 app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
 app.include_router(marketing_router.router, tags=["Marketing"])
+app.include_router(founding_router.router, prefix="/api", tags=["Founding_router"])
 
 # ------------------------------------------------------------
 # 5. SETUP PATHS
@@ -428,7 +430,7 @@ async def serve_index():
 @app.head("/", include_in_schema=False)
 async def head_index():
     return Response(status_code=200)
-
+    
 @app.get("/{page_name}", include_in_schema=False)
 async def serve_html_page(page_name: str):
     # Remove .html extension if present
@@ -557,4 +559,3 @@ if settings.DEBUG:
     thread = threading.Thread(target=watch_frontend, daemon=True)
     thread.start()
     logger.info("👀 Frontend file watcher started")
-

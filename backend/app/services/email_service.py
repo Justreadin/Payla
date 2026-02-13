@@ -156,3 +156,128 @@ def send_presell_reward_email(email: str, full_name: str, username: str):
     </div>
     """
     send_email(EmailData(to=email, subject="Your Crown has arrived", html_content=html_content))
+
+
+def send_founding_verification_email(email: str, token: str, username: str = None):
+    """Send verification email for founding members with 1-year free access"""
+    # Extract username from email if not provided
+    if not username:
+        username = email.split('@')[0]
+    
+    verify_url = f"{settings.APP_BASE_URL}api/founding/verify-email?token={token}"
+    
+    subject = "🎉 Verify your email to activate 1-year free access"
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to Payla</title>
+    </head>
+    <body style="margin:0; padding:0; background-color:#0A0A0A; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+        <!-- Main Container -->
+        <div style="max-width:600px; margin:0 auto; background-color:#0A0A0A; padding:40px 20px;">
+            
+            <!-- Card Container -->
+            <div style="background: linear-gradient(145deg, #0F0F0F 0%, #0A0A0A 100%); border:1px solid rgba(232,180,184,0.15); border-radius:32px; padding:48px 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8);">
+                
+                <!-- Logo -->
+                <div style="text-align:center; margin-bottom:32px;">
+                    <h1 style="font-family: 'Playfair Display', Georgia, serif; color: #E8B4B8; font-size: 36px; font-weight:900; margin:0; letter-spacing:-0.5px;">PAYLA</h1>
+                    <div style="width:60px; height:2px; background:linear-gradient(90deg, transparent, #E8B4B8, transparent); margin:16px auto 0;"></div>
+                </div>
+                
+                <!-- Header -->
+                <div style="text-align:center; margin-bottom:32px;">
+                    <h2 style="font-family: 'Playfair Display', Georgia, serif; color: #FDFDFD; font-size:28px; font-weight:700; margin:0 0 8px; line-height:1.2;">Welcome, Founding Creator</h2>
+                    <p style="color: #E8B4B8; font-size:16px; margin:0; font-style:italic;">You're just one step away</p>
+                </div>
+                
+                <!-- Content Card -->
+                <div style="background: rgba(232,180,184,0.03); border:1px solid rgba(232,180,184,0.1); border-radius:24px; padding:32px; margin-bottom:32px;">
+                    
+                    <p style="color: #E5E5E5; font-size:16px; line-height:1.6; margin:0 0 24px;">
+                        You've secured your place as a <strong style="color:#E8B4B8;">Founding Creator</strong>. Just one click to activate your 1-year free access to Payla Silver.
+                    </p>
+                    
+                    <!-- Username Highlight -->
+                    <div style="background: rgba(232,180,184,0.08); border-radius:16px; padding:20px; margin:24px 0; text-align:center; border:1px dashed rgba(232,180,184,0.2);">
+                        <p style="color: #B8B8B8; font-size:14px; margin:0 0 8px; text-transform:uppercase; letter-spacing:1px;">Your Payment Identity</p>
+                        <p style="color: #E8B4B8; font-size:28px; font-weight:700; margin:0; font-family:'Courier New', monospace;">payla.ng/@{username}</p>
+                    </div>
+                    
+                    <!-- CTA Button -->
+                    <div style="text-align:center; margin:32px 0;">
+                        <a href="{verify_url}" style="display:inline-block; background: #E8B4B8; color: #0A0A0A; padding:18px 36px; border-radius:14px; text-decoration:none; font-weight:700; font-size:16px; letter-spacing:0.5px; box-shadow: 0 8px 24px rgba(232,180,184,0.3); transition: all 0.3s ease;">
+                            ✨ VERIFY EMAIL & ACTIVATE
+                        </a>
+                    </div>
+                    
+                    <!-- Benefits -->
+                    <div style="margin:32px 0 0;">
+                        <p style="color: #E8B4B8; font-size:14px; font-weight:600; margin:0 0 16px; text-transform:uppercase; letter-spacing:1px;">What you'll unlock:</p>
+                        <table style="width:100%; border-collapse:collapse;">
+                            <tr>
+                                <td style="padding:8px 0; color:#E5E5E5; font-size:14px;">
+                                    <span style="color:#2ECC71; margin-right:8px;">✓</span> Your unique payla.ng/@{username}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0; color:#E5E5E5; font-size:14px;">
+                                    <span style="color:#2ECC71; margin-right:8px;">✓</span> 1-year free access to Payla Silver
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0; color:#E5E5E5; font-size:14px;">
+                                    <span style="color:#2ECC71; margin-right:8px;">✓</span> Unlimited invoices & receipts
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0; color:#E5E5E5; font-size:14px;">
+                                    <span style="color:#2ECC71; margin-right:8px;">✓</span> Automated payment reminders
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0; color:#E5E5E5; font-size:14px;">
+                                    <span style="color:#2ECC71; margin-right:8px;">✓</span> Zero transaction fees forever
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <!-- Fallback Link -->
+                    <div style="margin-top:32px; padding-top:24px; border-top:1px solid rgba(232,180,184,0.1);">
+                        <p style="color:#888888; font-size:13px; margin:0 0 8px;">Button not working? Copy this link:</p>
+                        <p style="color:#E8B4B8; font-size:13px; margin:0; word-break:break-all;">
+                            <a href="{verify_url}" style="color:#E8B4B8; text-decoration:none;">{verify_url}</a>
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div style="text-align:center;">
+                    <p style="color:#666666; font-size:12px; margin:0 0 16px; line-height:1.6;">
+                        This link expires in 24 hours. If you didn't sign up for Payla, please ignore this email.
+                    </p>
+                    
+                    <!-- Signature -->
+                    <div style="margin-top:24px;">
+                        <p style="color:#888888; font-size:14px; margin:0 0 4px;">See you on the inside,</p>
+                        <p style="color:#E8B4B8; font-size:20px; font-family:'Playfair Display', serif; margin:0 0 8px;">— Layla</p>
+                        <p style="color:#E8B4B8; font-size:10px; letter-spacing:4px; margin:0; opacity:0.5;">PAYLA</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Create EmailData object and pass it to send_email
+    email_data = EmailData(
+        to=email,
+        subject=subject,
+        html_content=html_content
+    )
+    send_email(email_data)

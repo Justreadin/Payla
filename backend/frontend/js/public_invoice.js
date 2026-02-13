@@ -1,9 +1,28 @@
 import { BACKEND_BASE } from './config.js';
 import { PAYSTACK_PUBLIC_KEY } from './config.js';
 
+// Import analytics
+import {
+  trackInvoicePageView,
+  trackInvoiceLoadSuccess,
+  trackInvoiceLoadFailed,
+  trackPayButtonClicked,
+  trackPaymentModalOpened,
+  trackPaymentModalClosed,
+  trackPaymentAttempt,
+  trackPaymentSuccess,
+  trackPaymentFailed,
+  trackReceiptDownloaded,
+  trackPaidInvoiceView,
+  trackPayerEmailEntered
+} from "./invoice_analytics.js";
+
 const API_URL = BACKEND_BASE;
 const shortId = window.location.pathname.split('/').pop();
 const invoiceId = shortId.startsWith('inv_') ? shortId : `inv_${shortId}`;
+
+// Track page load start time
+const pageLoadStart = performance.now();
 
 // Elements
 const loadingState = document.getElementById('loadingState');
@@ -30,6 +49,17 @@ loadingSignature.textContent = fallbackUsername;
 let currentInvoice = null;
 let paystackHandler = null;
 
+// Track email input
+if (payerEmailInput) {
+    payerEmailInput.addEventListener('blur', (e) => {
+        const email = e.target.value.trim();
+        if (email && email.includes('@')) {
+            const emailDomain = email.split('@')[1];
+            trackPayerEmailEntered(invoiceId, emailDomain);
+        }
+    });
+}
+
 // --- Helper Functions ---
 
 function hideAll() {
@@ -42,20 +72,35 @@ function hideAll() {
 }
 
 function showLoading() { hideAll(); loadingState.classList.remove('hidden'); }
-function showError() { hideAll(); errorState.classList.remove('hidden'); }
-function showPaid() { hideAll(); paidState.classList.remove('hidden'); }
+function showError() { 
+    hideAll(); 
+    errorState.classList.remove('hidden'); 
+}
+function showPaid() { 
+    hideAll(); 
+    paidState.classList.remove('hidden');
+    trackPaidInvoiceView(invoiceId);
+}
 function showInvoice() { hideAll(); invoiceContent.classList.remove('hidden'); }
 
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
     modal.classList.remove('hidden');
     setTimeout(() => modal.classList.add('open'), 10);
+    
+    if (modalId === 'paystackModal') {
+        trackPaymentModalOpened(invoiceId);
+    }
 }
 
-function closeModal(modalId) {
+function closeModal(modalId, method = 'close_button') {
     const modal = document.getElementById(modalId);
     modal.classList.remove('open');
     setTimeout(() => modal.classList.add('hidden'), 300);
+    
+    if (modalId === 'paystackModal') {
+        trackPaymentModalClosed(invoiceId, method);
+    }
 }
 
 function formatCurrency(amount, currency) {
@@ -193,20 +238,35 @@ async function loadInvoice() {
     showLoading();
     try {
         const res = await fetch(`${API_URL}/api/invoices/${invoiceId}`);
-        if (!res.ok) throw new Error("Not found");
+        if (!res.ok) {
+            trackInvoiceLoadFailed(invoiceId, 'not_found');
+            throw new Error("Not found");
+        }
         const inv = await res.json();
         currentInvoice = inv;
+        
+        // Track page view
+        trackInvoicePageView(invoiceId, inv.status);
 
         if (inv.status === "paid") {
             updatePaidUI(inv);
             showPaid();
+            
+            // Track successful load for paid invoice
+            const loadTime = performance.now() - pageLoadStart;
+            trackInvoiceLoadSuccess(invoiceId, Math.round(loadTime), 'paid');
         } else {
             updateInvoiceUI(inv);
             initializePaystack(inv);
             showInvoice();
+            
+            // Track successful load for unpaid invoice
+            const loadTime = performance.now() - pageLoadStart;
+            trackInvoiceLoadSuccess(invoiceId, Math.round(loadTime), inv.status || 'unpaid');
         }
     } catch (err) {
         console.error(err);
+        trackInvoiceLoadFailed(invoiceId, err.message || 'unknown_error');
         showError();
     }
 }
@@ -231,12 +291,14 @@ function calculateTotalWithFees(amount) {
     }
     return Math.ceil(total);
 }
+
 function initializePaystack(invoice) {
     payBtn.onclick = () => {
         if (!invoice.sender_subaccount_code) {
             alert("Merchant payout account not configured.");
             return;
         }
+        trackPayButtonClicked(invoiceId, invoice.amount, invoice.currency);
         openModal('paystackModal');
     };
 
@@ -246,6 +308,9 @@ function initializePaystack(invoice) {
             alert('Enter a valid email address.');
             return;
         }
+
+        const emailDomain = email.split('@')[1];
+        trackPaymentAttempt(invoiceId, invoice.amount, invoice.currency, emailDomain);
 
         const btnText = processPayment.querySelector('.btn-text');
         const btnLoader = processPayment.querySelector('.btn-loader');
@@ -274,7 +339,17 @@ function initializePaystack(invoice) {
             },
 
             callback: function (response) {
-                closeModal('paystackModal');
+                closeModal('paystackModal', 'payment_complete');
+                
+                // Track successful payment
+                trackPaymentSuccess(
+                    invoiceId,
+                    invoice.amount,
+                    invoice.currency,
+                    response.reference,
+                    response.transaction || response.reference
+                );
+                
                 currentInvoice.status = 'paid'; 
                 currentInvoice.paid_at = new Date().toISOString();
                 
@@ -298,6 +373,9 @@ function initializePaystack(invoice) {
                 btnText.style.opacity = '1';
                 btnLoader.style.display = 'none';
                 processPayment.disabled = false;
+                
+                // Track modal closed without payment
+                trackPaymentModalClosed(invoiceId, 'payment_cancelled');
             }
         });
 
@@ -308,18 +386,34 @@ function initializePaystack(invoice) {
 
 function setupReceiptDownload() {
     const downloadAction = () => {
-        if (currentInvoice) window.open(`${API_URL}/api/receipt/invoice/${currentInvoice._id}.pdf`, '_blank');
+        if (currentInvoice) {
+            window.open(`${API_URL}/api/receipt/invoice/${currentInvoice._id}.pdf`, '_blank');
+            trackReceiptDownloaded(invoiceId, currentInvoice.status === 'paid' ? 'paid_view' : 'payment_success');
+        }
     };
     downloadReceipt.onclick = downloadAction;
     downloadSuccessReceipt.onclick = downloadAction;
 }
 
 // --- Event Listeners ---
-modalClose.onclick = () => closeModal('paystackModal');
+modalClose.onclick = () => closeModal('paystackModal', 'close_button');
 closeSuccessModal.onclick = () => {
-    closeModal('successModal');
+    closeModal('successModal', 'close_button');
     location.reload();
 };
+
+// Track modal close on overlay click
+paystackModal?.addEventListener('click', e => {
+    if (e.target === paystackModal) {
+        closeModal('paystackModal', 'overlay_click');
+    }
+});
+
+successModal?.addEventListener('click', e => {
+    if (e.target === successModal) {
+        closeModal('successModal', 'overlay_click');
+    }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     loadInvoice();
