@@ -1,497 +1,1396 @@
-// js/payout.js - Fully functional with History Modal
+// js/payout.js
 import { API_BASE } from './config.js';
+
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const CONFIG = {
+    HISTORY_PAGE_SIZE: 4
+};
+
+
+/* ============================================================
+   PAYOUT MANAGER
+   ============================================================ */
 class PayoutManager {
     constructor() {
         this.API_BASE = API_BASE;
+
         this.banks = [];
         this.currentAccount = null;
         this.earningsData = null;
         this.payouts = [];
+
+        // History pagination state (used by the modal)
+        this.historyCursor = null;
+        this.historyHasMore = false;
+        this.historyTotal = null;
+        this.historyLoading = false;
+        this.historyLoadedCount = 0;
+
+        this.resolvedAccount = null;
+        this.resolveRequestId = 0;
+        this.resolveController = null;
+        this.isSavingAccount = false;
+        this.isLoadingHistory = false;
+        this.toastTimeout = null;
 
         this.init();
     }
 
     async init() {
         this.setupEventListeners();
-        this.setupScrollHandling();
+
         await this.loadAllData();
-        this.setupPremiumInteractions();
-        setInterval(() => this.checkPendingPayouts(), 5000);
     }
 
-    // ==================== Helper ====================
-    async authFetch(url, options = {}) {
-        const headers = { ...this.getAuthHeaders(), ...(options.headers || {}) };
-        const res = await fetch(url, { ...options, headers });
+    /* ---------------------------------------------------------
+       AUTHENTICATED REQUESTS
+       --------------------------------------------------------- */
 
-        if (res.status === 401) {
-            this.showToast('Unauthorized — please log in again', 'error');
-            window.location.href = '/entry'; // redirect
+    async authFetch(url, options = {}) {
+        const token = localStorage.getItem('idToken');
+
+        if (!token) {
+            window.location.href = '/entry';
             throw new Error('Unauthorized');
         }
 
-        return res;
-    }
+        const headers = new Headers(options.headers || {});
+        headers.set('Authorization', `Bearer ${token}`);
 
-    // ==================== Auth ====================
-    getAuthToken() {
-        return localStorage.getItem('idToken') || '';
-    }
+        const response = await fetch(url, {
+            ...options,
+            headers
+        });
 
-    getAuthHeaders() {
-        const token = this.getAuthToken();
-        return token ? { 'Authorization': `Bearer ${token}` } : {};
-    }
-    
-
-    // ==================== Data Loading ====================
-    async loadAllData() {
-        try {
-            await Promise.all([
-                this.loadEarnings(),
-                this.loadPayoutAccount(),
-                this.loadPayoutHistory(),
-                this.loadBanks()
-            ]);
-            this.updatePayoutProgress();
-        } catch (err) {
-            console.error('Failed to load data:', err);
-            this.showToast('Failed to load data. Please refresh.', 'error');
+        if (response.status === 401) {
+            window.location.href = '/entry';
+            throw new Error('Unauthorized');
         }
+
+        return response;
     }
+
+    /* ---------------------------------------------------------
+       INITIAL DATA LOADING
+       --------------------------------------------------------- */
+
+    async loadAllData() {
+        await Promise.allSettled([
+            this.loadEarnings(),
+            this.loadPayoutAccount(),
+            this.loadPayoutHistory(),
+            this.loadBanks()
+        ]);
+
+        this.updatePayoutProgress();
+    }
+
+    /* ---------------------------------------------------------
+       EARNINGS
+       --------------------------------------------------------- */
 
     async loadEarnings() {
         try {
-            const res = await this.authFetch(`${this.API_BASE}/payout/earnings`);
-            if (!res.ok) throw new Error(`Earnings ${res.status}`);
+            const response = await this.authFetch(
+                `${this.API_BASE}/payout/earnings`
+            );
 
-            const data = await res.json();
+            if (!response.ok) {
+                throw new Error(`Earnings request failed: ${response.status}`);
+            }
+
+            const data = await response.json();
             this.earningsData = data;
 
-            // 1. Update Figures with smooth transition
-            const total = data.total_earnings || 0;
-            const totalEl = document.getElementById('total-earnings');
-            totalEl.textContent = `₦${this.formatAmount(total)} total`;
-            
-            // 2. Dynamic Status Handling
-            const availableEl = document.getElementById('available-earnings');
-            const instructionEl = document.getElementById('payout-instruction');
-            
-            availableEl.textContent = data.display_available;
-            instructionEl.textContent = data.payout_instruction;
+            const total = Number(data.total_earnings);
+            const totalElement = document.getElementById('total-earnings');
 
-            // PREMIUM VISUAL FEEDBACK
-            // We use the status text to determine the theme
-            if (data.display_available.includes("Automated")) {
-                availableEl.style.color = 'var(--neon-lime)'; 
-                instructionEl.style.color = 'rgba(255,255,255,0.7)';
-                instructionEl.classList.remove('pulse-warning');
-            } else if (data.display_available.includes("Pending")) {
-                availableEl.style.color = '#f59e0b'; // Premium Amber
-                instructionEl.style.color = '#f59e0b';
-            } else {
-                availableEl.style.color = '#ff9e9e'; // Soft Coral Error
-                instructionEl.style.color = '#ff9e9e';
-                instructionEl.classList.add('pulse-warning'); // Adds a gentle premium glow
+            if (totalElement) {
+                totalElement.textContent = `₦${this.formatAmount(
+                    Number.isFinite(total) ? total : 0
+                )}`;
             }
 
-            // 3. Update Payout Schedule
-            if (document.getElementById('payout-schedule')) {
-                document.getElementById('payout-schedule').textContent = data.next_payout;
-            }
-            
-            if (document.getElementById('payout-destination')) {
-                document.getElementById('payout-destination').textContent = `To ${data.payout_method}`;
+            const availableElement = document.getElementById('available-earnings');
+
+            if (availableElement) {
+                const available = Number(data.available_for_payout);
+
+                availableElement.textContent = Number.isFinite(available)
+                    ? `₦${this.formatAmount(available)}`
+                    : '—';
             }
 
-            this.uupdateNextPayoutInfo(data);
+            const instructionElement =
+                document.getElementById('payout-instruction');
 
-        } catch (err) {
-            console.error('Earnings load failed:', err);
-            document.getElementById('available-earnings').textContent = "Connection Error";
+            if (instructionElement) {
+                instructionElement.textContent =
+                    data.payout_instruction ||
+                    'Settlement timing depends on payment-provider processing.';
+            }
+
+            const scheduleElement = document.getElementById('payout-schedule');
+
+            if (scheduleElement) {
+                scheduleElement.textContent =
+                    data.next_payout || 'Schedule not confirmed';
+            }
+
+            this.updatePayoutDestination();
+        } catch (error) {
+            if (error.message === 'Unauthorized') return;
+
+            console.error('Unable to load earnings:', error);
+
+            const instructionElement =
+                document.getElementById('payout-instruction');
+
+            if (instructionElement) {
+                instructionElement.textContent =
+                    'Earnings information is temporarily unavailable.';
+            }
+
+            const totalElement = document.getElementById('total-earnings');
+            if (totalElement) totalElement.textContent = 'Unavailable';
+
+            const availableElement = document.getElementById('available-earnings');
+            if (availableElement) availableElement.textContent = 'Unavailable';
+
+            this.showToast('Could not load earnings. Please try again.', 'error');
         }
     }
 
+    updatePayoutDestination() {
+        const element = document.getElementById('payout-destination');
+        if (!element) return;
 
-    async checkPendingPayouts() {
-        // Find any payouts in the local list that are still 'pending'
-        const pending = this.payouts.filter(p => p.status === 'pending');
-        
-        if (pending.length === 0) return;
-
-        for (const payout of pending) {
-            try {
-                const res = await this.authFetch(`${this.API_BASE}/payout/transaction/${payout.reference}/payout_status`);
-                if (!res.ok) continue;
-                
-                const data = await res.json();
-                
-                // If the status has changed in the backend
-                if (data.payout_status === 'success') {
-                    this.showToast(`₦${this.formatAmount(payout.amount)} successfully sent to your bank!`, 'success');
-                    await this.loadAllData(); // Refresh everything to show the green 
-                    this.openHistoryModal();
-                } else if (data.payout_status === 'failed') {
-                    this.showToast(`Payout of ₦${this.formatAmount(payout.amount)} failed. Please check bank details.`, 'error');
-                    await this.loadAllData();
-                }
-            } catch (err) {
-                console.error('Polling error:', err);
-            }
-        }
-    }
-
-    
-    updatePayoutProgress() {
-        const circle = document.getElementById('progress-circle');
-        const percentText = document.getElementById('progress-percent');
-        const countdownText = document.getElementById('countdown-text');
-
-        // 'pending' = Payla is finalizing the record
-        // 'settled' = Payla finished, but it's in the T+1 holding period
-        const isProcessing = this.payouts.some(p => p.status === 'pending');
-        const isSettling = this.payouts.some(p => p.status === 'settled');
-
-        if (isProcessing) {
-            circle.classList.add('pulse-active');
-            percentText.textContent = "•••";
-            countdownText.textContent = "Processing transaction...";
-        } else if (isSettling) {
-            circle.classList.add('pulse-active');
-            circle.style.borderColor = 'var(--rose-gold)'; // Give it a "success-ish" color
-            percentText.textContent = "90%";
-            countdownText.textContent = "Settling to bank (Arriving tomorrow)...";
-        } else if (this.payouts.length > 0) {
-            circle.classList.remove('pulse-active');
-            percentText.textContent = "100%";
-            countdownText.textContent = "All earnings processed.";
-        } else {
-            circle.classList.remove('pulse-active');
-            percentText.textContent = "0%";
-            countdownText.textContent = "No earnings to process yet.";
-        }
-    }
-
-    uupdateNextPayoutInfo(data) {
-        const percentEl = document.getElementById('progress-percent');
-        const circleEl = document.getElementById('progress-circle');
-        const countdownEl = document.getElementById('countdown-text');
-
-        if (!percentEl || !countdownEl) return;
-
-        if (!data.is_automated) {
-            percentEl.textContent = "0%";
-            countdownEl.textContent = "Setup Required";
+        if (!this.currentAccount) {
+            element.textContent = 'Add a payout account';
             return;
         }
 
-        // Since it's T+1 (Automated), we simulate a progress towards the next 10:00 AM window
-        const now = new Date();
-        const hour = now.getHours();
-        
-        // Simple logic: if it's before 10 AM, we are close to payout. 
-        // If after 10 AM, we are waiting for tomorrow.
-        let progress;
-        let text;
-
-        if (hour < 10) {
-            progress = Math.floor((hour / 10) * 100);
-            text = "Processing for 10:00 AM";
-        } else {
-            progress = Math.floor(((hour - 10) / 14) * 100);
-            text = "Next window: Tomorrow 10 AM";
-        }
-
-        percentEl.textContent = `${progress}%`;
-        countdownEl.textContent = text;
-        
-        // Update CSS Variable for the progress ring if using conic-gradient
-        if (circleEl) {
-            circleEl.style.setProperty('--progress', `${progress}%`);
-        }
+        element.textContent = `To ${this.currentAccount.bank_name || 'your bank'}`;
     }
+
+    /* ---------------------------------------------------------
+       PAYOUT ACCOUNT
+       --------------------------------------------------------- */
+
     async loadPayoutAccount() {
         try {
-            const res = await fetch(`${this.API_BASE}/payout/account`, { headers: this.getAuthHeaders() });
-            if (res.status === 404 || res.status === 401) {
-                this.showAddAccountState();
-                return;
+            const response = await this.authFetch(
+                `${this.API_BASE}/payout/account`
+            );
+
+            if (!response.ok) {
+                throw new Error(`Payout account request failed: ${response.status}`);
             }
-            if (!res.ok) throw new Error(`Account load ${res.status}`);
-            const account = await res.json();
+
+            const account = await response.json();
+
             if (!account || !account.account_number) {
+                this.currentAccount = null;
                 this.showAddAccountState();
                 return;
             }
+
             this.currentAccount = account;
             this.showAccountState(account);
-        } catch (err) {
-            console.error('Account load error:', err);
-            this.showAddAccountState();
+        } catch (error) {
+            if (error.message === 'Unauthorized') return;
+
+            console.error('Unable to load payout account:', error);
+
+            const accountInfo = document.getElementById('account-info');
+
+            if (accountInfo) {
+                accountInfo.textContent =
+                    'Unable to load account details. Please retry.';
+            }
+
+            this.showToast('Could not load payout account. Please try again.', 'error');
+        } finally {
+            this.updatePayoutDestination();
+            this.updatePayoutProgress();
         }
     }
 
-    async loadPayoutHistory() {
-        try {
-            const res = await fetch(`${this.API_BASE}/payout/history`, { headers: this.getAuthHeaders() });
-            if (!res.ok) throw new Error(`History ${res.status}`);
-            const data = await res.json();
-            this.payouts = data.history || [];
-            this.renderPayouts();
-        } catch (err) {
-            console.error('Payout history failed:', err);
-            const container = document.getElementById('payouts-list');
-            container.innerHTML = '<div class="empty-state">No payout history yet</div>';
+    showAccountState(account) {
+        const card = document.getElementById('account-card');
+        const accountName = document.getElementById('account-name');
+        const accountInfo = document.getElementById('account-info');
+        const verifiedStatus = document.getElementById('verified-status');
+        const verificationFooter = document.getElementById('verification-footer');
+        const addButton = document.getElementById('add-account-btn');
+        const editButton = document.getElementById('edit-account-btn');
+        const mobileBtn = document.getElementById('mobile-account-btn');
+
+        if (card) card.style.display = '';
+
+        if (accountName) {
+            accountName.textContent = account.account_name || 'Account holder';
         }
+
+        if (accountInfo) {
+            const number = account.account_number || '';
+            const masked = number.length > 4
+                ? `•••• ${number.slice(-4)}`
+                : number;
+            accountInfo.textContent =
+                `${account.bank_name || 'Bank'} · ${masked}`;
+        }
+
+        if (verifiedStatus) {
+            const verified = account.is_verified === true;
+
+            verifiedStatus.innerHTML = `
+                <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                <span>${verified ? 'Verified' : 'Verification unconfirmed'}</span>
+            `;
+            verifiedStatus.classList.toggle('unverified', !verified);
+            verifiedStatus.style.display = 'inline-flex';
+        }
+
+        if (verificationFooter) {
+            verificationFooter.innerHTML = `
+                <i class="fas fa-circle-check" aria-hidden="true"></i>
+                <span>${
+                    account.is_verified === true
+                        ? 'Your payout account has been verified.'
+                        : 'The account verification status is not confirmed.'
+                }</span>
+            `;
+            verificationFooter.style.display = 'flex';
+        }
+
+        if (addButton) addButton.style.display = 'none';
+        if (editButton) editButton.style.display = '';
+        if (mobileBtn) mobileBtn.textContent = 'Edit Account';
     }
+
+    showAddAccountState() {
+        const card = document.getElementById('account-card');
+        const accountName = document.getElementById('account-name');
+        const accountInfo = document.getElementById('account-info');
+        const verifiedStatus = document.getElementById('verified-status');
+        const verificationFooter = document.getElementById('verification-footer');
+        const addButton = document.getElementById('add-account-btn');
+        const editButton = document.getElementById('edit-account-btn');
+        const mobileBtn = document.getElementById('mobile-account-btn');
+
+        if (card) card.style.display = '';
+        if (accountName) accountName.textContent = 'No payout account added';
+        if (accountInfo) accountInfo.textContent = 'Add your bank details';
+
+        if (verifiedStatus) {
+            verifiedStatus.style.display = 'none';
+            verifiedStatus.classList.remove('unverified');
+        }
+
+        if (verificationFooter) {
+            verificationFooter.style.display = 'none';
+        }
+
+        if (addButton) addButton.style.display = '';
+        if (editButton) editButton.style.display = 'none';
+        if (mobileBtn) mobileBtn.textContent = 'Add Account';
+
+        this.updatePayoutDestination();
+        this.updatePayoutProgress();
+    }
+
+    /* ---------------------------------------------------------
+       BANK LIST
+       --------------------------------------------------------- */
 
     async loadBanks() {
         try {
-            const res = await fetch(`${this.API_BASE}/payout/banks`);
-            if (!res.ok) throw new Error('Banks failed');
-            const data = await res.json();
-            this.banks = data.banks || [];
+            const response = await fetch(`${this.API_BASE}/payout/banks`);
+
+            if (!response.ok) {
+                throw new Error(`Bank list request failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            this.banks = Array.isArray(data.banks) ? data.banks : [];
+
             this.renderBankOptions();
-        } catch (err) {
-            console.error('Banks load failed:', err);
-            this.showToast('Failed to load banks', 'error');
+        } catch (error) {
+            console.error('Unable to load banks:', error);
+
+            const select = document.getElementById('bank-select');
+
+            if (select) {
+                select.innerHTML =
+                    '<option value="">Banks unavailable. Retry later.</option>';
+            }
+
+            this.showToast('Could not load banks. Please try again.', 'error');
         }
     }
 
     renderBankOptions() {
         const select = document.getElementById('bank-select');
-        select.innerHTML = '<option value="">Choose your bank...</option>';
-        this.banks.sort((a,b)=>a.name.localeCompare(b.name))
-            .forEach(bank=>{
-                const opt=document.createElement('option');
-                opt.value=bank.code;
-                opt.textContent=bank.name;
-                select.appendChild(opt);
+        if (!select) return;
+
+        const previousValue = select.value;
+
+        select.innerHTML = '<option value="">Select your bank</option>';
+
+        this.banks.forEach(bank => {
+            if (!bank || !bank.code || !bank.name) return;
+
+            const option = document.createElement('option');
+            option.value = String(bank.code);
+            option.textContent = bank.name;
+
+            select.appendChild(option);
+        });
+
+        if (
+            previousValue &&
+            [...select.options].some(option => option.value === previousValue)
+        ) {
+            select.value = previousValue;
+        }
+    }
+
+    /* ---------------------------------------------------------
+       ACCOUNT RESOLUTION
+       --------------------------------------------------------- */
+
+    invalidateAccountResolution() {
+        this.resolveRequestId++;
+        this.resolvedAccount = null;
+
+        if (this.resolveController) {
+            this.resolveController.abort();
+            this.resolveController = null;
+        }
+
+        const preview = document.getElementById('account-preview');
+        const saveButton = document.getElementById('save-account-btn');
+
+        if (preview) preview.style.display = 'none';
+
+        if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.textContent = 'Save Account';
+        }
+    }
+
+    handleAccountInput(event) {
+        const input = event.target;
+        input.value = input.value.replace(/\D/g, '').slice(0, 10);
+
+        this.invalidateAccountResolution();
+
+        if (
+            input.value.length === 10 &&
+            document.getElementById('bank-select')?.value
+        ) {
+            this.validateForm();
+        }
+    }
+
+    async validateForm() {
+        const bankCode = document.getElementById('bank-select')?.value;
+        const accountNumber =
+            document.getElementById('account-number')?.value || '';
+
+        const button = document.getElementById('save-account-btn');
+        const preview = document.getElementById('account-preview');
+
+        if (!button || !preview) return;
+
+        this.invalidateAccountResolution();
+
+        if (!bankCode || !/^\d{10}$/.test(accountNumber)) return;
+
+        const requestId = this.resolveRequestId;
+
+        this.resolveController = new AbortController();
+        button.textContent = 'Verifying…';
+
+        try {
+            const params = new URLSearchParams({
+                bank: bankCode,
+                account: accountNumber
             });
+
+            const response = await this.authFetch(
+                `${this.API_BASE}/payout/resolve?${params.toString()}`,
+                { signal: this.resolveController.signal }
+            );
+
+            if (!response.ok) {
+                let message = 'Unable to verify these account details.';
+
+                try {
+                    const error = await response.json();
+                    message = error.detail || message;
+                } catch {
+                    /* Retain fallback */
+                }
+
+                throw new Error(message);
+            }
+
+            const data = await response.json();
+
+            if (requestId !== this.resolveRequestId) return;
+
+            if (
+                document.getElementById('bank-select')?.value !== bankCode ||
+                document.getElementById('account-number')?.value !== accountNumber
+            ) {
+                return;
+            }
+
+            if (!data.account_name) {
+                throw new Error('The bank did not return an account name.');
+            }
+
+            this.resolvedAccount = {
+                bank_code: bankCode,
+                account_number: accountNumber,
+                account_name: data.account_name,
+                bank_name: data.bank_name || 'Unknown Bank'
+            };
+
+            this.showPreview(this.resolvedAccount);
+            button.disabled = false;
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            if (error.message === 'Unauthorized') return;
+
+            if (requestId === this.resolveRequestId) {
+                console.error('Account resolution failed:', error);
+                this.showToast(
+                    error.message || 'Account verification failed.',
+                    'error'
+                );
+            }
+        } finally {
+            if (requestId === this.resolveRequestId) {
+                button.textContent = 'Save Account';
+                this.resolveController = null;
+            }
+        }
+    }
+
+    showPreview(account) {
+        const preview = document.getElementById('account-preview');
+        const name = document.getElementById('preview-name');
+        const bank = document.getElementById('preview-bank');
+
+        if (!preview || !name || !bank) return;
+
+        name.textContent = account.account_name || '';
+        bank.textContent = account.bank_name || '';
+        preview.style.display = 'block';
+    }
+
+    /* ---------------------------------------------------------
+       SAVE ACCOUNT
+       --------------------------------------------------------- */
+
+    async saveAccount() {
+        if (this.isSavingAccount) return;
+
+        const bankCode = document.getElementById('bank-select')?.value;
+        const accountNumber =
+            document.getElementById('account-number')?.value || '';
+
+        const button = document.getElementById('save-account-btn');
+        const resolved = this.resolvedAccount;
+
+        if (
+            !resolved ||
+            resolved.bank_code !== bankCode ||
+            resolved.account_number !== accountNumber
+        ) {
+            this.showToast(
+                'Verify the current bank details before saving.',
+                'error'
+            );
+            return;
+        }
+
+        this.isSavingAccount = true;
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Saving…';
+        }
+
+        try {
+            const response = await this.authFetch(
+                `${this.API_BASE}/payout/account`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bank_code: bankCode,
+                        account_number: accountNumber
+                    })
+                }
+            );
+
+            if (!response.ok) {
+                let message = 'Failed to save payout account.';
+
+                try {
+                    const error = await response.json();
+                    message = error.detail || message;
+                } catch {
+                    /* Retain fallback */
+                }
+
+                throw new Error(message);
+            }
+
+            const account = await response.json();
+
+            if (!account || !account.account_number) {
+                throw new Error('The server returned an invalid account response.');
+            }
+
+            this.currentAccount = account;
+            this.closeModal();
+            this.showAccountState(account);
+            this.updatePayoutDestination();
+            this.updatePayoutProgress();
+
+            this.showToast('Payout account saved successfully.');
+        } catch (error) {
+            if (error.message === 'Unauthorized') return;
+
+            console.error('Unable to save payout account:', error);
+            this.showToast(
+                error.message || 'Failed to save payout account.',
+                'error'
+            );
+        } finally {
+            this.isSavingAccount = false;
+
+            if (button) {
+                button.textContent = 'Save Account';
+                button.disabled = !this.resolvedAccount;
+            }
+        }
+    }
+
+    /* ---------------------------------------------------------
+       RECENT PAYOUTS (main page grid)
+       - Capped at CONFIG.HISTORY_PAGE_SIZE for a compact preview.
+       - The full, paginated list lives in the history modal.
+       --------------------------------------------------------- */
+
+    async loadPayoutHistory() {
+        if (this.isLoadingHistory) return;
+
+        this.isLoadingHistory = true;
+
+        const container = document.getElementById('payouts-list');
+
+        if (container) {
+            container.innerHTML =
+                '<div class="empty-state">Loading transactions…</div>';
+        }
+
+        try {
+            const params = new URLSearchParams({
+                limit: String(CONFIG.HISTORY_PAGE_SIZE)
+            });
+
+            const response = await this.authFetch(
+                `${this.API_BASE}/payout/history?${params.toString()}`
+            );
+
+            if (!response.ok) {
+                throw new Error(`History request failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!Array.isArray(data.history)) {
+                throw new Error('The server returned an invalid history response.');
+            }
+
+            // Cap on the client too — if the backend ignores ?limit,
+            // we still only render HISTORY_PAGE_SIZE items in this grid.
+            this.payouts = data.history.slice(0, CONFIG.HISTORY_PAGE_SIZE);
+            this.renderPayouts();
+        } catch (error) {
+            if (error.message === 'Unauthorized') return;
+
+            console.error('Unable to load transaction history:', error);
+
+            if (container) {
+                container.innerHTML =
+                    '<div class="empty-state">Unable to load transactions. Please try again.</div>';
+            }
+        } finally {
+            this.isLoadingHistory = false;
+            this.updatePayoutProgress();
+        }
     }
 
     renderPayouts() {
         const container = document.getElementById('payouts-list');
-        container.innerHTML = '';
-        
-        if (this.payouts.length === 0) {
-            container.innerHTML = '<div class="empty-state">No payouts yet</div>';
+        if (!container) return;
+
+        container.replaceChildren();
+
+        if (!this.payouts.length) {
+            container.innerHTML =
+                '<div class="empty-state">No transactions yet</div>';
             return;
         }
 
-        this.payouts.forEach(p => {
-            const item = document.createElement('div');
-            item.className = 'payout-item';
-            const date = new Date(p.created_at || p.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-            // Logic for Dynamic Status Labels and Classes
-            let statusLabel = p.status.charAt(0).toUpperCase() + p.status.slice(1);
-            let statusClass = 'status-failed';
-
-            if (p.status === 'success') {
-                statusClass = 'status-success';
-            } else if (p.status === 'pending') {
-                statusClass = 'status-pending';
-                statusLabel = 'Processing';
-            } else if (p.status === 'pending_settlement') {
-                statusClass = 'status-pending'; // Keeps the orange/yellow color
-                statusLabel = 'Settling (T+1)'; // Explains the bank delay clearly
-            }
-
-            item.innerHTML = `
-                <div class="payout-meta">
-                    <div class="payout-date">${date}</div>
-                    <div class="payout-amount">₦${this.formatAmount(p.amount)}</div>
-                </div>
-                <div class="status-indicator ${statusClass}">
-                    ${statusLabel}
-                </div>
-            `;
-            container.appendChild(item);
+        this.payouts.forEach(transaction => {
+            container.appendChild(this.createHistoryItem(transaction));
         });
     }
 
-    // ==================== UI States ====================
-    showAccountState(account) {
-        document.getElementById('account-name').textContent = account.account_name || 'Unknown';
-        document.getElementById('account-info').textContent = `${account.bank_name} •••• ${account.account_number.slice(-4)}`;
-        document.getElementById('verified-status').style.display = 'flex';
-        document.getElementById('verification-footer').style.display = 'flex';
-        document.getElementById('add-account-btn').style.display = 'none';
-        document.getElementById('mobile-add-btn').style.display = 'none';
-        document.getElementById('edit-account-btn').textContent='Edit';
-    }
-    showAddAccountState() {
-        document.getElementById('account-name').textContent='No payout account set up';
-        document.getElementById('account-info').textContent='Add your bank account to receive payments';
-        document.getElementById('verified-status').style.display='none';
-        document.getElementById('verification-footer').style.display='none';
-        document.getElementById('add-account-btn').style.display='flex';
-        document.getElementById('mobile-add-btn').style.display='flex';
-        document.getElementById('edit-account-btn').textContent='Add';
+    /* ---------------------------------------------------------
+       PAYMENT / SETTLEMENT LABELS
+       --------------------------------------------------------- */
+
+    getPaymentStatusLabel(status) {
+        const labels = {
+            success: 'Payment successful',
+            successful: 'Payment successful',
+            failed: 'Payment failed',
+            processing: 'Processing',
+            pending: 'Pending',
+            pending_settlement: 'Payment successful',
+            settled: 'Payment successful',
+            reversed: 'Reversed',
+            abandoned: 'Abandoned'
+        };
+
+        return labels[String(status || 'processing').toLowerCase()]
+            || 'Status unavailable';
     }
 
-    // ==================== Modal & Form ====================
-    setupEventListeners() {
-        // Account modal
-        document.getElementById('add-account-btn').onclick = () => this.openModal();
-        document.getElementById('mobile-add-btn').onclick = () => this.openModal();
-        document.getElementById('edit-account-btn').onclick = () => this.openModal();
-        document.getElementById('modal-close').onclick = () => this.closeModal();
-        document.getElementById('cancel-btn').onclick = () => this.closeModal();
-        document.getElementById('save-account-btn').onclick = () => this.saveAccount();
-        document.getElementById('bank-select').onchange = () => this.validateForm();
-        document.getElementById('account-number').oninput = (e)=>this.handleAccountInput(e);
-        document.getElementById('account-modal').onclick = (e)=>{if(e.target===document.getElementById('account-modal')) this.closeModal();};
-        // History modal
-        const historyBtn = document.getElementById('view-history-btn');
-        const historyModal = document.getElementById('history-modal');
-        const historyClose = document.getElementById('history-modal-close');
+    getSettlementLabel(status) {
+        const labels = {
+            pending: 'Settlement pending',
+            pending_settlement: 'Settlement pending',
+            processing: 'Settlement processing',
+            success: 'Settlement confirmed',
+            successful: 'Settlement confirmed',
+            settled: 'Settlement confirmed',
+            failed: 'Settlement failed',
+            reversed: 'Settlement reversed'
+        };
 
-        if(historyBtn && historyModal && historyClose){
-            historyBtn.onclick = (e)=>{e.preventDefault(); this.openHistoryModal();};
-            historyClose.onclick = ()=>this.closeHistoryModal();
-            historyModal.onclick = (e)=>{if(e.target===historyModal) this.closeHistoryModal();};
+        return labels[String(status || '').toLowerCase()]
+            || 'Settlement status unavailable';
+    }
+
+    /* ---------------------------------------------------------
+       HISTORY ITEM RENDERING
+       --------------------------------------------------------- */
+
+    createHistoryItem(transaction) {
+        const item = document.createElement('article');
+        item.className = 'payout-item';
+
+        const rawDate =
+            transaction.created_at || transaction.date || null;
+
+        const dateValue = rawDate ? new Date(rawDate) : null;
+
+        const dateLabel =
+            dateValue && !Number.isNaN(dateValue.getTime())
+                ? dateValue.toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                })
+                : 'Date unavailable';
+
+        const amount = Number(transaction.amount);
+        const safeAmount = Number.isFinite(amount) ? amount : 0;
+
+        const sourceType = String(
+            transaction.source_type || transaction.type || 'payment'
+        ).toLowerCase();
+
+        const sourceLabel =
+            sourceType === 'invoice'
+                ? 'Invoice payment'
+                : sourceType === 'paylink'
+                    ? 'Paylink payment'
+                    : 'Payment';
+
+        const paymentStatus = String(
+            transaction.status || 'processing'
+        ).toLowerCase();
+
+        const isSuccessful =
+            ['success', 'successful'].includes(paymentStatus);
+
+        const statusClass = isSuccessful
+            ? 'status-success'
+            : paymentStatus === 'failed'
+                ? 'status-failed'
+                : 'status-pending';
+
+        const transactionReference = String(
+            transaction.reference ||
+            transaction.paystack_reference ||
+            ''
+        ).trim();
+
+        /* ----- Row 1: amount + status pill ----- */
+        const topRow = document.createElement('div');
+        topRow.className = 'payout-item__row';
+
+        const amountEl = document.createElement('div');
+        amountEl.className = 'payout-amount';
+        amountEl.textContent = `₦${this.formatAmount(safeAmount)}`;
+
+        const statusEl = document.createElement('div');
+        statusEl.className = `status-indicator ${statusClass}`;
+        statusEl.textContent = this.getPaymentStatusLabel(paymentStatus);
+
+        topRow.append(amountEl, statusEl);
+        item.appendChild(topRow);
+
+        /* ----- Row 2: source + date ----- */
+        const metaRow = document.createElement('div');
+        metaRow.className = 'payout-item__row';
+
+        const meta = document.createElement('div');
+        meta.className = 'payout-meta';
+
+        const sourceEl = document.createElement('span');
+        sourceEl.className = 'payout-date';
+        sourceEl.textContent = `${sourceLabel} · ${dateLabel}`;
+
+        meta.appendChild(sourceEl);
+        metaRow.appendChild(meta);
+        item.appendChild(metaRow);
+
+        /* ----- Description (only if it adds information) ----- */
+        // Skip when the description is identical to the source label
+        // (this is what was producing the duplicate "Invoice payment" line).
+        if (
+            transaction.description &&
+            transaction.description.trim() !== sourceLabel
+        ) {
+            const description = document.createElement('p');
+            description.className = 'payout-date';
+            description.textContent = transaction.description;
+            item.appendChild(description);
+        }
+
+        /* ----- Settlement status (optional) ----- */
+        if (transaction.payout_status) {
+            const settlement = document.createElement('p');
+            settlement.className = 'payout-date payout-date--secondary';
+            settlement.textContent =
+                this.getSettlementLabel(transaction.payout_status);
+            item.appendChild(settlement);
+        }
+
+        /* ----- Reference ----- */
+        if (transactionReference) {
+            const reference = document.createElement('p');
+            reference.className = 'payout-ref';
+            reference.textContent = `Ref ${transactionReference}`;
+            item.appendChild(reference);
+        }
+
+        /* ----- Receipt (successful payments only) ----- */
+        if (isSuccessful && transactionReference) {
+            const receiptButton = document.createElement('button');
+            receiptButton.type = 'button';
+            receiptButton.className = 'receipt-download-btn';
+            receiptButton.textContent = 'Download receipt';
+            receiptButton.setAttribute(
+                'aria-label',
+                `Download receipt for transaction ${transactionReference}`
+            );
+
+            receiptButton.addEventListener('click', () => {
+                this.downloadReceipt(transaction, receiptButton);
+            });
+
+            item.appendChild(receiptButton);
+        }
+
+        return item;
+    }
+
+    /* ---------------------------------------------------------
+       RECEIPT DOWNLOAD
+       --------------------------------------------------------- */
+
+    async downloadReceipt(transaction, button) {
+        const paymentStatus = String(
+            transaction.status || ''
+        ).toLowerCase();
+
+        if (!['success', 'successful'].includes(paymentStatus)) {
+            this.showToast(
+                'A receipt is available only for successful payments.',
+                'error'
+            );
+            return;
+        }
+
+        const reference = String(
+            transaction.reference ||
+            transaction.paystack_reference ||
+            ''
+        ).trim();
+
+        if (!reference) {
+            this.showToast('This transaction has no payment reference.', 'error');
+            return;
+        }
+
+        const originalButtonText = button?.textContent || 'Download receipt';
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Preparing receipt…';
+        }
+
+        let objectUrl = null;
+
+        try {
+            const response = await this.authFetch(
+                `${this.API_BASE}/receipt/transaction/${encodeURIComponent(reference)}.pdf`
+            );
+
+            if (!response.ok) {
+                let detail = '';
+
+                try {
+                    const errorData = await response.json();
+                    detail = typeof errorData.detail === 'string'
+                        ? errorData.detail
+                        : '';
+                } catch {
+                    /* Non-JSON error response */
+                }
+
+                if (response.status === 403) {
+                    this.showToast(
+                        detail ||
+                        'Receipt downloads require an eligible active subscription. Upgrade to Silver to access this feature.',
+                        'error'
+                    );
+                    return;
+                }
+
+                if (response.status === 404) {
+                    this.showToast(
+                        detail || 'The receipt for this transaction was not found.',
+                        'error'
+                    );
+                    return;
+                }
+
+                this.showToast(
+                    detail || 'Unable to download this receipt. Please try again.',
+                    'error'
+                );
+                return;
+            }
+
+            const contentType = (
+                response.headers.get('content-type') || ''
+            ).toLowerCase();
+
+            if (!contentType.includes('application/pdf')) {
+                throw new Error(
+                    'The server did not return a PDF receipt. Please try again later.'
+                );
+            }
+
+            const blob = await response.blob();
+
+            if (!blob.size) {
+                throw new Error('The receipt file is empty.');
+            }
+
+            objectUrl = URL.createObjectURL(blob);
+
+            const downloadLink = document.createElement('a');
+            downloadLink.href = objectUrl;
+            downloadLink.download =
+                `Payla-Receipt-${reference.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+            downloadLink.style.display = 'none';
+
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            downloadLink.remove();
+
+            this.showToast('Receipt downloaded successfully.');
+        } catch (error) {
+            if (error.message === 'Unauthorized') return;
+
+            console.error('Unable to download receipt:', error);
+
+            this.showToast(
+                error.message || 'Unable to download this receipt. Please try again.',
+                'error'
+            );
+        } finally {
+            if (objectUrl) {
+                window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+            }
+
+            if (button) {
+                button.disabled = false;
+                button.textContent = originalButtonText;
+            }
         }
     }
+
+    /* ---------------------------------------------------------
+       HISTORY MODAL — PAGINATED (page size = 4)
+       --------------------------------------------------------- */
+
+    async openHistoryModal() {
+        const modal = document.getElementById('history-modal');
+        const body = document.getElementById('history-modal-body');
+
+        if (!modal || !body) return;
+
+        // Reset pagination state
+        this.historyCursor = null;
+        this.historyHasMore = false;
+        this.historyTotal = null;
+        this.historyLoadedCount = 0;
+
+        modal.classList.add('active');
+
+        body.replaceChildren();
+
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'empty-state';
+        loadingEl.textContent = 'Loading history…';
+        body.appendChild(loadingEl);
+
+        await this.loadHistoryPage(true);
+    }
+
+    async loadHistoryPage(isFirstPage = false) {
+        if (this.historyLoading) return;
+
+        const body = document.getElementById('history-modal-body');
+        if (!body) return;
+
+        this.historyLoading = true;
+
+        // Disable the "load more" button if it's currently rendered
+        const loadMoreBtn = body.querySelector('.history-load-more');
+
+        if (loadMoreBtn) {
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.innerHTML =
+                '<span class="history-load-more__spinner"></span><span>Loading…</span>';
+        }
+
+        try {
+            const params = new URLSearchParams({
+                limit: String(CONFIG.HISTORY_PAGE_SIZE)
+            });
+
+            if (!isFirstPage && this.historyCursor) {
+                params.set('cursor', this.historyCursor);
+            }
+
+            const response = await this.authFetch(
+                `${this.API_BASE}/payout/history?${params.toString()}`
+            );
+
+            if (!response.ok) {
+                throw new Error(`History request failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!Array.isArray(data.history)) {
+                throw new Error('The server returned an invalid history response.');
+            }
+
+            // Update pagination state from the response
+            this.historyCursor = data.next_cursor || null;
+            this.historyHasMore = data.has_more === true;
+            this.historyTotal = Number.isFinite(Number(data.total))
+                ? Number(data.total)
+                : null;
+
+            if (isFirstPage) {
+                body.replaceChildren();
+
+                const stats = document.createElement('div');
+                stats.className = 'history-stats';
+                stats.innerHTML = this.buildStatsLine(
+                    data.history.length,
+                    this.historyTotal
+                );
+                body.appendChild(stats);
+            } else {
+                const existingPagination =
+                    body.querySelector('.history-pagination');
+                if (existingPagination) existingPagination.remove();
+
+                const existingEnd = body.querySelector('.history-end');
+                if (existingEnd) existingEnd.remove();
+            }
+
+            data.history.forEach(transaction => {
+                body.appendChild(this.createHistoryItem(transaction));
+            });
+
+            this.historyLoadedCount += data.history.length;
+
+            const stats = body.querySelector('.history-stats');
+            if (stats) {
+                stats.innerHTML = this.buildStatsLine(
+                    this.historyLoadedCount,
+                    this.historyTotal
+                );
+            }
+
+            if (this.historyLoadedCount === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No transactions yet';
+                body.appendChild(empty);
+                return;
+            }
+
+            if (this.historyHasMore) {
+                body.appendChild(this.buildPaginationBlock());
+            } else {
+                body.appendChild(this.buildEndMarker());
+            }
+        } catch (error) {
+            if (error.message === 'Unauthorized') return;
+
+            console.error('Unable to load history:', error);
+
+            const errorEl = document.createElement('div');
+            errorEl.className = 'empty-state';
+            errorEl.textContent =
+                'Unable to load history. Please try again.';
+
+            if (isFirstPage) {
+                body.replaceChildren(errorEl);
+            } else {
+                body.appendChild(errorEl);
+            }
+        } finally {
+            this.historyLoading = false;
+        }
+    }
+
+    buildStatsLine(loaded, total) {
+        if (Number.isFinite(total) && total > 0) {
+            return `Showing <strong>${loaded}</strong> of <strong>${total}</strong> transactions`;
+        }
+        return `Showing <strong>${loaded}</strong> transaction${loaded === 1 ? '' : 's'}`;
+    }
+
+    buildPaginationBlock() {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'history-pagination';
+
+        const progress = document.createElement('div');
+        progress.className = 'history-pagination__progress';
+
+        if (Number.isFinite(this.historyTotal) && this.historyTotal > 0) {
+            progress.innerHTML =
+                `<strong>${this.historyLoadedCount}</strong> of <strong>${this.historyTotal}</strong> loaded`;
+        } else {
+            progress.innerHTML =
+                `<strong>${this.historyLoadedCount}</strong> loaded`;
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'history-load-more';
+        button.innerHTML = '<span>Load more</span>';
+        button.addEventListener('click', () => this.loadHistoryPage(false));
+
+        wrapper.append(progress, button);
+        return wrapper;
+    }
+
+    buildEndMarker() {
+        const marker = document.createElement('div');
+        marker.className = 'history-end';
+        marker.textContent = 'End of history';
+        return marker;
+    }
+
+    closeHistoryModal() {
+        const modal = document.getElementById('history-modal');
+        if (modal) modal.classList.remove('active');
+    }
+
+    /* ---------------------------------------------------------
+       PAYOUT PROGRESS
+       --------------------------------------------------------- */
+
+    updatePayoutProgress() {
+        const percentElement = document.getElementById('progress-percent');
+        const countdownElement = document.getElementById('countdown-text');
+        const circle = document.getElementById('progress-circle');
+
+        if (!percentElement || !countdownElement || !circle) return;
+
+        circle.classList.remove('pulse-active');
+        circle.style.setProperty('--progress', '0');
+
+        if (!this.currentAccount) {
+            percentElement.textContent = '—';
+            countdownElement.textContent =
+                'Add a payout account to configure payouts.';
+            return;
+        }
+
+        const settlementStatuses = this.payouts
+            .map(transaction =>
+                String(transaction.payout_status || '').toLowerCase()
+            )
+            .filter(Boolean);
+
+        if (
+            settlementStatuses.some(status =>
+                ['pending', 'processing', 'pending_settlement'].includes(status)
+            )
+        ) {
+            circle.classList.add('pulse-active');
+            percentElement.textContent = '…';
+            countdownElement.textContent =
+                'Settlement status is being processed.';
+            return;
+        }
+
+        if (settlementStatuses.includes('failed')) {
+            circle.style.setProperty('--progress', '100');
+            percentElement.textContent = '!';
+            countdownElement.textContent =
+                'A settlement failure was recorded. Review the transaction.';
+            return;
+        }
+
+        if (
+            settlementStatuses.some(status =>
+                ['success', 'successful', 'settled'].includes(status)
+            )
+        ) {
+            circle.style.setProperty('--progress', '100');
+            percentElement.textContent = '✓';
+            countdownElement.textContent =
+                'Settlement is confirmed for recorded transactions.';
+            return;
+        }
+
+        percentElement.textContent = '—';
+        countdownElement.textContent =
+            'No confirmed settlement update is available yet.';
+    }
+
+    /* ---------------------------------------------------------
+       MODALS — ACCOUNT
+       --------------------------------------------------------- */
 
     openModal() {
         const modal = document.getElementById('account-modal');
-        modal.classList.add('active');
-        this.resetForm();
-        
-        if (this.currentAccount) {
-            document.getElementById('bank-select').value = this.currentAccount.bank_code;
-            document.getElementById('account-number').value = this.currentAccount.account_number;
-            this.showPreview(this.currentAccount);
-            this.validateForm(); // Enable the save button
-        }
-    }
+        if (!modal) return;
 
-    closeModal() {document.getElementById('account-modal').classList.remove('active'); this.resetForm();}
+        this.invalidateAccountResolution();
 
-    resetForm() {
-        document.getElementById('bank-select').value='';
-        document.getElementById('account-number').value='';
-        document.getElementById('account-preview').style.display='none';
-        document.getElementById('save-account-btn').disabled=true;
-    }
-
-    handleAccountInput(e) {
-        let value = e.target.value.replace(/\D/g,'').slice(0,10);
-        e.target.value=value;
-        if(value.length===10) this.validateForm();
-        else document.getElementById('account-preview').style.display='none';
-    }
-    validateForm() {
-        const bank = document.getElementById('bank-select').value;
-        const number = document.getElementById('account-number').value;
-        
-        document.getElementById('save-account-btn').disabled = !(bank && number.length === 10);
-    }
-
-    async saveAccount() {
         const bankSelect = document.getElementById('bank-select');
-        const bankCode = bankSelect.value;
-        const accountNumber = document.getElementById('account-number').value;
-        // --- THE FIX: Get the bank name from the selected option ---
-        const bankName = bankSelect.options[bankSelect.selectedIndex].text;
+        const accountInput = document.getElementById('account-number');
 
-        const btn = document.getElementById('save-account-btn');
-        btn.disabled = true; 
-        btn.textContent = 'Verifying...';
-
-        try {
-            const res = await fetch(`${this.API_BASE}/payout/account`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
-                body: JSON.stringify({ 
-                    bank_code: bankCode, 
-                    account_number: accountNumber,
-                    bank_name: bankName, // Now this is defined!
-                })
-            });
-
-            if (!res.ok) {
-                const err = await res.json(); 
-                throw new Error(err.detail || 'Failed to save account');
+        if (this.currentAccount) {
+            if (bankSelect) {
+                bankSelect.value = this.currentAccount.bank_code || '';
             }
 
-            const account = await res.json();
-            this.currentAccount = account;
-            this.showAccountState(account);
-            this.closeModal();
-            this.showToast('Payout account saved successfully ✓');
-        } catch (err) {
-            console.error(err); 
-            this.showToast(err.message || 'Failed to save account', 'error');
-        } finally {
-            btn.disabled = false; 
-            btn.textContent = 'Save Account';
-        }
-    }
-    showPreview(account){
-        document.getElementById('preview-name').textContent=account.account_name;
-        document.getElementById('preview-bank').textContent=account.bank_name;
-        document.getElementById('account-preview').style.display='block';
-        document.getElementById('save-account-btn').disabled=false;
-    }
+            if (accountInput) {
+                accountInput.value = this.currentAccount.account_number || '';
+            }
 
-    // ==================== Payout History Modal ====================
-    openHistoryModal(){
-        const modal=document.getElementById('history-modal');
-        const body=document.getElementById('history-modal-body');
-        if(this.payouts.length===0){body.innerHTML='<div class="empty-state">No payout history yet</div>';}
-        else{
-            body.innerHTML='';
-            this.payouts.forEach(p=>{
-                const item=document.createElement('div'); item.className='payout-item';
-                const date=new Date(p.created_at||p.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
-                const statusClass=p.status==='success'?'status-success':p.status==='pending'?'status-pending':'status-failed';
-                item.innerHTML=`
-                    <div class="payout-meta">
-                        <div class="payout-date">${date}</div>
-                        <div class="payout-amount">₦${this.formatAmount(p.amount)}</div>
-                    </div>
-                    <div class="status-indicator ${statusClass}">
-                        ${p.status.charAt(0).toUpperCase()+p.status.slice(1)}
-                    </div>
-                `;
-                body.appendChild(item);
-            });
+            const preview = document.getElementById('account-preview');
+            const saveButton = document.getElementById('save-account-btn');
+
+            if (preview) preview.style.display = 'none';
+            if (saveButton) saveButton.disabled = true;
+        } else {
+            this.resetForm();
         }
+
         modal.classList.add('active');
     }
 
-    closeHistoryModal(){document.getElementById('history-modal').classList.remove('active');}
+    closeModal() {
+        const modal = document.getElementById('account-modal');
+        if (modal) modal.classList.remove('active');
 
-    // ==================== UI Helpers ====================
-    formatAmount(amount){return new Intl.NumberFormat('en-NG').format(amount||0);}
-
-    showToast(message,type='success'){
-        const toast=document.getElementById('success-toast');
-        const msgEl=document.getElementById('toast-message');
-        msgEl.textContent=message;
-        toast.className='elegant-toast';
-        if(type==='error') toast.style.background='rgba(220,38,38,0.9)';
-        else if(type==='info') toast.style.background='rgba(100,100,100,0.9)';
-        else toast.style.background='var(--rose-gold)';
-        toast.classList.add('show');
-        setTimeout(()=>toast.classList.remove('show'),4000);
+        this.invalidateAccountResolution();
     }
 
-    setupPremiumInteractions(){
-        document.querySelectorAll('.ultra-glass').forEach(card=>{
-            card.addEventListener('mouseenter',()=>{card.style.transform='translateY(-4px)';card.style.borderColor='rgba(232,180,184,0.3)';});
-            card.addEventListener('mouseleave',()=>{card.style.transform='translateY(0)';card.style.borderColor='rgba(232,180,184,0.12)';});
+    resetForm() {
+        this.invalidateAccountResolution();
+
+        const bankSelect = document.getElementById('bank-select');
+        const accountInput = document.getElementById('account-number');
+        const preview = document.getElementById('account-preview');
+        const saveButton = document.getElementById('save-account-btn');
+
+        if (bankSelect) bankSelect.value = '';
+        if (accountInput) accountInput.value = '';
+        if (preview) preview.style.display = 'none';
+
+        if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.textContent = 'Save Account';
+        }
+    }
+
+    /* ---------------------------------------------------------
+       EVENT LISTENERS
+       --------------------------------------------------------- */
+
+    setupEventListeners() {
+        const addButton = document.getElementById('add-account-btn');
+        const editButton = document.getElementById('edit-account-btn');
+        const mobileAccountBtn = document.getElementById('mobile-account-btn');
+        const modalClose = document.getElementById('modal-close');
+        const cancelButton = document.getElementById('cancel-btn');
+        const bankSelect = document.getElementById('bank-select');
+        const accountInput = document.getElementById('account-number');
+        const saveButton = document.getElementById('save-account-btn');
+        const viewHistoryButton = document.getElementById('view-history-btn');
+        const historyCloseButton =
+            document.getElementById('history-modal-close');
+
+        addButton?.addEventListener('click', () => this.openModal());
+        editButton?.addEventListener('click', () => this.openModal());
+        mobileAccountBtn?.addEventListener('click', () => this.openModal());
+
+        modalClose?.addEventListener('click', () => this.closeModal());
+        cancelButton?.addEventListener('click', () => this.closeModal());
+
+        bankSelect?.addEventListener('change', () => {
+            this.invalidateAccountResolution();
+
+            if (
+                bankSelect.value &&
+                /^\d{10}$/.test(accountInput?.value || '')
+            ) {
+                this.validateForm();
+            }
+        });
+
+        accountInput?.addEventListener('input', event => {
+            this.handleAccountInput(event);
+        });
+
+        saveButton?.addEventListener('click', () => this.saveAccount());
+
+        viewHistoryButton?.addEventListener(
+            'click',
+            () => this.openHistoryModal()
+        );
+
+        historyCloseButton?.addEventListener(
+            'click',
+            () => this.closeHistoryModal()
+        );
+
+        // Backdrop click closes either modal
+        document.getElementById('account-modal')?.addEventListener(
+            'click',
+            event => {
+                if (event.target.id === 'account-modal') {
+                    this.closeModal();
+                }
+            }
+        );
+
+        document.getElementById('history-modal')?.addEventListener(
+            'click',
+            event => {
+                if (event.target.id === 'history-modal') {
+                    this.closeHistoryModal();
+                }
+            }
+        );
+
+        // Escape closes either modal
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                this.closeModal();
+                this.closeHistoryModal();
+            }
         });
     }
 
-    setupScrollHandling(){}
+    /* ---------------------------------------------------------
+       UTILITIES
+       --------------------------------------------------------- */
+
+    formatAmount(value) {
+        const amount = Number(value);
+
+        return (Number.isFinite(amount) ? amount : 0).toLocaleString(
+            'en-NG',
+            {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }
+        );
+    }
+
+    showToast(message, type = 'success') {
+        const toast = document.getElementById('success-toast');
+        const messageElement = document.getElementById('toast-message');
+
+        if (!toast || !messageElement) {
+            console[type === 'error' ? 'error' : 'log'](message);
+            return;
+        }
+
+        messageElement.textContent = message;
+        toast.classList.toggle('error', type === 'error');
+        toast.classList.add('show');
+
+        window.clearTimeout(this.toastTimeout);
+
+        this.toastTimeout = window.setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3500);
+    }
 }
 
-// Start when DOM is ready
-document.addEventListener('DOMContentLoaded',()=>{
-    if(!localStorage.getItem('idToken')){window.location.href='/login'; return;}
-    new PayoutManager();
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+    if (!localStorage.getItem('idToken')) {
+        window.location.href = '/entry';
+        return;
+    }
+
+    window.payoutManager = new PayoutManager();
 });

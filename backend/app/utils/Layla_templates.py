@@ -1,412 +1,518 @@
-# Luxury Noir Brand Constants
-MIDNIGHT = "#0A0A0A"
-ROSE = "#E8B4B8"
-SOFT_WHITE = "#FDFDFD"
+"""
+Layla's onboarding sequence.
 
-Layla_TEMPLATES = {
+Five emails. Sent by LaylaOnboardingService on a 3-day interval.
+
+Emails 1, 2, 3, 5 go to every user, Free or Silver.
+Email 4 has two variants: one for Free users (a soft door to Silver),
+one for Silver users (the operational reality).
+
+Templates take no arguments. The service composes values into them
+via .format(**context) before passing to send_email().
+"""
+
+from app.utils.email_render import render_email
+from app.utils.email_render.components import (
+    heading,
+    eyebrow,
+    lead,
+    paragraph,
+    body_lines,
+    bullet_list,
+    pullquote,
+    callout,
+    mono,
+    inline_highlight,
+    divider,
+    button,
+    sign_off,
+)
+
+
+def _welcome(full_name: str, username: str) -> str:
+    """Email 1. Sent immediately on signup."""
+    first_name = full_name.split()[0] if full_name else "there"
+    return render_email(
+        title="Welcome to a new standard",
+        blocks=[
+            heading(f"Welcome {first_name}."),
+            lead("I&rsquo;m <strong style=\"color:#FDFDFD;\">Layla</strong>."),
+            paragraph(
+                "I&rsquo;ll be guiding you through Payla, from your "
+                f"{inline_highlight('payment identity')}, "
+                "to client payments, reminders, invoices, and receipts."
+            ),
+            paragraph(
+                "Everything here exists so you get paid cleanly, quickly, "
+                "and without chasing."
+            ),
+            eyebrow("Over the next few weeks, I&rsquo;ll show you"),
+            bullet_list([
+                "What Payla is",
+                "What it replaces",
+                "How creators get paid without friction",
+            ]),
+            pullquote(
+                "My emails are short. Intentional. Worth your time. "
+                "One minute is all I need."
+            ),
+            paragraph(
+                "Start now.<br>"
+                "Share your Payla link with a client.<br>"
+                "Add it to your bio.<br>"
+                "Let it represent how you get paid."
+            ),
+            callout(
+                f'<p style="font-family:\'Inter\',sans-serif; font-size:13px; '
+                f'font-weight:600; letter-spacing:0.14em; text-transform:uppercase; '
+                f'color:#B8B8B8; margin:0 0 12px 0;">Your payment identity</p>'
+                f'<p style="margin:0;">{mono(f"payla.ng/@{username}", size="22px")}</p>'
+            ),
+            paragraph(
+                "This isn&rsquo;t a payment link. It&rsquo;s your payment identity.",
+                color="#FDFDFD",
+            ),
+            paragraph("Welcome to a new standard."),
+            sign_off("I&rsquo;ll be in touch."),
+        ],
+    )
+
+
+def _why_payla_exists(username: str) -> str:
+    """Email 2. Positioning. Sent three days after email 1."""
+    return render_email(
+        title="Why Payla exists",
+        blocks=[
+            eyebrow("This is the problem"),
+            body_lines([
+                "You do the work.",
+                "You deliver on time.",
+                '<strong style="color:#FDFDFD;">Then you wait.</strong>',
+            ]),
+            body_lines([
+                "You send your account number.",
+                "You follow up.",
+                "You wait again.",
+            ]),
+            pullquote(
+                "&ldquo;Seen.&rdquo;<br>"
+                "&ldquo;Will pay.&rdquo;<br>"
+                "Tomorrow."
+            ),
+            paragraph(
+                "Payla exists because this is "
+                f"{inline_highlight('unacceptable')}.",
+                color="#FDFDFD",
+                size="18px",
+            ),
+            callout(
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Payla is not a payment app.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'It does not ask you to chase money.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0;">'
+                'It does not make you explain yourself.</p>'
+            ),
+            heading("Payla is your payment identity.", size="22px"),
+            paragraph(
+                "One name. One link. One standard.",
+                color="#FDFDFD",
+                strong=True,
+            ),
+            paragraph(
+                "When you share your Payla link, you&rsquo;re not requesting payment. "
+                "<strong style=\"color:#FDFDFD;\">You&rsquo;re setting terms.</strong>"
+            ),
+            paragraph(
+                "No awkward reminders. No &ldquo;have you paid?&rdquo; messages. "
+                "No silence. Just clarity."
+            ),
+            divider(),
+            eyebrow("What Payla replaces"),
+            paragraph("Account numbers. Screenshots. Excuses."),
+            paragraph(
+                "What Payla introduces is simpler. "
+                "<strong style=\"color:#FDFDFD;\">A way to get paid "
+                "that respects your time.</strong>"
+            ),
+            paragraph(
+                "This is not for everyone. It&rsquo;s for people who "
+                "take their work seriously.",
+                color="#7A7A7A",
+                size="14px",
+            ),
+            paragraph("If that&rsquo;s you, keep going.", color="#FDFDFD"),
+            sign_off("Talk soon."),
+        ],
+    )
+
+
+def _from_numbers_to_names(username: str) -> str:
+    """Email 3. The identity argument. Sent three days after email 2."""
+    return render_email(
+        title="From numbers to names",
+        blocks=[
+            paragraph("Before Payla, you were a number."),
+            body_lines([
+                "An account number.",
+                "A bank name.",
+                "Something copied. Something pasted.",
+            ]),
+            body_lines([
+                "Easy to forget.",
+                "Easy to delay.",
+                "Easy to ignore.",
+            ]),
+            paragraph(
+                "That&rsquo;s not how professionals should get paid.",
+                color="#FDFDFD",
+                size="18px",
+            ),
+            paragraph(
+                "Payla changes this by giving you a "
+                f"{inline_highlight('name')}."
+            ),
+            callout(
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Not a username.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Not a handle for fun.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#FDFDFD; font-weight:600; margin:0;">'
+                'A payment identity.</p>'
+            ),
+            paragraph(
+                mono(f"@{username}", size="26px"),
+                color="#E8B4B8",
+            ),
+            paragraph(
+                "A single name that represents:",
+                color="#FDFDFD",
+                strong=True,
+            ),
+            body_lines([
+                "How you work.",
+                "How you charge.",
+                "How you get paid.",
+            ]),
+            paragraph(
+                "Names carry weight. Numbers don&rsquo;t.",
+                color="#FDFDFD",
+                size="18px",
+            ),
+            paragraph(
+                "When a client sees a number, they hesitate.<br>"
+                "When they see a name, they remember."
+            ),
+            paragraph(
+                "That&rsquo;s the difference.",
+                color="#E8B4B8",
+                strong=True,
+            ),
+            divider(),
+            paragraph(
+                "Your Payla name becomes the "
+                "<strong style=\"color:#FDFDFD;\">point of payment</strong>."
+            ),
+            body_lines([
+                "You don&rsquo;t send details.",
+                "You don&rsquo;t explain.",
+                "You don&rsquo;t remind.",
+            ]),
+            paragraph(
+                "You share your name.",
+                color="#FDFDFD",
+                strong=True,
+            ),
+            paragraph("One name. Every client. Every time."),
+            eyebrow("This is the identity system"),
+            paragraph(
+                "And once you&rsquo;re known by a name,<br>"
+                "going back to being a number feels impossible."
+            ),
+            sign_off("Talk soon."),
+        ],
+    )
+
+
+def _silver_bridge(username: str) -> str:
+    """
+    Email 4 (Free variant). The soft door to Silver.
+    No price, no urgency, no pitch. Just what Silver is.
+    """
+    return render_email(
+        title="When you're ready",
+        blocks=[
+            eyebrow("A quiet note"),
+            heading("The awkward part is handled.", size="28px"),
+            paragraph(
+                "You&rsquo;ve claimed your name. Your clients can pay you "
+                "directly through your Payla page. That&rsquo;s Free, and "
+                "it stays that way."
+            ),
+            paragraph(
+                "There&rsquo;s a second half to Payla, called Silver. It exists "
+                "for one reason: the follow-up."
+            ),
+            callout(
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Reminders are sent.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Invoices are tracked.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Receipts are issued.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#FDFDFD; margin:0;">'
+                'Automatically.</p>'
+            ),
+            paragraph(
+                "Layla, on Silver, handles the part most people dread: "
+                "asking again. She sends the reminders through WhatsApp, SMS, "
+                "and email on your behalf. She closes invoices when payment "
+                "arrives. She issues the receipts."
+            ),
+            paragraph(
+                "You don&rsquo;t chase payments. "
+                "You don&rsquo;t check your phone. "
+                "You don&rsquo;t ask if someone has paid."
+            ),
+            paragraph(
+                "Your client isn&rsquo;t pressured. And you aren&rsquo;t "
+                "diminished.",
+                color="#FDFDFD",
+            ),
+            pullquote("That balance matters."),
+            divider(),
+            paragraph(
+                "There is no timer on this. Free is permanent. If and when "
+                "the follow-up becomes the thing that costs you more than "
+                "Silver does, it&rsquo;ll be waiting for you."
+            ),
+            button("See what Silver includes", "https://payla.ng/#pricing"),
+            paragraph(
+                "Until then, your link is live and your name is yours.",
+                color="#FDFDFD",
+            ),
+            sign_off("I&rsquo;ll be in touch."),
+        ],
+    )
+
+
+def _silver_operational(username: str) -> str:
+    """
+    Email 4 (Silver variant). The operational reality.
+    Close to the original voice. Names Silver once, explicitly.
+    """
+    return render_email(
+        title="The awkward part is handled",
+        blocks=[
+            eyebrow("Silver"),
+            heading("The awkward part is handled.", size="28px"),
+            paragraph(
+                "Let&rsquo;s talk about the moment most people avoid."
+            ),
+            body_lines([
+                "The transaction.",
+                "The follow-ups.",
+                "The uncomfortable silence after the work is done.",
+            ]),
+            paragraph(
+                "This is where dignity is usually lost.",
+                color="#E8B4B8",
+                strong=True,
+                size="18px",
+            ),
+            paragraph("Silver was designed to handle this part for you."),
+            callout(
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Not loudly.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Not aggressively.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0;">'
+                'Not awkwardly.</p>'
+            ),
+            paragraph(
+                "Quietly. Correctly.",
+                color="#E8B4B8",
+                size="18px",
+            ),
+            paragraph(
+                "With Silver, you don&rsquo;t chase payments. "
+                "You don&rsquo;t check your phone. "
+                "You don&rsquo;t ask if someone has paid."
+            ),
+            callout(
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Reminders are sent.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Overdues are handled.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'Receipts are issued.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#FDFDFD; font-weight:600; margin:0;">'
+                'Automatically.</p>'
+            ),
+            paragraph("On time. Every time."),
+            paragraph(
+                "Your client isn&rsquo;t pressured. And you aren&rsquo;t "
+                "diminished."
+            ),
+            pullquote("That balance matters."),
+            divider(),
+            paragraph("Invoices are clear. Receipts are instant."),
+            paragraph(
+                "Payments go straight to your connected bank account.",
+                color="#FDFDFD",
+                strong=True,
+            ),
+            body_lines([
+                "No screenshots.",
+                "No explanations.",
+                "No discomfort.",
+            ]),
+            paragraph(
+                "Because the best payment systems don&rsquo;t interrupt the "
+                "relationship.<br>"
+                "<strong style=\"color:#FDFDFD;\">They protect it.</strong>"
+            ),
+            paragraph(
+                "Silver exists so you can stay focused on your work, "
+                "while the transaction takes care of itself."
+            ),
+            paragraph(
+                "This is how it should feel to get paid.",
+                color="#E8B4B8",
+                strong=True,
+                size="17px",
+            ),
+            sign_off("Talk soon."),
+        ],
+    )
+
+
+def _once_you_choose_a_standard(username: str) -> str:
+    """Email 5. Permanence. Sent three days after email 4."""
+    return render_email(
+        title="Once you choose a standard",
+        blocks=[
+            paragraph("This is the part most people don&rsquo;t think about."),
+            body_lines([
+                "Standards don&rsquo;t ask to be renewed.",
+                "They don&rsquo;t compete.",
+                "They don&rsquo;t downgrade.",
+            ]),
+            paragraph(
+                "Once you choose one, you don&rsquo;t go back.",
+                color="#FDFDFD",
+                size="18px",
+            ),
+            paragraph(
+                "Your Payla name is permanent. It&rsquo;s yours. "
+                "It doesn&rsquo;t expire. It doesn&rsquo;t change."
+            ),
+            callout(
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'It becomes how clients recognize you.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#B8B8B8; margin:0 0 6px 0;">'
+                'How payments reach you.</p>'
+                '<p style="font-family:\'Inter\',sans-serif; font-size:16px; '
+                'line-height:1.7; color:#FDFDFD; font-weight:600; margin:0;">'
+                'How your work is remembered.</p>'
+            ),
+            paragraph(
+                "That&rsquo;s the lock-in.",
+                color="#E8B4B8",
+                strong=True,
+                size="18px",
+            ),
+            paragraph("Not force. Not friction. Familiarity."),
+            paragraph(
+                "Once people know how to pay you, "
+                "they don&rsquo;t need to be reminded."
+            ),
+            pullquote(
+                "And once you experience getting paid with clarity, "
+                "everything else feels like noise."
+            ),
+            divider(),
+            eyebrow("You&rsquo;re not a user here. You&rsquo;re a VIP."),
+            paragraph(
+                "Which means when you need help, you won&rsquo;t search. "
+                "You&rsquo;ll reach us."
+            ),
+            paragraph(
+                mono("support@payla.vip", size="15px") + "<br>" +
+                mono("hello@payla.vip", size="15px"),
+                color="#FDFDFD",
+            ),
+            paragraph(
+                "If there&rsquo;s anything else you need to know, "
+                "I&rsquo;ll be at your doorstep: "
+                f"{inline_highlight('quietly, precisely, when it matters')}."
+            ),
+            paragraph(
+                "This is the last email in this series. Not because "
+                "there&rsquo;s nothing left to say, but because you now "
+                "know enough.",
+                color="#7A7A7A",
+                size="14px",
+            ),
+            body_lines([
+                "You have a name.",
+                "You have a standard.",
+                '<strong style="color:#E8B4B8;">There&rsquo;s nothing to '
+                'downgrade to.</strong>',
+            ]),
+            sign_off("I&rsquo;ll be in touch."),
+        ],
+    )
+
+
+# ==========================
+# PUBLIC REGISTRY
+# ==========================
+
+LAYLA_ONBOARDING = {
     1: {
         "subject": "Welcome to a new standard",
-        "html": lambda full_name, username: f"""
-              <div style="background:{MIDNIGHT}; color:{SOFT_WHITE}; font-family:'Inter', -apple-system, sans-serif; padding:60px 20px; min-height:100vh;">
-                <div style="max-width:460px; margin:0 auto; background:{MIDNIGHT}; border:1px solid rgba(232,180,184,0.25); border-radius:32px; padding:48px; box-shadow:0 40px 100px rgba(0,0,0,0.5);">
-                  
-                  <h1 style="font-family:'Playfair Display', serif; font-size:32px; font-weight:400; color:{ROSE}; margin-bottom:32px; letter-spacing:-0.5px;">
-                    Welcome {full_name.split()[0]}.
-                  </h1>
-
-                  <div style="font-size:16px; line-height:1.9; color:#D6D6D6; font-weight:300;">
-                    <p style="color:{SOFT_WHITE}; font-size:18px; margin-bottom:24px;">I’m <strong>Layla</strong>.</p>
-                    
-                    <p>
-                      I’ll be guiding you through Payla, from your <strong>payment identity</strong>, to client payments, reminders, invoices, and receipts.
-                    </p>
-                    
-                    <p>
-                      Everything required to get paid cleanly, quickly, and without a single follow-up.
-                    </p>
-
-                    <p style="margin:32px 0 12px; color:{ROSE}; font-weight:600; letter-spacing:1px; font-size:13px; text-transform:uppercase;">
-                      Over the next few weeks, I’ll show you:
-                    </p>
-                    
-                    <ul style="list-style-type:none; padding:0; margin-bottom:32px; color:{SOFT_WHITE};">
-                      <li style="margin-bottom:8px;">• What Payla is</li>
-                      <li style="margin-bottom:8px;">• What it replaces</li>
-                      <li style="margin-bottom:8px;">• How creators get paid without friction</li>
-                    </ul>
-
-                    <p style="font-style:italic; border-left:2px solid {ROSE}; padding-left:16px; margin:32px 0;">
-                      My emails are short. Intentional. Worth your time. One minute is all I need.
-                    </p>
-
-                    <p style="margin-bottom:24px;">
-                      Start now.<br/>
-                      Share your Payla link with a client.<br/>
-                      Add it to your bio.<br/>
-                      Let it represent how you get paid.
-                    </p>
-
-                    <div style="text-align:center; margin:40px 0;">
-                      <a href="https://payla.ng/@{username}" 
-                        style="color:{ROSE}; text-decoration:none; font-size:20px; font-weight:700; letter-spacing:-0.5px;">
-                        payla.ng/@{username}
-                      </a>
-                    </div>
-
-                    <p style="color:{SOFT_WHITE}; font-weight:500;">
-                      This isn’t a payment link. It’s your payment identity.
-                    </p>
-                    
-                    <p style="margin-top:8px;">
-                      Welcome to a new standard.
-                    </p>
-                  </div>
-
-                  <div style="margin-top:60px; padding-top:32px; border-top:1px solid rgba(232,180,184,0.15);">
-                    <p style="margin:0; color:#888888; font-size:15px;">I’ll be in touch.</p>
-                    <p style="margin:8px 0 0; color:{ROSE}; font-size:22px; font-family:'Playfair Display', serif;">— Layla</p>
-                    <p style="margin:4px 0 0; font-weight:900; letter-spacing:4px; font-size:12px; color:rgba(232,180,184,0.5);">PAYLA</p>
-                  </div>
-
-                </div>
-              </div>
-              """
-            },
+        "render": _welcome,
+        "tier": "all",
+    },
     2: {
         "subject": "Why Payla exists",
-        "html": lambda username: f"""
-<div style="background:{MIDNIGHT}; color:{SOFT_WHITE}; font-family:'Inter', -apple-system, sans-serif; padding:60px 20px; min-height:100vh;">
-  <div style="max-width:460px; margin:0 auto; background:{MIDNIGHT}; border:1px solid rgba(232,180,184,0.25); border-radius:32px; padding:48px; box-shadow:0 40px 100px rgba(0,0,0,0.5);">
-    
-    <div style="font-size:16px; line-height:2.2; color:#D6D6D6; font-weight:300;">
-      
-      <p style="color:{ROSE}; font-weight:600; margin-bottom:32px;">This is the problem.</p>
-
-      <p>You do the work.</p>
-      <p>You deliver on time.</p>
-      <p style="color:{SOFT_WHITE};"><strong>Then you wait.</strong></p>
-
-      <p style="margin-top:24px;">You send your account number.</p>
-      <p>You follow up.</p>
-      <p>You wait again.</p>
-
-      <p style="font-style:italic; color:#888888; margin-top:24px;">
-        “Seen.”<br/>
-        “Will pay.”<br/>
-        Tomorrow.
-      </p>
-
-      <p style="margin-top:40px; color:{SOFT_WHITE}; font-size:18px; line-height:1.6;">
-        Payla exists because this is <span style="color:{ROSE};">unacceptable</span>.
-      </p>
-
-      <div style="margin:40px 0; border-left:2px solid {ROSE}; padding-left:20px;">
-        <p style="margin:0;">Payla is not a payment app.</p>
-        <p style="margin:0;">It does not ask you to chase money.</p>
-        <p style="margin:0;">It does not make you explain yourself.</p>
-      </div>
-
-      <p style="color:{ROSE}; font-size:20px; font-weight:700; letter-spacing:-0.5px;">
-        Payla is your payment identity.
-      </p>
-
-      <p style="font-size:18px; color:{SOFT_WHITE}; font-weight:500; margin-top:12px; letter-spacing:0.5px;">
-        One name. One link. One standard.
-      </p>
-
-      <p style="margin-top:32px;">
-        When you share your Payla link, you’re not requesting payment. 
-        <strong>You’re setting terms.</strong>
-      </p>
-
-      <p>
-        No awkward reminders. No “have you paid?” messages. No silence. 
-        <span style="color:{ROSE};">Just clarity.</span>
-      </p>
-
-      <p style="margin-top:32px;">
-        Money should move the same way your work does — 
-        <span style="color:{SOFT_WHITE}; font-weight:500;">clean, deliberate, on time.</span>
-      </p>
-
-      <p style="margin-top:40px; color:{ROSE}; font-weight:600; letter-spacing:1px; font-size:13px; text-transform:uppercase;">
-        What Payla replaces:
-      </p>
-      <p style="margin:0; color:#888888;">Account numbers. Screenshots. Excuses.</p>
-
-      <p style="margin-top:32px;">
-        What Payla introduces is simpler: 
-        <strong>A way to get paid that respects your time.</strong>
-      </p>
-
-      <p style="margin-top:40px; font-size:14px;">
-        This is not for everyone. It’s for people who take their work seriously.
-      </p>
-      
-      <p style="color:{SOFT_WHITE}; margin-bottom:0;">If that’s you, keep going.</p>
-    </div>
-
-    <div style="margin-top:60px; padding-top:32px; border-top:1px solid rgba(232,180,184,0.15);">
-      <p style="margin:8px 0 0; color:{ROSE}; font-size:22px; font-family:'Playfair Display', serif;">— Layla</p>
-      <p style="margin:4px 0 0; font-weight:900; letter-spacing:4px; font-size:12px; color:rgba(232,180,184,0.5);">PAYLA</p>
-    </div>
-
-  </div>
-</div>
-"""
+        "render": _why_payla_exists,
+        "tier": "all",
     },
     3: {
         "subject": "From numbers to names",
-        "html": lambda username: f"""
-<div style="background:{MIDNIGHT}; color:{SOFT_WHITE}; font-family:'Inter', -apple-system, sans-serif; padding:60px 20px; min-height:100vh;">
-  <div style="max-width:460px; margin:0 auto; background:{MIDNIGHT}; border:1px solid rgba(232,180,184,0.25); border-radius:32px; padding:48px; box-shadow:0 40px 100px rgba(0,0,0,0.5);">
-    
-    <div style="font-size:16px; line-height:2.2; color:#D6D6D6; font-weight:300;">
-      
-      <p style="margin-bottom:32px;">Before Payla, you were a number.</p>
-
-      <div style="color:#888888; margin-bottom:32px;">
-        <p style="margin:0;">An account number.</p>
-        <p style="margin:0;">A bank name.</p>
-        <p style="margin:0;">Something copied. Something pasted.</p>
-      </div>
-
-      <p>Easy to forget.</p>
-      <p>Easy to delay.</p>
-      <p>Easy to ignore.</p>
-
-      <p style="margin-top:40px; color:{SOFT_WHITE}; font-size:18px; line-height:1.6;">
-        That’s not how professionals should get paid.
-      </p>
-
-      <p style="margin-top:32px;">
-        Payla changes this by giving you a <span style="color:{ROSE}; font-weight:600;">name</span>.
-      </p>
-
-      <div style="margin:24px 0; border-left:2px solid {ROSE}; padding-left:20px;">
-        <p style="margin:0;">Not a username.</p>
-        <p style="margin:0;">Not a handle for fun.</p>
-        <p style="margin:0; color:{SOFT_WHITE};"><strong>A payment identity.</strong></p>
-      </div>
-
-      <p style="color:{ROSE}; font-size:24px; font-weight:700; letter-spacing:-1px; margin:40px 0;">
-        @{username}
-      </p>
-
-      <p style="color:{SOFT_WHITE}; font-weight:500; margin-bottom:8px;">A single name that represents:</p>
-      <p style="margin:0;">How you work.</p>
-      <p style="margin:0;">How you charge.</p>
-      <p style="margin:0;">How you get paid.</p>
-
-      <p style="margin-top:40px; font-size:18px; color:{SOFT_WHITE};">
-        Names carry weight. Numbers don’t.
-      </p>
-
-      <p style="margin-top:12px;">
-        When a client sees a number, they hesitate.<br/>
-        When they see a name, they remember.
-      </p>
-
-      <p style="color:{ROSE}; margin-top:32px; font-weight:600;">That’s the difference.</p>
-
-      <p style="margin-top:40px;">
-        Your Payla name becomes the <span style="color:{SOFT_WHITE};">point of payment</span>.
-      </p>
-      <p style="margin:0;">Not a step. Not a request. <strong>A destination.</strong></p>
-
-      <div style="margin-top:32px; color:#888888;">
-        <p style="margin:0;">You don’t send details.</p>
-        <p style="margin:0;">You don’t explain.</p>
-        <p style="margin:0;">You don’t remind.</p>
-      </div>
-
-      <p style="margin-top:32px; color:{SOFT_WHITE}; font-weight:500;">You share your name.</p>
-      <p>One name. Every client. Every time.</p>
-
-      <p style="margin-top:40px; color:{ROSE}; font-weight:600; letter-spacing:1px; font-size:13px; text-transform:uppercase;">
-        This is the identity system.
-      </p>
-
-      <p style="margin-top:32px;">
-        And once you’re known by a name,<br/>
-        going back to being a number feels impossible.
-      </p>
-    </div>
-
-    <div style="margin-top:60px; padding-top:32px; border-top:1px solid rgba(232,180,184,0.15);">
-      <p style="margin:8px 0 0; color:{ROSE}; font-size:22px; font-family:'Playfair Display', serif;">— Layla</p>
-      <p style="margin:4px 0 0; font-weight:900; letter-spacing:4px; font-size:12px; color:rgba(232,180,184,0.5);">PAYLA</p>
-    </div>
-
-  </div>
-</div>
-"""
+        "render": _from_numbers_to_names,
+        "tier": "all",
     },
     4: {
         "subject": "The awkward part is handled",
-        "html": lambda username: f"""
-<div style="background:{MIDNIGHT}; color:{SOFT_WHITE}; font-family:'Inter', -apple-system, sans-serif; padding:60px 20px; min-height:100vh;">
-  <div style="max-width:460px; margin:0 auto; background:{MIDNIGHT}; border:1px solid rgba(232,180,184,0.25); border-radius:32px; padding:48px; box-shadow:0 40px 100px rgba(0,0,0,0.5);">
-    
-    <div style="font-size:16px; line-height:2.2; color:#D6D6D6; font-weight:300;">
-      
-      <p style="margin-bottom:32px;">Let’s talk about the moment most people avoid.</p>
-
-      <div style="color:#888888; margin-bottom:32px;">
-        <p style="margin:0;">The transaction.</p>
-        <p style="margin:0;">The follow-ups.</p>
-        <p style="margin:0;">The uncomfortable silence after the work is done.</p>
-      </div>
-
-      <p style="color:{ROSE}; font-weight:600; font-size:18px; line-height:1.6; margin-bottom:40px;">
-        This is where dignity is usually lost.
-      </p>
-
-      <p>Payla was designed to handle this part for you.</p>
-
-      <div style="margin:24px 0; color:{SOFT_WHITE}; font-weight:500;">
-        <p style="margin:0;">Not loudly.</p>
-        <p style="margin:0;">Not aggressively.</p>
-        <p style="margin:0;">Not awkwardly.</p>
-      </div>
-
-      <p style="font-size:18px; letter-spacing:0.5px; color:{ROSE};">Quietly. Correctly.</p>
-
-      <p style="margin-top:40px;">
-        With Payla, you don’t chase payments.
-      </p>
-      <p>You don’t check your phone.</p>
-      <p>You don’t ask if someone has paid.</p>
-
-      <div style="margin:40px 0; border-left:2px solid {ROSE}; padding-left:20px; color:{SOFT_WHITE}; font-weight:500;">
-        <p style="margin:0;">Reminders are sent.</p>
-        <p style="margin:0;">Overdues are handled.</p>
-        <p style="margin:0;">Receipts are issued.</p>
-      </div>
-
-      <p style="color:{ROSE}; font-size:20px; font-weight:700;">Automatically.</p>
-      <p>On time. Every time.</p>
-
-      <p style="margin-top:40px;">
-        Your client isn’t pressured.<br/>
-        And you aren’t diminished.
-      </p>
-
-      <p style="color:{SOFT_WHITE}; font-style:italic; margin-top:12px;">That balance matters.</p>
-
-      <div style="margin-top:40px; background:rgba(232,180,184,0.05); padding:24px; border-radius:16px; border:1px solid rgba(232,180,184,0.1);">
-        <p style="margin:0;">Invoices are clear.</p>
-        <p style="margin:0;">Receipts are instant.</p>
-        <p style="margin:0; color:{SOFT_WHITE};">Payments go straight to your account.</p>
-      </div>
-
-      <div style="margin-top:32px; color:#888888; font-size:15px;">
-        <p style="margin:0;">No screenshots.</p>
-        <p style="margin:0;">No explanations.</p>
-        <p style="margin:0;">No discomfort.</p>
-      </div>
-
-      <p style="margin-top:40px; line-height:1.6;">
-        Because the best payment systems don’t interrupt the relationship.<br/>
-        <span style="color:{SOFT_WHITE}; font-weight:600;">They protect it.</span>
-      </p>
-
-      <p style="margin-top:32px;">
-        Payla exists so you can stay focused on your work —<br/>
-        while the transaction takes care of itself.
-      </p>
-
-      <p style="margin-top:40px; color:{ROSE}; font-weight:600; font-size:17px;">
-        This is how it should feel to get paid.
-      </p>
-    </div>
-
-    <div style="margin-top:60px; padding-top:32px; border-top:1px solid rgba(232,180,184,0.15);">
-      <p style="margin:8px 0 0; color:{ROSE}; font-size:22px; font-family:'Playfair Display', serif;">— Layla</p>
-      <p style="margin:4px 0 0; font-weight:900; letter-spacing:4px; font-size:12px; color:rgba(232,180,184,0.5);">PAYLA</p>
-    </div>
-
-  </div>
-</div>
-"""
+        "render": _silver_bridge,       # used when plan == "free"
+        "render_silver": _silver_operational,  # used when plan is paid
+        "tier": "conditional",
     },
     5: {
         "subject": "Once you choose a standard",
-        "html": lambda username: f"""
-<div style="background:{MIDNIGHT}; color:{SOFT_WHITE}; font-family:'Inter', -apple-system, sans-serif; padding:60px 20px; min-height:100vh;">
-  <div style="max-width:460px; margin:0 auto; background:{MIDNIGHT}; border:1px solid rgba(232,180,184,0.25); border-radius:32px; padding:48px; box-shadow:0 40px 100px rgba(0,0,0,0.5);">
-    
-    <div style="font-size:16px; line-height:2.2; color:#D6D6D6; font-weight:300;">
-      
-      <p style="margin-bottom:32px;">This is the part most people don’t think about.</p>
-
-      <div style="color:{ROSE}; font-weight:500; margin-bottom:32px;">
-        <p style="margin:0;">Standards don’t ask to be renewed.</p>
-        <p style="margin:0;">They don’t compete.</p>
-        <p style="margin:0;">They don’t downgrade.</p>
-      </div>
-
-      <p style="color:{SOFT_WHITE}; font-size:18px; margin-bottom:40px;">
-        Once you choose one, you don’t go back.
-      </p>
-
-      <p>Your Payla name is permanent. It’s yours.</p>
-      <p>It doesn’t expire. It doesn’t change.</p>
-
-      <div style="margin:40px 0; border-left:2px solid {ROSE}; padding-left:20px;">
-        <p style="margin:0;">It becomes how clients recognize you.</p>
-        <p style="margin:0;">How payments reach you.</p>
-        <p style="margin:0; color:{SOFT_WHITE};"><strong>How your work is remembered.</strong></p>
-      </div>
-
-      <p style="color:{ROSE}; font-size:18px; font-weight:600; letter-spacing:-0.5px;">That’s the lock-in.</p>
-      <p>Not force. Not friction. Familiarity.</p>
-
-      <p style="margin-top:32px;">
-        Once people know how to pay you, they don’t need to be reminded.
-      </p>
-      
-      <p style="color:{SOFT_WHITE}; font-style:italic;">
-        And once you experience getting paid with clarity, everything else feels like noise.
-      </p>
-
-      <p style="margin-top:40px; color:{ROSE}; font-weight:600; letter-spacing:1px; font-size:13px; text-transform:uppercase;">
-        You’re not a user here. You’re a VIP.
-      </p>
-      
-      <p style="margin-top:8px;">
-        Which means when you need help, you won’t search. You’ll reach us.
-      </p>
-
-      <div style="margin:24px 0; color:{SOFT_WHITE}; font-family:monospace; font-size:15px;">
-        support@payla.vip<br/>
-        hello@payla.vip
-      </div>
-
-      <p style="margin-top:32px;">
-        If there’s anything else you need to know, I’ll be at your doorstep — 
-        <span style="color:{ROSE};">quietly, precisely, when it matters.</span>
-      </p>
-
-      <p style="margin-top:40px; line-height:1.6; color:#888888; font-size:14px;">
-        This is the last email in this series. Not because there’s nothing left to say — 
-        but because you now know enough.
-      </p>
-
-      <div style="margin-top:32px; color:{SOFT_WHITE}; font-weight:500;">
-        <p style="margin:0;">You have a name.</p>
-        <p style="margin:0;">You have a standard.</p>
-        <p style="margin:0; color:{ROSE};">There’s nothing to downgrade to.</p>
-      </div>
-    </div>
-
-    <div style="margin-top:60px; padding-top:32px; border-top:1px solid rgba(232,180,184,0.15);">
-      <p style="margin:8px 0 0; color:{ROSE}; font-size:22px; font-family:'Playfair Display', serif;">— Layla</p>
-      <p style="margin:4px 0 0; font-weight:900; letter-spacing:4px; font-size:12px; color:rgba(232,180,184,0.5);">PAYLA</p>
-    </div>
-
-  </div>
-</div>
-"""
-    }
+        "render": _once_you_choose_a_standard,
+        "tier": "all",
+    },
 }

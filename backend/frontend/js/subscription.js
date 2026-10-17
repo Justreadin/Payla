@@ -1,613 +1,894 @@
-// Payla Subscription - Complete Integration with FastAPI Backend
 import { API_BASE } from './config.js';
+
+const PLAN_KEYS = {
+  monthly: 'silver_monthly',
+  yearly: 'silver_yearly',
+};
+
+const DEFAULT_PRICES = {
+  silver_monthly: 7500,
+  silver_yearly: 75000,
+};
+
 class SubscriptionManager {
-    constructor() {
-        this.API_BASE = API_BASE;
-        this.currentUser = null;
-        this.subscriptionStatus = null;
-        this.plans = null;
-        this.selectedPlan = null;
-        
-        this.init();
+  constructor() {
+    this.API_BASE = String(API_BASE || '').replace(/\/$/, '');
+    this.status = null;
+    this.plans = {};
+    this.foundingOffer = {};
+    this.cycle = 'monthly';
+    this.confirmedPlan = null;
+    this.busy = false;
+    this.toastTimer = null;
+
+    this.elements = {
+      heroTitle: document.getElementById('hero-title'),
+      heroSubtitle: document.getElementById('hero-subtitle'),
+      heroUpgrade: document.getElementById('hero-upgrade'),
+      statusNote: document.getElementById('subscription-status-note'),
+      price: document.getElementById('silver-price'),
+      period: document.getElementById('silver-period'),
+      priceContext: document.getElementById('price-context'),
+      foundingBanner: document.getElementById('founding-offer'),
+      foundingTitle: document.getElementById('founding-title'),
+      foundingDescription: document.getElementById('founding-description'),
+      foundingRemaining: document.getElementById('founding-remaining'),
+      foundingPriceNote: document.getElementById('founding-price-note'),
+      upgrade: document.getElementById('silver-upgrade'),
+      planCard: document.getElementById('silver-plan'),
+      statusHint: document.getElementById('silver-status-hint'),
+      manageSection: document.getElementById('manage-subscription'),
+      manageSummary: document.getElementById('manage-summary'),
+      toast: document.getElementById('subscription-toast'),
+      confirmModal: document.getElementById('subscription-confirm-modal'),
+      confirmTitle: document.getElementById('confirm-title'),
+      confirmDescription: document.getElementById('confirm-description'),
+      confirmCycle: document.getElementById('confirm-cycle'),
+      confirmPrice: document.getElementById('confirm-price'),
+      confirmPriceNote: document.getElementById('confirm-price-note'),
+      confirmFoundingNote: document.getElementById('confirm-founding-note'),
+      confirmCheckout: document.getElementById('confirm-checkout'),
+      successModal: document.getElementById('subscription-success-modal'),
+    };
+
+    this.init();
+  }
+
+  async init() {
+    if (!this.getAuthToken()) {
+      window.location.assign('/entry');
+      return;
     }
 
-    async init() {
-        try {
-            // Check authentication
-            if (!this.getAuthToken()) {
-                window.location.href = '/entry';
-                return;
-            }
+    this.bindEvents();
 
-            // Load all data
-            await this.loadSubscriptionStatus();
-            await this.loadPlans();
-            
-            // Initialize UI components
-            this.initEventListeners();
-            this.updateUI();
-            // If trial/sub is expired, automatically pop the plan selection
-            if (this.subscriptionStatus && this.subscriptionStatus.is_active === false) {
-                // Small delay to ensure the background UI has rendered first
-                setTimeout(() => {
-                    this.showPlanSelectionModal();
-                    this.showToast("Your Silver access has expired. Please choose a plan to continue.", "error");
-                }, 500);
-            }
-        } catch (error) {
-            console.error('Failed to initialize subscription manager:', error);
-            this.showError('Failed to load subscription data. Please refresh the page.');
-        }
+    try {
+      await Promise.all([
+        this.loadStatus(),
+        this.loadPlans(),
+      ]);
+
+      this.render();
+      await this.handleCheckoutReturn();
+    } catch (error) {
+      console.error('Subscription page initialization failed:', error);
+
+      this.showToast(
+        error.message ||
+          'Could not load subscription details. Refresh to try again.',
+        'error'
+      );
+
+      if (this.elements.upgrade) {
+        this.elements.upgrade.disabled = true;
+      }
+    }
+  }
+
+  getAuthToken() {
+    return localStorage.getItem('idToken') || '';
+  }
+
+  authHeaders() {
+    return {
+      Authorization: `Bearer ${this.getAuthToken()}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  async request(path, options = {}) {
+    const response = await fetch(`${this.API_BASE}${path}`, {
+      ...options,
+      headers: {
+        ...this.authHeaders(),
+        ...(options.headers || {}),
+      },
+    });
+
+    let data = {};
+
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
     }
 
-    getAuthToken() {
-        return localStorage.getItem('idToken') || '';
+    if (response.status === 401) {
+      window.location.assign('/entry');
+      throw new Error('Your session has expired. Please sign in again.');
     }
 
-    async loadSubscriptionStatus() {
-        try {
-            const response = await fetch(`${this.API_BASE}/subscription/status`, {
-                headers: {
-                    'Authorization': `Bearer ${this.getAuthToken()}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (response.ok) {
-                this.subscriptionStatus = await response.json();
-            } else if (response.status === 401) {
-                window.location.href = '/entry';
-                return;
-            } else {
-                throw new Error('Failed to fetch subscription status');
-            }
-        } catch (error) {
-            console.error('Error loading subscription status:', error);
-            throw error;
-        }
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+        data.message ||
+        `Request failed (${response.status})`
+      );
     }
 
-    async loadPlans() {
-        try {
-            const response = await fetch(`${this.API_BASE}/subscription/plans`, {
-                headers: {
-                    'Authorization': `Bearer ${this.getAuthToken()}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                this.plans = data.plans;
-            } else {
-                throw new Error('Failed to fetch plans');
-            }
-        } catch (error) {
-            console.error('Error loading plans:', error);
-            throw error;
-        }
-    }
+    return data;
+  }
 
-    initEventListeners() {
-        // Silver upgrade buttons
-        const silverButtons = [
-            document.getElementById('silver-upgrade'),
-            document.getElementById('sticky-upgrade'),
-            document.getElementById('hero-upgrade')
+  async loadStatus() {
+    this.status = await this.request('/subscription/status');
+  }
+
+  async loadPlans() {
+    const response = await this.request('/subscription/plans');
+
+    this.plans = response.plans || {};
+    this.foundingOffer = response.founding_offer || {};
+  }
+
+  bindEvents() {
+    document.getElementById('hero-upgrade')
+      ?.addEventListener('click', () => {
+        document.getElementById('pricing')
+          ?.scrollIntoView({ behavior: 'smooth' });
+      });
+
+    document.getElementById('silver-upgrade')
+      ?.addEventListener('click', () => this.openConfirmation());
+
+    document.querySelectorAll('[data-cycle]').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.cycle =
+          button.dataset.cycle === 'yearly' ? 'yearly' : 'monthly';
+
+        this.renderPrice();
+        this.renderBillingToggle();
+      });
+    });
+
+    document.getElementById('confirm-checkout')
+      ?.addEventListener('click', () => this.startCheckout());
+
+    document.getElementById('confirm-back')
+      ?.addEventListener('click', () => this.closeConfirmation());
+
+    document.getElementById('confirm-close')
+      ?.addEventListener('click', () => this.closeConfirmation());
+
+    this.elements.confirmModal?.addEventListener('click', (event) => {
+      if (event.target === this.elements.confirmModal) {
+        this.closeConfirmation();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        this.closeConfirmation();
+      }
+    });
+
+    document.getElementById('manage-billing')
+      ?.addEventListener('click', () => this.openManageLink());
+
+    document.getElementById('cancel-renewal')
+      ?.addEventListener('click', () => this.cancelRenewal());
+
+    document.getElementById('success-dashboard')
+      ?.addEventListener('click', () => {
+        window.location.assign('/dashboard');
+      });
+  }
+
+  planKey() {
+    return PLAN_KEYS[this.cycle] || PLAN_KEYS.monthly;
+  }
+
+  planData(cycle = this.cycle) {
+    const key = PLAN_KEYS[cycle] || PLAN_KEYS.monthly;
+    return this.plans[key] || {};
+  }
+
+  amountFor(cycle = this.cycle) {
+    const key = PLAN_KEYS[cycle] || PLAN_KEYS.monthly;
+    const plan = this.planData(cycle);
+
+    const founder = this.isFoundingEligible();
+    const status = this.status || {};
+
+    if (founder) {
+      const locked = cycle === 'yearly'
+        ? status.founding_yearly_price_ngn
+        : status.founding_monthly_price_ngn;
+
+      if (this.isExistingFounder() && Number(locked) > 0) {
+        return Number(locked);
+      }
+
+      const founderPrice =
+        this.foundingOffer.prices?.[key] ??
+        this.foundingOffer[
+          cycle === 'yearly'
+            ? 'yearly_price_ngn'
+            : 'monthly_price_ngn'
         ];
 
-        silverButtons.forEach(button => {
-            if (button) {
-                button.addEventListener('click', () => {
-                    this.showPlanSelectionModal();
-                });
-            }
+      if (Number(founderPrice) > 0) {
+        return Number(founderPrice);
+      }
+    }
+
+    return Number(plan.amount_ngn ?? DEFAULT_PRICES[key]);
+  }
+
+  isExistingFounder() {
+    return Boolean(
+      this.status?.founding_member_ever ||
+      this.status?.founding_price_locked ||
+      this.foundingOffer?.is_existing_founder
+    );
+  }
+
+  isFoundingEligible() {
+    if (this.isExistingFounder()) {
+      return true;
+    }
+
+    return Boolean(
+      this.foundingOffer?.available_for_this_account ||
+      this.foundingOffer?.reserved_for_this_account
+    );
+  }
+
+  formatNaira(amount) {
+    return `₦${Number(amount || 0).toLocaleString('en-NG', {
+      maximumFractionDigits: 0,
+    })}`;
+  }
+
+  render() {
+    this.renderHero();
+    this.renderPrice();
+    this.renderBillingToggle();
+    this.renderFoundingOffer();
+    this.renderSubscriptionControls();
+  }
+
+  renderHero() {
+    const status = this.status || {};
+
+    const active = Boolean(status.active ?? status.is_active);
+    const plan = String(status.plan || 'free').toLowerCase();
+    const state = String(status.subscription_status || '').toLowerCase();
+
+    // 1. Active Silver (with or without renewal off).
+    if (active && plan === 'silver') {
+      this.elements.heroTitle.textContent =
+        state === 'non_renewing'
+          ? 'Your Silver access is still yours.'
+          : 'Payla Silver is active.';
+
+      this.elements.heroSubtitle.textContent =
+        state === 'non_renewing'
+          ? 'Your subscription will not renew, but your paid access continues through the end of your current billing period.'
+          : 'Your payment experience is ready. Keep your links, invoices, reminders and analytics working together.';
+
+      this.elements.statusNote.textContent = this.billingEndLabel(status);
+      this.elements.heroUpgrade.textContent = 'Manage Silver';
+
+      this.elements.heroUpgrade.onclick = () => {
+        this.elements.manageSection?.scrollIntoView({
+          behavior: 'smooth',
         });
+      };
 
-        // Close modal events
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal-overlay') || 
-                e.target.classList.contains('modal-close')) {
-                this.closePlanSelectionModal();
-            }
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.closePlanSelectionModal();
-            }
-        });
-
-        // Paystack callback handler
-        window.handlePaystackCallback = this.handlePaystackCallback.bind(this);
+      return;
     }
 
-    showPlanSelectionModal() {
-        // Check if user already has Silver
-        if (this.subscriptionStatus?.plan === 'silver' && this.subscriptionStatus?.is_active) {
-            this.showToast('You already have an active Silver subscription!', 'info');
-            return;
-        }
+    // 2. Past due, still in grace.
+    if (state === 'past_due' && status.in_grace_period) {
+      this.elements.heroTitle.textContent =
+        'Let’s get your Silver access back on track.';
 
-        // Logic for Title and Subtitle based on status
-        const isExpired = this.subscriptionStatus?.is_active === false;
-        const trialUsed = this.subscriptionStatus?.trial_days_left <= 0;
-        
-        const title = isExpired ? "Renew Your Silver Access" : "Choose Billing Cycle";
-        const subtitle = isExpired ? "Your trial has ended. Pick a plan to reactivate your link." : "Select how you want to pay for Payla Silver";
+      this.elements.heroSubtitle.textContent =
+        'Your latest renewal needs attention. Update your payment to keep your Silver features available.';
 
-        const modalHTML = `
-            <div class="modal-overlay" id="plan-selection-modal">
-                <div class="modal">
-                    <button class="modal-close">
-                        <i class="fas fa-times"></i>
-                    </button>
-                    <h2 class="modal-title">${title}</h2>
-                    <p class="modal-subtitle">${subtitle}</p>
+      const days = Number(status.days_left_in_grace || 0);
 
-                    <div class="billing-options">
-                        <div class="billing-option" data-plan="silver_monthly">
-                            <div class="billing-header">
-                                <h3>Monthly</h3>
-                                <div class="badge popular">Flexible</div>
-                            </div>
-                            <div class="billing-price">
-                                <span class="price">₦7,500</span>
-                                <span class="period">per month</span>
-                            </div>
-                            <ul class="billing-features">
-                                <li><i class="fas fa-check"></i> Cancel anytime</li>
-                                <li><i class="fas fa-check"></i> No long-term commitment</li>
-                                <li><i class="fas fa-check"></i> Full access to all features</li>
-                            </ul>
-                            <button class="btn-primary billing-select">
-                                <i class="fas fa-calendar"></i>
-                                Choose Monthly
-                            </button>
-                        </div>
+      this.elements.statusNote.textContent = days > 0
+        ? `Your access continues for ${days} more ${days === 1 ? 'day' : 'days'}. Update billing to keep Silver.`
+        : 'Your renewal is past due. Update billing to keep Silver.';
 
-                        <div class="billing-option" data-plan="silver_yearly">
-                            <div class="billing-header">
-                                <h3>Yearly</h3>
-                                <div class="badge gold">Save 17%</div>
-                            </div>
-                            <div class="billing-price">
-                                <span class="price">₦75,000</span>
-                                <span class="period">per year</span>
-                                <div class="savings">Save ₦15,000</div>
-                            </div>
-                            <ul class="billing-features">
-                                <li><i class="fas fa-check"></i> Best value</li>
-                                <li><i class="fas fa-check"></i> One payment per year</li>
-                                <li><i class="fas fa-check"></i> Priority feature requests</li>
-                            </ul>
-                            <button class="btn-gold billing-select">
-                                <i class="fas fa-calendar-alt"></i>
-                                Choose Yearly
-                            </button>
-                        </div>
-                    </div>
+      this.elements.heroUpgrade.textContent = 'Review Silver';
 
-                    ${!trialUsed ? `
-                    <div class="billing-note">
-                        <i class="fas fa-shield-alt"></i>
-                        <span>Cancel before trial ends to avoid charges.</span>
-                    </div>` : ''}
-                </div>
-            </div>
-        `;
+      this.elements.heroUpgrade.onclick = () => {
+        document.getElementById('pricing')
+          ?.scrollIntoView({ behavior: 'smooth' });
+      };
 
-        // Remove existing modal if any
-        const existingModal = document.getElementById('plan-selection-modal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-        
-        // Show modal
-        const modal = document.getElementById('plan-selection-modal');
-        modal.style.display = 'flex';
-        setTimeout(() => modal.classList.add('open'), 10);
-        document.body.style.overflow = 'hidden';
-        
-        // Add event listeners to billing options
-        document.querySelectorAll('.billing-select').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const planOption = e.target.closest('.billing-option');
-                const planCode = planOption.dataset.plan;
-                this.startSubscription(planCode);
-            });
-        });
-
-        // Add hover effects
-        document.querySelectorAll('.billing-option').forEach(option => {
-            option.addEventListener('click', (e) => {
-                if (!e.target.classList.contains('billing-select')) {
-                    document.querySelectorAll('.billing-option').forEach(opt => {
-                        opt.classList.remove('selected');
-                    });
-                    option.classList.add('selected');
-                }
-            });
-        });
+      return;
     }
 
-    closePlanSelectionModal() {
-        const modal = document.getElementById('plan-selection-modal');
-        if (modal) {
-            modal.classList.remove('open');
-            setTimeout(() => {
-                modal.remove();
-                document.body.style.overflow = 'auto';
-            }, 300);
-        }
+    // 3. Was Silver, is not now.
+    const wasSilver = Boolean(
+      status.last_subscription_payment_at ||
+      status.founding_member_ever ||
+      status.subscription_id
+    );
+
+    if (!active && wasSilver) {
+      this.elements.heroTitle.textContent =
+        'Your Silver subscription has ended.';
+
+      this.elements.heroSubtitle.textContent =
+        'Renew Silver to bring back invoices, receipts, reminders, and analytics. Your paylink and payments keep working on Free.';
+
+      this.elements.statusNote.textContent = status.subscription_end
+        ? `Ended ${this.formatDate(status.subscription_end)}.`
+        : 'Your Silver access has lapsed.';
+
+      this.elements.heroUpgrade.textContent = 'Renew Silver';
+
+      this.elements.heroUpgrade.onclick = () => {
+        document.getElementById('pricing')
+          ?.scrollIntoView({ behavior: 'smooth' });
+      };
+
+      return;
     }
 
-    async startSubscription(planCode) {
-        try {
-            this.showToast('Initializing subscription...', 'info');
-            this.closePlanSelectionModal();
+    // 4. Never subscribed — default marketing copy.
+    this.elements.heroTitle.textContent =
+      'Your work deserves a better way to get paid.';
 
-            const response = await fetch(`${this.API_BASE}/subscription/start/${planCode}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.getAuthToken()}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+    this.elements.heroSubtitle.textContent =
+      'A considered payment experience for the people behind the work. Branded paylinks, polished invoices, timely reminders and clear analytics.';
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Failed to start subscription');
-            }
+    this.elements.statusNote.textContent = status.message || '';
+    this.elements.heroUpgrade.textContent = 'Explore Silver';
 
-            const subscriptionData = await response.json();
-            
-            // Initialize Paystack payment
-            this.initializePaystackPayment(subscriptionData);
+    this.elements.heroUpgrade.onclick = () => {
+      document.getElementById('pricing')
+        ?.scrollIntoView({ behavior: 'smooth' });
+    };
+  }
 
-        } catch (error) {
-            console.error('Error starting subscription:', error);
-            this.showError(error.message || 'Failed to start subscription process');
-        }
+  renderPrice() {
+    const key = this.planKey();
+    const amount = this.amountFor();
+
+    this.elements.price.textContent =
+      Number(amount).toLocaleString('en-NG', {
+        maximumFractionDigits: 0,
+      });
+
+    this.elements.period.textContent =
+      this.cycle === 'yearly' ? '/ year' : '/ month';
+
+    if (this.isExistingFounder()) {
+      this.elements.priceContext.textContent =
+        'Your protected founding price. It remains available to your account on eligible renewals.';
+
+      this.elements.foundingPriceNote.hidden = false;
+
+      this.elements.foundingPriceNote.textContent =
+        'Founding price protection applies to your account, including after a cancellation and return.';
+    } else if (this.isFoundingEligible()) {
+      this.elements.priceContext.textContent =
+        'Founding price shown for an eligible account. Your place is secured only after successful payment.';
+
+      this.elements.foundingPriceNote.hidden = false;
+
+      this.elements.foundingPriceNote.textContent =
+        'Founding availability is reserved during checkout and confirmed after payment.';
+    } else {
+      this.elements.priceContext.textContent =
+        this.cycle === 'yearly'
+          ? 'Billed annually. No trial period.'
+          : 'Billed monthly. No trial period.';
+
+      this.elements.foundingPriceNote.hidden = true;
+      this.elements.foundingPriceNote.textContent = '';
     }
 
-    initializePaystackPayment(subscriptionData) {
-        if (typeof PaystackPop === 'undefined') {
-            this.showError('Payment service unavailable. Please try again later.');
-            return;
-        }
+    const plan = this.plans[key] || {};
 
-        const handler = PaystackPop.setup({
-            key: subscriptionData.public_key,
-            email: subscriptionData.email,
-            amount: subscriptionData.amount_kobo,
-            ref: subscriptionData.reference,
-            metadata: subscriptionData.metadata,
-            currency: 'NGN',
-            
-            onClose: () => {
-                this.showToast('Payment window closed', 'info');
-            },
-            
-            callback: (response) => {
-                this.handlePaystackCallback(response, subscriptionData);
-            }
-        });
+    if (plan.name && this.elements.upgrade) {
+      this.elements.upgrade.setAttribute(
+        'aria-label',
+        `Continue with Silver ${this.cycle} for ${this.formatNaira(amount)}`
+      );
+    }
+  }
 
-        handler.openIframe();
+  renderBillingToggle() {
+    document.querySelectorAll('[data-cycle]').forEach((button) => {
+      const selected = button.dataset.cycle === this.cycle;
+
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+  }
+
+  renderFoundingOffer() {
+    const offer = this.foundingOffer || {};
+    const eligible = this.isFoundingEligible();
+
+    const remaining = Number(
+      offer.remaining_spots ??
+      offer.remaining ??
+      offer.available_spots ??
+      NaN
+    );
+
+    this.elements.foundingBanner.hidden =
+      !eligible && !(Number.isFinite(remaining) && remaining > 0);
+
+    if (this.elements.foundingBanner.hidden) {
+      return;
     }
 
-    async handlePaystackCallback(response, subscriptionData) {
-        try {
-            if (response.status === 'success') {
-                this.showToast('Payment successful! Verifying...', 'success');
-                
-                // FIX: Pass the reference string, not the whole object
-                await this.verifyPaymentWithBackend(subscriptionData.reference);
-                
-            } else {
-                throw new Error('Payment failed');
-            }
-        } catch (error) {
-            console.error('Payment callback error:', error);
-            this.showError('Verification failed. Please refresh.');
-        }
+    if (this.isExistingFounder()) {
+      this.elements.foundingTitle.textContent =
+        'Your founding price is protected';
+
+      this.elements.foundingDescription.textContent =
+        'Your founding price protection is attached to your account, including if you cancel and return later.';
+
+      this.elements.foundingRemaining.textContent =
+        Number.isFinite(remaining) ? String(remaining) : '✓';
+
+      const capacityLabel = this.elements.foundingRemaining?.parentElement?.querySelector('span');
+      if (capacityLabel) capacityLabel.textContent = 'places remaining';
+    } else if (offer.reserved_for_this_account) {
+      this.elements.foundingTitle.textContent =
+        'Your founding checkout is reserved';
+
+      this.elements.foundingDescription.textContent =
+        'Complete checkout to confirm your founding membership. A reservation alone does not activate your price protection.';
+
+      this.elements.foundingRemaining.textContent =
+        Number.isFinite(remaining) ? String(remaining) : '—';
+    } else if (eligible) {
+      this.elements.foundingTitle.textContent =
+        'Founding member pricing';
+
+      this.elements.foundingDescription.textContent =
+        'You are eligible to claim a founding price while a place remains. Price protection begins after successful payment.';
+
+      this.elements.foundingRemaining.textContent =
+        Number.isFinite(remaining) ? String(remaining) : '—';
+    } else {
+      this.elements.foundingTitle.textContent =
+        'Founding places are limited';
+
+      this.elements.foundingDescription.textContent =
+        'Founding pricing is available to eligible accounts while places remain.';
+
+      this.elements.foundingRemaining.textContent =
+        Number.isFinite(remaining) ? String(remaining) : '—';
+    }
+  }
+
+  renderSubscriptionControls() {
+    const status = this.status || {};
+
+    const active = Boolean(status.active ?? status.is_active);
+    const plan = String(status.plan || '').toLowerCase();
+    const subState = String(status.subscription_status || '').toLowerCase();
+
+    const paidSilver = active && plan === 'silver';
+
+    const wasLapsed = !paidSilver && Boolean(
+      status.last_subscription_payment_at ||
+      status.founding_member_ever ||
+      status.subscription_id
+    );
+
+    this.elements.planCard?.classList.toggle(
+      'is-active-plan',
+      paidSilver
+    );
+
+    // Disable the Silver purchase button when Silver is active.
+    if (this.elements.upgrade) {
+      this.elements.upgrade.disabled = paidSilver || this.busy;
+      this.elements.upgrade.setAttribute(
+        'aria-disabled',
+        String(paidSilver || this.busy)
+      );
+
+      this.elements.upgrade.textContent = paidSilver
+        ? (
+            subState === 'non_renewing'
+              ? 'Silver active · Renewal off'
+              : 'Current plan'
+          )
+        : 'Continue to Silver';
     }
 
-    async verifyPaymentWithBackend(reference) {
-        try {
-            const response = await fetch(`${this.API_BASE}/subscription/verify/${reference}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.getAuthToken()}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+    if (paidSilver) {
+      this.elements.statusHint.textContent =
+        subState === 'non_renewing'
+          ? `Access continues until ${this.formatDate(
+              status.subscription_end || status.next_billing_date
+            )}.`
+          : 'Your Silver subscription is active.';
 
-            const result = await response.json();
+      this.elements.manageSection.hidden = false;
 
-            if (response.ok && result.status) {
-                // Update local state with the new user data from backend
-                this.subscriptionStatus = result.status; 
-                this.updateUI(); // Refresh the buttons and badges immediately
-                this.showSuccessModal();
-            } else {
-                throw new Error(result.detail || "Verification failed");
-            }
-        } catch (error) {
-            console.error('Verification Error:', error);
-            this.showError("Verification failed. Please contact support with reference: " + reference);
-        }
-    }
-    showSuccessModal() {
-        const successHTML = `
-            <div class="modal-overlay open" id="success-modal">
-                <div class="modal">
-                    <div class="modal-icon">
-                        <i class="fas fa-crown"></i>
-                    </div>
-                    <h2 class="modal-title">Welcome to Payla Silver!</h2>
-                    <p class="modal-subtitle">Your premium subscription is now active. Start creating beautiful invoices!</p>
-                    
-                    <div class="modal-actions">
-                        <button class="btn btn-primary full" id="go-to-dashboard">
-                            <i class="fas fa-rocket"></i>
-                            Go to Dashboard
-                        </button>
-                        <button class="btn btn-secondary" id="explore-features">
-                            <i class="fas fa-compass"></i>
-                            Explore Features
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
+      this.elements.manageSummary.textContent =
+        subState === 'non_renewing'
+          ? `Renewal is off. Your Silver access is scheduled to end ${this.formatDate(
+              status.subscription_end || status.next_billing_date
+            )}.`
+          : `Silver is active${
+              status.next_billing_date
+                ? ` until your next billing date on ${this.formatDate(
+                    status.next_billing_date
+                  )}`
+                : ''
+            }.`;
 
-        document.body.insertAdjacentHTML('beforeend', successHTML);
+      document.getElementById('cancel-renewal').hidden =
+        subState === 'non_renewing' ||
+        status.cancel_at_period_end === true;
 
-        // Add event listeners
-        document.getElementById('go-to-dashboard').addEventListener('click', () => {
-            window.location.href = '/dashboard';
-        });
+      document.getElementById('manage-billing').hidden =
+        !status.subscription_id;
 
-        document.getElementById('explore-features').addEventListener('click', () => {
-            document.getElementById('success-modal').remove();
-            this.scrollToFeatures();
-        });
-
-        // Close on overlay click
-        document.getElementById('success-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'success-modal') {
-                e.target.remove();
-                window.location.href = '/dashboard';
-            }
-        });
+      return;
     }
 
-    scrollToFeatures() {
-        const featuresSection = document.querySelector('.pricing-grid');
-        if (featuresSection) {
-            featuresSection.scrollIntoView({ behavior: 'smooth' });
-        }
+    this.elements.manageSection.hidden = !status.subscription_id;
+
+    if (subState === 'past_due') {
+      this.elements.statusHint.textContent =
+        'Your subscription needs renewal attention.';
+    } else if (wasLapsed) {
+      this.elements.statusHint.textContent =
+        'Renew Silver to restore invoices, receipts, reminders, and analytics.';
+    } else {
+      this.elements.statusHint.textContent =
+        'Silver access activates after Paystack confirms your payment.';
     }
 
-    updateUI() {
-        if (!this.subscriptionStatus) return;
+    document.getElementById('cancel-renewal').hidden = true;
 
-        const { plan, is_active, trial_days_left, message } = this.subscriptionStatus;
+    document.getElementById('manage-billing').hidden =
+      !status.subscription_id;
+  }
 
-        // Update hero section
-        this.updateHeroSection(plan, is_active, trial_days_left, message);
-        
-        // Update plan cards
-        this.updatePlanCards(plan);
-        
-        // Update sticky CTA
-        this.updateStickyCTA(plan);
+  
+    openConfirmation() {
+      const status = this.status || {};
+      const active = Boolean(status.active ?? status.is_active);
+      const plan = String(status.plan || '').toLowerCase();
+
+      if (this.busy) {
+        return;
+      }
+
+      if (active && plan === 'silver') {
+        this.renderSubscriptionControls();
+
+        this.showToast(
+          'Silver is already active on your account.',
+          'info'
+        );
+
+        return;
+      }
+
+
+    const amount = this.amountFor();
+
+    this.confirmedPlan = this.planKey();
+
+    this.elements.confirmTitle.textContent =
+      this.isExistingFounder()
+        ? 'Continue with your protected Silver price?'
+        : this.isFoundingEligible()
+          ? 'Claim your Silver founding price?'
+          : 'Continue with Silver?';
+
+    this.elements.confirmDescription.textContent =
+      'You will be redirected to Paystack to complete secure recurring billing. Your subscription activates only after payment is verified.';
+
+    this.elements.confirmCycle.textContent =
+      this.cycle === 'yearly'
+        ? 'Yearly billing'
+        : 'Monthly billing';
+
+    this.elements.confirmPrice.textContent =
+      this.formatNaira(amount);
+
+    this.elements.confirmPriceNote.textContent =
+      this.cycle === 'yearly'
+        ? 'Renews annually unless you cancel renewal.'
+        : 'Renews monthly unless you cancel renewal.';
+
+    this.elements.confirmFoundingNote.hidden =
+      !this.isFoundingEligible();
+
+    this.elements.confirmFoundingNote.textContent =
+      this.isExistingFounder()
+        ? 'Your protected founding price is linked to your account.'
+        : 'Your founding place is only confirmed after successful payment. If checkout is not completed, it is not a permanent reservation.';
+
+    this.elements.confirmModal.hidden = false;
+
+    document.body.classList.add('modal-open');
+
+    this.elements.confirmCheckout.focus();
+  }
+
+  closeConfirmation() {
+    if (this.elements.confirmModal) {
+      this.elements.confirmModal.hidden = true;
     }
 
-    updateHeroSection(plan, is_active, trial_days_left, message) {
-        const heroTitle = document.getElementById('hero-title');
-        const heroSubtitle = document.getElementById('hero-subtitle');
-        const countdown = document.getElementById('countdown');
-        const heroUpgradeButton = document.getElementById('hero-upgrade');
+    document.body.classList.remove('modal-open');
+  }
 
-        if (!heroTitle || !heroSubtitle || !countdown) return;
-
-        // Default styles reset
-        countdown.style.display = 'inline-block';
-        countdown.style.border = 'none';
-        countdown.style.background = 'rgba(255, 255, 255, 0.1)';
-        countdown.style.color = 'inherit';
-
-        // SITUATION 1: Active Paid Subscription
-        if (is_active && plan === 'silver') {
-            heroTitle.textContent = 'Payla Silver Active 🎉';
-            heroSubtitle.textContent = 'You have full access to all premium features';
-            
-            countdown.textContent = `Current Plan: Silver`;
-            countdown.style.background = 'rgba(16, 185, 129, 0.15)'; // Soft Green
-            countdown.style.color = '#10b981';
-
-            if (heroUpgradeButton) {
-                heroUpgradeButton.innerHTML = '<i class="fas fa-crown"></i> Active Member';
-                heroUpgradeButton.disabled = true;
-                heroUpgradeButton.style.opacity = '0.7';
-                heroUpgradeButton.style.cursor = 'default';
-            }
-        } 
-        // SITUATION 2: Active Trial (Not yet paid)
-        else if (is_active && plan !== 'silver') {
-            heroTitle.textContent = 'Upgrade to Payla Silver';
-            heroSubtitle.textContent = `Experience the full power of professional invoicing`;
-            
-            countdown.textContent = `Current Plan: Silver`;
-            countdown.style.background = 'rgba(255, 255, 255, 0.1)';
-
-            if (heroUpgradeButton) {
-                heroUpgradeButton.innerHTML = '<i class="fas fa-rocket"></i> Upgrade to Silver';
-                heroUpgradeButton.disabled = false;
-                heroUpgradeButton.style.opacity = '1';
-            }
-        } 
-        // SITUATION 3: Expired (Either Trial or Paid)
-        else {
-            heroTitle.textContent = 'Silver Access Expired';
-            heroSubtitle.textContent = 'Your premium access has ended. Choose a plan to reactivate your features.';
-            
-            countdown.textContent = 'Expired — Action Required';
-            countdown.style.background = 'rgba(239, 68, 68, 0.1)'; // Soft Red
-            countdown.style.color = '#ef4444';
-            countdown.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-
-            if (heroUpgradeButton) {
-                heroUpgradeButton.innerHTML = '<i class="fas fa-sync"></i> Renew Subscription';
-                heroUpgradeButton.disabled = false;
-                heroUpgradeButton.style.opacity = '1';
-            }
-        }
+  async startCheckout() {
+    if (this.busy || !this.confirmedPlan) {
+      return;
     }
 
-    updatePlanCards(plan, is_active) {
-        const silverCard = document.getElementById('silver-plan');
-        const silverButton = document.getElementById('silver-upgrade');
-        const statusHint = silverCard?.querySelector('.status-hint');
+    this.busy = true;
 
-        const isSilverActive = (plan === 'silver' && is_active);
+    this.elements.confirmCheckout.disabled = true;
+    this.elements.confirmCheckout.textContent =
+      'Preparing secure checkout…';
 
-        if (!silverCard) return;
+    try {
+      const response = await this.request(
+        `/subscription/start/${encodeURIComponent(this.confirmedPlan)}`,
+        { method: 'POST' }
+      );
 
-        if (isSilverActive) {
-            // Lock the card visually
-            silverCard.classList.add('activated');
-            silverCard.style.borderColor = '#10b981';
-            
-            if (silverButton) {
-                silverButton.innerHTML = '<i class="fas fa-check-circle"></i> Current Plan';
-                silverButton.disabled = true;
-                silverButton.className = 'btn-secondary full'; // Change color to look "inactive"
-                silverButton.style.cursor = 'not-allowed';
-            }
-            
-            if (statusHint) {
-                statusHint.innerHTML = '<i class="fas fa-shield-alt"></i> You are currently on this plan';
-                statusHint.style.color = '#10b981';
-                statusHint.style.fontWeight = '600';
-            }
-        } else {
-            // Reset to default "Sale" state
-            silverCard.classList.remove('activated');
-            silverCard.style.borderColor = '';
+      if (!response.authorization_url) {
+        throw new Error(
+          'Checkout URL was not returned. Please try again.'
+        );
+      }
 
-            if (silverButton) {
-                silverButton.innerHTML = '<i class="fas fa-rocket"></i> Upgrade to Silver';
-                silverButton.disabled = false;
-                silverButton.className = 'btn-primary full';
-                silverButton.style.cursor = 'pointer';
-            }
+      // Redirect to the hosted Paystack checkout page.
+      window.location.assign(response.authorization_url);
 
-            if (statusHint) {
-                statusHint.textContent = '200+ creators upgraded this week';
-                statusHint.style.color = '';
-                statusHint.style.fontWeight = '400';
-            }
-        }
+    } catch (error) {
+      console.error(
+        'Unable to start subscription checkout:',
+        error
+      );
+
+      this.showToast(
+        error.message || 'Could not start checkout. Please try again.',
+        'error'
+      );
+
+      this.busy = false;
+      this.elements.confirmCheckout.disabled = false;
+
+      this.elements.confirmCheckout.textContent =
+        'Continue to checkout';
+    }
+  }
+
+  async handleCheckoutReturn() {
+    const url = new URL(window.location.href);
+
+    const reference =
+      url.searchParams.get('reference') ||
+      url.searchParams.get('trxref');
+
+    const cancelled = url.searchParams.get('cancelled');
+
+    if (cancelled === '1') {
+      this.showToast(
+        'Checkout was not completed. No subscription has been activated.',
+        'info'
+      );
+
+      this.cleanCheckoutParams(url);
+      return;
     }
 
-    updateStickyCTA(plan) {
-        const stickyCTA = document.querySelector('.sticky-cta');
-        
-        if (plan === 'silver' && stickyCTA) {
-            stickyCTA.innerHTML = `
-                <div class="sticky-info">
-                    <div class="badge popular">Active</div>
-                    <div class="sticky-details">
-                        <strong>Payla Silver</strong>
-                        <span>Subscription Active</span>
-                    </div>
-                </div>
-                <button class="btn-primary" onclick="window.location.href='/dashboard'">
-                    Go to Dashboard
-                </button>
-            `;
-        }
+    if (!reference) {
+      return;
     }
 
-    showToast(message, type = 'info') {
-        // Remove existing toast
-        const existingToast = document.getElementById('subscription-toast');
-        if (existingToast) {
-            existingToast.remove();
-        }
+    this.showToast(
+      'Confirming your payment with Payla…',
+      'info'
+    );
 
-        const toast = document.getElementById('toast');
-        const toastMessage = document.getElementById('toast-message');
-        
-        if (!toast || !toastMessage) return;
+    try {
+      const result = await this.request(
+        `/subscription/verify/${encodeURIComponent(reference)}`
+      );
 
-        // Update toast content
-        toastMessage.textContent = message;
-        
-        // Update icon and color based on type
-        const icon = toast.querySelector('i');
-        if (type === 'success') {
-            icon.className = 'fas fa-check-circle';
-            toast.classList.add('success');
-            toast.classList.remove('error');
-        } else if (type === 'error') {
-            icon.className = 'fas fa-exclamation-circle';
-            toast.classList.add('error');
-            toast.classList.remove('success');
-        } else {
-            icon.className = 'fas fa-info-circle';
-            toast.classList.remove('success', 'error');
-        }
+      if (result.success && result.status) {
+        this.status = result.status;
 
-        // Show toast
-        toast.classList.add('show');
+        this.render();
 
-        // Auto hide
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 4000);
+        this.elements.successModal.hidden = false;
+        document.body.classList.add('modal-open');
+      } else {
+        throw new Error('Payment has not yet been confirmed.');
+      }
+
+    } catch (error) {
+      console.error(
+        'Checkout return verification failed:',
+        error
+      );
+
+      this.showToast(
+        `${error.message || 'Payment verification is still pending.'} If you were charged, do not pay again; refresh in a moment or contact support with reference ${reference}.`,
+        'error',
+        9000
+      );
+
+    } finally {
+      this.cleanCheckoutParams(url);
+    }
+  }
+
+  cleanCheckoutParams(url) {
+    url.searchParams.delete('reference');
+    url.searchParams.delete('trxref');
+    url.searchParams.delete('cancelled');
+
+    window.history.replaceState(
+      {},
+      document.title,
+      url.pathname + url.search + url.hash
+    );
+  }
+
+  async openManageLink() {
+    try {
+      const result = await this.request(
+        '/subscription/manage-link'
+      );
+
+      const target =
+        result.manage_url ||
+        result.url ||
+        result.authorization_url;
+
+      if (!target) {
+        throw new Error(
+          'A billing management link is not available for this subscription.'
+        );
+      }
+
+      window.location.assign(target);
+
+    } catch (error) {
+      this.showToast(
+        error.message || 'Could not open billing management.',
+        'error'
+      );
+    }
+  }
+
+  async cancelRenewal() {
+    const confirmed = window.confirm(
+      'Cancel future Silver renewals? Your paid access should continue through the end of the current billing period.'
+    );
+
+    if (!confirmed) {
+      return;
     }
 
-    showError(message) {
-        this.showToast(message, 'error');
+    const button = document.getElementById('cancel-renewal');
+
+    button.disabled = true;
+
+    try {
+      const result = await this.request(
+        '/subscription/cancel',
+        { method: 'POST' }
+      );
+
+      this.showToast(
+        result.message || 'Future renewal has been cancelled.',
+        'success'
+      );
+
+      await this.loadStatus();
+      this.render();
+
+    } catch (error) {
+      this.showToast(
+        error.message || 'Could not cancel renewal. Please try again.',
+        'error'
+      );
+
+    } finally {
+      button.disabled = false;
     }
+  }
+
+  billingEndLabel(status) {
+    const end =
+      status.subscription_end ||
+      status.next_billing_date;
+
+    if (
+      String(status.subscription_status).toLowerCase() ===
+      'non_renewing'
+    ) {
+      return end
+        ? `Renewal is off. Your access continues until ${this.formatDate(end)}.`
+        : 'Renewal is off. Your paid access remains available through the paid period.';
+    }
+
+    return end
+      ? `Next billing date: ${this.formatDate(end)}.`
+      : 'Your Silver subscription is active.';
+  }
+
+  formatDate(value) {
+    if (!value) {
+      return 'the end of your billing period';
+    }
+
+    let date;
+
+    if (typeof value === 'number') {
+      date = new Date(value * 1000);
+    } else {
+      date = new Date(value);
+    }
+
+    if (Number.isNaN(date.getTime())) {
+      return 'the end of your billing period';
+    }
+
+    return date.toLocaleDateString('en-NG', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  showToast(message, type = 'info', duration = 4500) {
+    const toast = this.elements.toast;
+
+    if (!toast) {
+      return;
+    }
+
+    window.clearTimeout(this.toastTimer);
+
+    toast.textContent = message;
+    toast.dataset.type = type;
+    toast.hidden = false;
+
+    this.toastTimer = window.setTimeout(() => {
+      toast.hidden = true;
+    }, duration);
+  }
 }
 
-// Add button styles for modal
-const buttonStyles = `
-    .btn {
-        padding: 14px 20px;
-        border-radius: 10px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        border: none;
-        font-size: 16px;
-        text-align: center;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
-    
-    .btn.full {
-        width: 100%;
-    }
-`;
-
-// Inject styles
-const styleSheet = document.createElement('style');
-styleSheet.textContent = buttonStyles;
-document.head.appendChild(styleSheet);
-
-// Initialize subscription manager when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new SubscriptionManager();
+  new SubscriptionManager();
 });

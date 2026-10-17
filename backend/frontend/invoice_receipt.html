@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A0A0A" />
+  <title>Payment Receipt | Payla</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Cormorant+Garamond:wght@400;500;600;700&family=Great+Vibes&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'" />
+
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+
+  <link rel="stylesheet" href="/css/invoice_receipt.css" />
+
+  <script type="module" src="/js/invoice_receipt.js"></script>
+</head>
+<body>
+
+  <div class="receipt-ambient" aria-hidden="true"></div>
+
+  <main class="receipt-page">
+
+    <header class="brand">
+      <a href="/" class="brand-name" aria-label="Payla home">payla<span>.</span></a>
+      <span class="brand-caption">PAYMENT RECEIPT</span>
+    </header>
+
+    <section class="receipt-card" aria-labelledby="receiptTitle">
+      <div class="receipt-card__glow" aria-hidden="true"></div>
+      <div class="receipt-card__reflection" aria-hidden="true"></div>
+
+      <!-- Status head -->
+      <div class="receipt-head">
+        <div id="statusIcon" class="status-icon pending" aria-hidden="true">
+          <span>…</span>
+        </div>
+
+        <p id="statusLabel" class="eyebrow">VERIFYING PAYMENT</p>
+        <h1 id="receiptTitle">Confirming your payment</h1>
+        <p id="statusMessage" class="status-message" aria-live="polite">
+          Payla is waiting for payment confirmation. Keep this page open for a moment.
+        </p>
+      </div>
+
+      <!-- Receipt content (revealed once paid) -->
+      <div id="receiptContent" hidden>
+
+        <!-- Hero amount -->
+        <div class="amount-block">
+          <span>Amount paid</span>
+          <strong id="receiptAmount">—</strong>
+        </div>
+
+        <!-- Merchant -->
+        <div class="merchant-block">
+          <div id="merchantLogoWrap" class="merchant-logo-wrap" hidden>
+            <img id="merchantLogo" alt="Merchant logo" />
+          </div>
+          <div class="merchant-details">
+            <span class="muted">Paid to</span>
+            <strong id="merchantName">—</strong>
+            <span id="merchantEmail"></span>
+          </div>
+        </div>
+
+        <div class="receipt-divider" aria-hidden="true"></div>
+
+        <!-- Details -->
+        <dl class="receipt-details">
+          <div>
+            <dt>Invoice number</dt>
+            <dd id="receiptInvoiceId" class="is-mono">—</dd>
+          </div>
+          <div>
+            <dt>Payment reference</dt>
+            <dd id="receiptReference" class="is-mono">—</dd>
+          </div>
+          <div>
+            <dt>Payment date</dt>
+            <dd id="receiptDate">—</dd>
+          </div>
+          <div>
+            <dt>Paid by</dt>
+            <dd id="receiptCustomer">—</dd>
+          </div>
+          <div>
+            <dt>Description</dt>
+            <dd id="receiptDescription">—</dd>
+          </div>
+          <div>
+            <dt>Payment method</dt>
+            <dd>Paystack</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd><span class="paid-label">Paid</span></dd>
+          </div>
+        </dl>
+
+        <!-- Actions -->
+        <div class="receipt-actions">
+          <button id="downloadReceipt" class="button button-primary" type="button">
+            Download Receipt
+          </button>
+          <button id="printReceipt" class="button button-secondary" type="button">
+            Print Receipt
+          </button>
+          <button id="doneButton" class="button button-quiet" type="button">
+            Done
+          </button>
+        </div>
+
+        <p class="receipt-note">
+          Keep this receipt for your records.
+        </p>
+      </div>
+
+      <!-- Error actions -->
+      <div id="errorActions" hidden>
+        <button id="retryButton" class="button button-secondary" type="button">
+          Check Payment Again
+        </button>
+        <button id="returnButton" class="button button-quiet" type="button">
+          Return to Invoice
+        </button>
+      </div>
+    </section>
+
+    <footer class="page-footer">
+      <span class="page-footer__signature">payla.ng</span>
+      <a href="https://payla.ng" target="_blank" rel="noopener" class="page-footer__secured">
+        <i class="fas fa-gem" aria-hidden="true"></i>
+        Secured by Payla
+      </a>
+    </footer>
+
+  </main>
+</body>
+</html>

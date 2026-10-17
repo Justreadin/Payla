@@ -1,11 +1,8 @@
 // ====================================================
-// PAYLA PAYLINK PAGE – FINAL FIXED & WORKING 100%
-// Client Pays Fee • Full Sync • No Errors • Layla Approved
+// PAYLA PAYLINK PAGE
 // ====================================================
-import { BACKEND_BASE } from './config.js';
-import { PAYSTACK_PUBLIC_KEY } from './config.js';
+import { BACKEND_BASE, PAYSTACK_PUBLIC_KEY } from './config.js';
 
-// Import analytics
 import {
   trackPaylinkPageView,
   trackTransferButtonClicked,
@@ -15,7 +12,6 @@ import {
   trackPaymentSuccess,
   trackPaymentFailed,
   trackReceiptDownloaded,
-  trackReceiptPrinted,
   trackPaylinkLoadSuccess,
   trackPaylinkLoadFailed,
   trackEmailClicked,
@@ -24,10 +20,136 @@ import {
   trackAmountFocus
 } from "./paylink_analytics.js";
 
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function normalizePhoneForTel(phone) {
+    if (!phone) return null;
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return null;
+    if (digits.length === 11 && digits.startsWith('0')) return '234' + digits.slice(1);
+    if (digits.length === 13 && digits.startsWith('234')) return digits;
+    if (digits.length === 10) return '234' + digits;
+    return digits;
+}
+
+
+/* ============================================================
+   TRUST MARK — states and builders
+   ============================================================ */
+const TRUST_STATE = {
+    VERIFIED: 'verified',
+    UNVERIFIED: 'unverified',
+};
+
+// Silver state — drives receipt button visibility in the success modal.
+let merchantHasSilver = false;
+
+const MONTH_NAMES_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MONTH_NAMES_LONG  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+/**
+ * Banner text inside the stamp.
+ * Kept very short so it stays legible at render size.
+ */
+function computeStampBanner(createdAt) {
+    if (!createdAt) return 'NEW';
+
+    const created = new Date(createdAt);
+    if (Number.isNaN(created.getTime())) return 'NEW';
+
+    const daysSince = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (daysSince < 30) return 'NEW';
+
+    return `${MONTH_NAMES_SHORT[created.getMonth()]} ${created.getFullYear()}`;
+}
+
+/**
+ * Tenure label for the unverified (plain mark) state.
+ */
+function computeTenureLabel(createdAt) {
+    if (!createdAt) return 'recently';
+
+    const created = new Date(createdAt);
+    if (Number.isNaN(created.getTime())) return 'recently';
+
+    return `since ${MONTH_NAMES_LONG[created.getMonth()]} ${created.getFullYear()}`;
+}
+
+function buildStampSVG(bannerText) {
+    const safe = escapeHtml(String(bannerText || '').toUpperCase());
+
+    return `
+        <div class="payla-stamp">
+            <svg class="payla-stamp__svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <defs>
+                    <path id="stamp-arc-top" d="M 50,50 m -29,0 a 29,29 0 1,1 58,0" />
+                </defs>
+
+                <circle class="payla-stamp__ring-outer" cx="50" cy="50" r="46" />
+                <circle class="payla-stamp__ring-dashed" cx="50" cy="50" r="42.5" />
+                <circle class="payla-stamp__ring-inner" cx="50" cy="50" r="34" />
+
+                <text class="payla-stamp__arc-text" text-anchor="middle">
+                    <textPath href="#stamp-arc-top" startOffset="50%">
+                        NAME MATCHED
+                    </textPath>
+                </text>
+
+                <text class="payla-stamp__center-text" x="50" y="54" text-anchor="middle">
+                    SEALED
+                </text>
+
+                <rect class="payla-stamp__banner-bg"
+                      x="10" y="78" width="80" height="13" rx="2.5" />
+                <text class="payla-stamp__banner-text" x="50" y="86.5" text-anchor="middle">
+                    ${safe}
+                </text>
+            </svg>
+        </div>
+    `;
+}
+
+function buildTenureMark(tenureText) {
+    const safe = escapeHtml(tenureText);
+    return `
+        <div class="payla-tenure-mark" aria-label="On Payla ${safe}">
+            <span class="payla-tenure-mark__line">On Payla</span>
+            <span class="payla-tenure-mark__line payla-tenure-mark__line--strong">${safe}</span>
+        </div>
+    `;
+}
+
+function renderTrustMark(state, { createdAt }) {
+    const container = document.getElementById('trustMark');
+    if (!container) return;
+
+    container.replaceChildren();
+
+    if (state === TRUST_STATE.VERIFIED) {
+        container.innerHTML = buildStampSVG(computeStampBanner(createdAt));
+    } else {
+        container.innerHTML = buildTenureMark(computeTenureLabel(createdAt).replace(/^since /, ''));
+    }
+}
+
+
+/* ============================================================
+   MAIN
+   ============================================================ */
 document.addEventListener('DOMContentLoaded', function () {
     const BACKEND_URL = BACKEND_BASE;
-    
-    // Track page load start time for performance metrics
     const pageLoadStart = performance.now();
 
     // ================= DOM ELEMENTS =================
@@ -36,21 +158,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const paylinkContent      = document.getElementById('paylinkContent');
 
     const previewLogo         = document.getElementById('previewLogo');
-    const previewLogoInitials = document.getElementById('previewLogoInitials');
 
     const previewName         = document.getElementById('previewName');
     const previewTagline      = document.getElementById('previewTagline');
-    const previewHandle       = document.getElementById('previewHandle');
-    const previewEmail        = document.getElementById('previewEmail');
-    const previewWhatsapp     = document.getElementById('previewWhatsapp');
+
+    const previewEmailAction  = document.getElementById('previewEmailAction');
+    const previewPhoneAction  = document.getElementById('previewPhoneAction');
+
     const previewPowered      = document.getElementById('previewPowered');
 
-    const silverBadge         = document.getElementById('previewPlanName'); // Verified badge
-    const loadingSignature    = document.getElementById('loadingSignature'); // @username
+    const loadingSignature    = document.getElementById('loadingSignature');
 
-    // Contact elements for tracking
-    const emailContainer = previewEmail?.closest('.contact-card');
-    const whatsappContainer = previewWhatsapp?.closest('.contact-card');
+    // Recipient block in the payment modal
+    const recipientBlock  = document.getElementById('paymentRecipient');
+    const recipientNameEl = document.getElementById('recipientName');
 
     // Modals
     const paystackModal  = document.getElementById('paystackModal');
@@ -59,7 +180,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalClose     = document.getElementById('modalClose');
     const successClose   = document.getElementById('successClose');
     const closeSuccess   = document.getElementById('closeSuccess');
-    const printReceipt   = document.getElementById('printReceipt');
     const processPayment = document.getElementById('processPayment');
 
     const paymentAmount  = document.getElementById('paymentAmount');
@@ -73,39 +193,58 @@ document.addEventListener('DOMContentLoaded', function () {
     // ================= GET USERNAME FROM URL =================
     const path = window.location.pathname;
     const username = path.split('/').pop().replace(/^@/, '').trim();
+
     if (!username) {
         trackPaylinkLoadFailed('unknown', 'no_username_in_url');
         showErrorState();
         return;
     }
-    document.title = `@${username} • Payla`;
-    if (loadingSignature) loadingSignature.textContent = `@${username}`;
 
-    // Track page view
+    document.title = `@${username} • Payla`;
+
+    if (loadingSignature) {
+        loadingSignature.innerHTML = `@<wbr>${escapeHtml(username)}`;
+    }
+
     trackPaylinkPageView(username);
 
     // ================= PHONE FORMATTER =================
     function formatPhoneNumber(phone) {
         if (!phone) return '—';
         const num = phone.replace(/\D/g, '');
-        if (num.length === 11 && num.startsWith('0')) 
+        if (num.length === 11 && num.startsWith('0'))
             return '+234 ' + num.slice(1).replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
-        if (num.length === 13 && num.startsWith('234')) 
+        if (num.length === 13 && num.startsWith('234'))
             return '+234 ' + num.slice(3).replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
-        if (num.length === 10) 
+        if (num.length === 10)
             return '+234 ' + num.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
         return phone;
     }
 
     // ================= INITIALS =================
     function showInitials(name) {
-        const initials = name.split(' ').map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || 'P';
-        previewLogoInitials.textContent = initials;
+        if (!previewLogo) return;
+
+        const initials = String(name || '')
+            .split(/\s+/)
+            .filter(Boolean)
+            .map(w => w[0] || '')
+            .join('')
+            .toUpperCase()
+            .slice(0, 2) || 'P';
+
         previewLogo.style.backgroundImage = 'none';
-        previewLogoInitials.style.display = 'block';
+        previewLogo.classList.add('initials-medallion');
+
+        const text = document.createElement('span');
+        text.className = 'initials-medallion__text';
+        text.textContent = initials;
+
+        previewLogo.innerHTML = '';
+        previewLogo.appendChild(text);
     }
 
-    // Page view analytics (server-side)
+    // Page view analytics
     fetch(`${BACKEND_URL}/api/paylinks/${username}/analytics/view`, { method: 'POST' });
 
     // Transfer button click
@@ -116,24 +255,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Track contact interactions
-    if (emailContainer) {
-        emailContainer.addEventListener('click', () => {
-            trackEmailClicked(username);
-        });
-    }
-
-    if (whatsappContainer) {
-        whatsappContainer.addEventListener('click', () => {
-            trackWhatsAppClicked(username);
-        });
-    }
+    previewEmailAction?.addEventListener('click', () => {
+        trackEmailClicked(username);
+    });
+    previewPhoneAction?.addEventListener('click', () => {
+        trackWhatsAppClicked(username);
+    });
 
     // Track amount input interactions
     if (paymentAmount) {
         paymentAmount.addEventListener('focus', () => {
             trackAmountFocus(username);
         });
-        
         paymentAmount.addEventListener('blur', (e) => {
             const amount = parseFloat(e.target.value);
             if (!isNaN(amount) && amount > 0) {
@@ -145,15 +278,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // ================= LOAD PAYLINK + PROFILE =================
     async function initPaylinkPage() {
         try {
-            // 1. Get Paylink
             const paylinkRes = await fetch(`${BACKEND_URL}/api/paylinks/${username}`);
             if (!paylinkRes.ok) {
                 trackPaylinkLoadFailed(username, 'paylink_not_found');
                 throw new Error('Paylink not found');
             }
             const paylink = await paylinkRes.json();
+            merchantHasSilver = Boolean(paylink.silver_verified);
 
-            // 2. Get Owner Profile
             let owner = {};
             try {
                 const ownerRes = await fetch(`${BACKEND_URL}/api/users/${paylink.user_id}`);
@@ -162,34 +294,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.warn('Could not load owner profile');
             }
 
-            const displayName = paylink.display_name || owner.business_name || owner.full_name || `@${username}`;
+            const displayName =
+                paylink.display_name ||
+                owner.business_name ||
+                owner.full_name ||
+                `@${username}`;
 
-            // Determine if user has Silver+ subscription
-            const currentPlan = (owner?.plan || 'free').toLowerCase();
-            const isPremium = ['silver', 'gold', 'opal'].includes(currentPlan);
-
-            // Explicitly hide elements if NOT premium
-            if (silverBadge) {
-                silverBadge.parentElement.style.display = isPremium ? 'flex' : 'none';
-            }
-            
-            // ================= Logo with preload (Cloudinary Optimized) =================
+            // Logo with Cloudinary optimization
+                        // Logo with Cloudinary optimization
             if (owner.logo_url) {
                 let logoUrl = owner.logo_url;
-
-                // If it's a Cloudinary URL, inject auto-optimization parameters
                 if (logoUrl.includes('cloudinary.com')) {
-                    // This inserts /f_auto,q_auto/ right after /upload/ in the URL
                     logoUrl = logoUrl.replace('/upload/', '/upload/f_auto,q_auto/');
-                } else if (!logoUrl.startsWith('http')) {
-                    // Fallback for old local uploads
+                } else if (!logoUrl.startsWith('http') && !logoUrl.startsWith('data:')) {
                     logoUrl = `${BACKEND_URL}${owner.logo_url}`;
                 }
 
                 const img = new Image();
                 img.onload = () => {
                     previewLogo.style.backgroundImage = `url(${logoUrl})`;
-                    previewLogoInitials.style.display = 'none';
+                    previewLogo.classList.remove('initials-medallion');
+                    previewLogo.innerHTML = '';
                 };
                 img.onerror = () => showInitials(displayName);
                 img.src = logoUrl;
@@ -197,24 +322,61 @@ document.addEventListener('DOMContentLoaded', function () {
                 showInitials(displayName);
             }
 
-            // ================= Fill Content =================
-            previewName.textContent     = displayName;
-            previewTagline.textContent  = paylink.description;
-            previewHandle.textContent   = `@${paylink.username}`;
-            previewEmail.textContent    = owner.email || '—';
-            previewWhatsapp.textContent = formatPhoneNumber(owner.phone_number || owner.whatsapp_number || '');
-            previewPowered.textContent  = displayName;
+            // Fill content
+            if (previewName) previewName.textContent = displayName;
+            if (previewTagline) previewTagline.textContent = paylink.description || '';
 
-            // ================= CONDITIONAL PREMIUM ELEMENTS =================
-            if (silverBadge) silverBadge.parentElement.style.display = isPremium ? 'block' : 'none';
-            if (previewPowered) previewPowered.parentElement.style.display = isPremium ? 'block' : 'none';
-            if (loadingSignature) loadingSignature.style.display = isPremium ? 'block' : 'none';
+            // ---- Contact actions ----
+            if (previewEmailAction) {
+                if (owner.email) {
+                    previewEmailAction.href = `mailto:${owner.email}`;
+                    previewEmailAction.style.display = '';
+                } else {
+                    previewEmailAction.style.display = 'none';
+                }
+            }
 
-            // ================= Show page =================
+            if (previewPhoneAction) {
+                const rawPhone = owner.phone_number || owner.whatsapp_number || '';
+                const telValue = normalizePhoneForTel(rawPhone);
+                if (telValue) {
+                    previewPhoneAction.href = `tel:+${telValue}`;
+                    previewPhoneAction.style.display = '';
+                } else {
+                    previewPhoneAction.style.display = 'none';
+                }
+            }
+
+            // Footer signature
+            if (previewPowered) {
+                previewPowered.textContent = `@${paylink.username || username}`;
+            }
+
+            // Footer secured line — "Powered by Payla Silver" for Silver merchants.
+            if (merchantHasSilver) {
+                const securedByText = document.getElementById('securedByText');
+                if (securedByText) {
+                    securedByText.textContent = 'Powered by Payla Silver';
+                }
+            }
+
+            // ---- Trust mark ----
+            const trustState = (owner.bank_confirmation_status === 'matched')
+                ? TRUST_STATE.VERIFIED
+                : TRUST_STATE.UNVERIFIED;
+
+            const signupDate =
+                owner.created_at ||
+                owner.signup_date ||
+                paylink.created_at ||
+                null;
+
+            renderTrustMark(trustState, { createdAt: signupDate });
+
+            // ---- Show page ----
             loadingState.classList.add('hidden');
             paylinkContent.classList.remove('hidden');
-            
-            // Track successful load with performance
+
             const loadTime = performance.now() - pageLoadStart;
             trackPaylinkLoadSuccess(username, Math.round(loadTime));
 
@@ -230,12 +392,44 @@ document.addEventListener('DOMContentLoaded', function () {
         errorState?.classList.remove('hidden');
     }
 
+    // ================= RECIPIENT BLOCK (modal disclosure) =================
+    let recipientFetched = false;
+
+    async function fetchRecipientOnce() {
+        if (recipientFetched) return;
+        recipientFetched = true;
+
+        try {
+            const res = await fetch(
+                `${BACKEND_URL}/api/paylinks/${encodeURIComponent(username)}/recipient`
+            );
+
+            if (!res.ok) {
+                console.warn('Recipient details unavailable:', res.status);
+                return;
+            }
+
+            const data = await res.json();
+
+            if (!data || !data.name) return;
+            if (!recipientBlock || !recipientNameEl) return;
+
+            recipientNameEl.textContent = data.name;
+            recipientBlock.hidden = false;
+        } catch (err) {
+            console.warn('Could not fetch recipient details:', err);
+        }
+    }
+
     // ================= MODALS =================
     function openPaystackModal() {
         paystackModal.classList.remove('hidden');
         setTimeout(() => paystackModal.classList.add('open'), 10);
-        paymentAmount.focus();
+        paymentAmount?.focus();
         trackPaymentModalOpened(username);
+
+        // Populate the recipient block in place.
+        fetchRecipientOnce();
     }
 
     function closePaystackModal() {
@@ -249,28 +443,24 @@ document.addEventListener('DOMContentLoaded', function () {
         setTimeout(() => successModal.classList.add('hidden'), 300);
     }
 
-    transferBtn?.addEventListener('click', openPaystackModal);
     modalClose?.addEventListener('click', closePaystackModal);
     successClose?.addEventListener('click', closeSuccessModal);
     closeSuccess?.addEventListener('click', closeSuccessModal);
-    
-    // Track print receipt
-    printReceipt?.addEventListener('click', () => {
-        trackReceiptPrinted(transactionId?.textContent || 'unknown', username);
-        window.print();
-    });
-
     paystackModal?.addEventListener('click', e => {
         if (e.target === paystackModal) {
             trackPaymentModalClosed(username, 'overlay_click');
             closePaystackModal();
         }
     });
-    
-    successModal?.addEventListener('click', e => e.target === successModal && closeSuccessModal());
 
-// ================= PAYMENT – SUBACCOUNT COMPATIBLE =================
-    processPayment?.addEventListener('click', async (e) => { 
+    successModal?.addEventListener('click', e => {
+        if (e.target === successModal) closeSuccessModal();
+    });
+
+    // ================= PAYMENT — SUBACCOUNT COMPATIBLE =================
+    processPayment?.addEventListener('click', async (e) => {
+        e.preventDefault();
+
         const rawAmount = paymentAmount.value.trim();
         const email = payerEmail.value.trim();
 
@@ -289,45 +479,33 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        // Track payment attempt
         const emailDomain = email.split('@')[1];
         trackPaymentAttempt(username, amount, emailDomain);
 
-        // ================= ADD FEES SO CREATOR GETS FULL AMOUNT =================
-        // Because 'bearer' = 'subaccount', Paystack deducts fees from the creator.
-        // We add them here so the customer covers that deduction.
+        // Calculate gross amount so merchant gets full base amount
         function addPaystackFee(baseAmount) {
-            // 1. If amount is 0 or less, return 0
             if (baseAmount <= 0) return 0;
-
             let total;
-            const paystackPercent = 0.015; // 1.5%
+            const paystackPercent = 0.015;
             const flatFee = 100;
 
-            // 2. Paystack Reverse Formula
-            // This calculates what to charge the customer so the merchant gets baseAmount
             if (baseAmount < 2500) {
-                // No flat fee for transactions under 2500
                 total = baseAmount / (1 - paystackPercent);
             } else {
                 total = (baseAmount + flatFee) / (1 - paystackPercent);
             }
 
-            // 3. Add Payout/Settlement Fee (Paystack bank transfer charge)
-            // We add this so the user's bank settlement is exactly the baseAmount
             let payoutFee = 10;
             if (baseAmount > 5000) payoutFee = 25;
             if (baseAmount > 50000) payoutFee = 50;
-            
+
             total += payoutFee;
 
-            // 4. Cap the total fee at ₦2000 (Paystack's maximum fee cap)
-            // If the difference is > 2000, Paystack only takes 2000
             if ((total - baseAmount) > 2000) {
-                total = baseAmount + 2000 + payoutFee; 
+                total = baseAmount + 2000 + payoutFee;
             }
 
-            return Math.ceil(total); 
+            return Math.ceil(total);
         }
 
         const totalAmount = addPaystackFee(amount);
@@ -341,8 +519,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     paylink_username: username,
-                    amount: totalAmount,           // This is the gross amount (e.g., 1229)
-                    amount_requested: amount,      // 🔥 ADD THIS: This is the base amount (e.g., 1200)
+                    amount: totalAmount,
+                    amount_requested: amount,
                     payer_email: email,
                     payer_name: email.split('@')[0],
                 })
@@ -354,31 +532,25 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const data = await initRes.json();
-            console.log('Paystack key used:', data.public_key || PAYSTACK_PUBLIC_KEY);
-            
 
-            // ================= CRITICAL SUBACCOUNT MAPPING =================
             PaystackPop.setup({
                 key: data.public_key || PAYSTACK_PUBLIC_KEY,
                 email: data.email,
                 amount: data.amount_kobo,
                 ref: data.reference,
-                subaccount: data.subaccount, // <--- NEW: Tells Paystack which creator gets the money
-                bearer: 'subaccount',        // <--- NEW: Creator pays the fee (which we added above)
+                subaccount: data.subaccount,
+                bearer: 'subaccount',
                 metadata: data.metadata,
                 callback: (response) => {
                     closePaystackModal();
-                    
-                    // Track successful payment
                     trackPaymentSuccess(
-                        username, 
-                        amount, 
+                        username,
+                        amount,
                         response.reference,
                         data.transaction_id || response.reference
                     );
-                    
                     showSuccessScreen({
-                        amount: amount, 
+                        amount: amount,
                         recipient: previewName.textContent,
                         reference: response.reference,
                         date: new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })
@@ -387,9 +559,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 onClose: () => {
                     processPayment.disabled = false;
-                    processPayment.innerHTML = '<i class="fas fa-lock"></i> Pay with Paystack';
-                    
-                    // Track payment modal closed without completing
+                    processPayment.innerHTML = '<i class="fas fa-lock"></i> Continue to Paystack';
                     trackPaymentModalClosed(username, 'payment_cancelled');
                 }
             }).openIframe();
@@ -399,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function () {
             trackPaymentFailed(username, amount, err.message || 'unknown_error');
             showToast(err.message || 'Payment failed.', 'error');
             processPayment.disabled = false;
-            processPayment.innerHTML = '<i class="fas fa-lock"></i> Pay with Paystack';
+            processPayment.innerHTML = '<i class="fas fa-lock"></i> Continue to Paystack';
         }
     });
 
@@ -410,19 +580,24 @@ document.addEventListener('DOMContentLoaded', function () {
         transactionId.textContent   = data.reference;
         transactionDate.textContent = data.date;
 
-        const actionsDiv = document.querySelector('.success-actions');
-        let receiptBtn = document.getElementById('downloadReceipt');
-        if (!receiptBtn) {
-            receiptBtn = document.createElement('button');
-            receiptBtn.id = 'downloadReceipt';
-            receiptBtn.className = 'btn-secondary';
-            receiptBtn.innerHTML = '<i class="fas fa-download"></i> Download Receipt';
-            receiptBtn.onclick = () => {
-                const url = `${BACKEND_URL}/api/receipt/paylink/${data.reference}.pdf`;
-                window.open(url, '_blank');
-                trackReceiptDownloaded(data.reference, username);
-            };
-            actionsDiv.insertBefore(receiptBtn, actionsDiv.firstChild);
+        // Receipt download is a Silver feature. Free merchants' payers
+        // rely on the Paystack-issued confirmation email.
+        if (merchantHasSilver) {
+            const actionsDiv = document.querySelector('.success-actions');
+            let receiptBtn = document.getElementById('downloadReceipt');
+
+            if (!receiptBtn && actionsDiv) {
+                receiptBtn = document.createElement('button');
+                receiptBtn.id = 'downloadReceipt';
+                receiptBtn.className = 'btn btn--outline';
+                receiptBtn.innerHTML = '<i class="fas fa-download"></i> Receipt';
+                receiptBtn.onclick = () => {
+                    const url = `${BACKEND_URL}/api/receipt/paylink/${data.reference}.pdf`;
+                    window.open(url, '_blank');
+                    trackReceiptDownloaded(data.reference, username);
+                };
+                actionsDiv.insertBefore(receiptBtn, actionsDiv.firstChild);
+            }
         }
 
         successModal.classList.remove('hidden');
@@ -433,7 +608,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function showToast(message, type = 'success') {
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i><span>${message}</span>`;
+        toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i><span>${escapeHtml(message)}</span>`;
         document.body.appendChild(toast);
         setTimeout(() => toast.classList.add('show'), 100);
         setTimeout(() => {

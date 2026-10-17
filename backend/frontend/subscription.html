@@ -1,318 +1,517 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payla Premium Subscription</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/subscription.css">
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
-    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-    <script src="https://js.paystack.co/v1/inline.js"></script>
-    <script>
-    !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
-    },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
-    a=t.getElementsByTagName(n)[0],a.parentNode.insertBefore(u,a))}(window,document,'script');
-    twq('config','r4oqa');
-    </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A0A0A" />
+
+  <title>Subscription — Payla</title>
+  <meta name="description" content="Choose Payla Silver for a more considered way to get paid. Branded payment links, invoices, reminders and payment analytics." />
+
+  <meta property="og:title" content="Subscription — Payla" />
+  <meta property="og:description" content="A considered payment experience. Silver makes getting paid feel like part of your brand." />
+  <meta property="og:type" content="website" />
+
+  <link rel="canonical" href="https://payla.ng/subscription" />
+
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Cormorant+Garamond:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    media="print"
+    onload="this.media='all'"
+  />
+
+  <link rel="stylesheet" href="/css/subscription.css" />
+
+  <script type="module" src="/js/subscription.js"></script>
 </head>
-<body>
-    <!-- Animated Glitter Background -->
-    <div class="glitter"></div>
 
-    <!-- Topbar -->
-    <div class="topbar glass">
-        <div class="topbar-left">
-            <a href="/dashboard" class="back-arrow premium-arrow">
-                <i class="fas fa-arrow-left"></i>
-            </a>
-            <a href="/dashboard" class="logo">
-                <div>PAYLA</div>
-            </a>
+<body class="subscription-page">
+
+  <!-- ============================================================
+       TOPBAR — matches invoice / payouts
+  ============================================================ -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <a href="/dashboard" class="premium-arrow" aria-label="Back to dashboard">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+      </a>
+      <a href="/dashboard" class="logo" aria-label="Payla dashboard">PAYLA</a>
+    </div>
+
+    <div class="page-title">Subscription</div>
+
+    <div class="topbar-right">
+      <span class="secure-note">
+        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+        Secure billing
+      </span>
+    </div>
+  </header>
+
+  <main class="subscription-content">
+
+    <!-- ============================================================
+         HERO
+    ============================================================ -->
+    <section class="subscription-hero" aria-labelledby="hero-title">
+
+      <div class="subscription-hero__copy">
+        <p class="eyebrow">Payla Silver</p>
+
+        <h1 id="hero-title" class="subscription-hero__title">
+          Your work deserves a better way to get paid.
+        </h1>
+
+        <p id="hero-subtitle" class="subscription-hero__subtitle">
+          A considered payment experience for the people behind the work.
+          Branded paylinks, polished invoices, timely reminders and clear analytics.
+        </p>
+
+        <div class="subscription-hero__actions">
+          <button class="btn btn--primary btn--lg" id="hero-upgrade" type="button">
+            Explore Silver
+            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </button>
+
+          <a class="text-link" href="#pricing">
+            View plans
+            <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
+          </a>
         </div>
-        <div class="page-title">Subscriptions</div>
-        <div class="actions">
-            <button class="icon-btn tooltip">
-                <span class="tooltip-text">No contracts. Cancel anytime.</span>
+
+        <ul class="subscription-hero__meta">
+          <li>
+            <i class="fa-solid fa-check" aria-hidden="true"></i>
+            No trial tricks
+          </li>
+          <li>
+            <i class="fa-solid fa-check" aria-hidden="true"></i>
+            Cancel renewal anytime
+          </li>
+        </ul>
+
+        <p id="subscription-status-note"
+           class="status-note"
+           role="status"
+           aria-live="polite"></p>
+      </div>
+
+      <!-- Hero visual: layered product screenshots -->
+      <div class="subscription-hero__visual" aria-hidden="true">
+
+        <div class="screen-frame screen-frame--primary">
+          <div class="screen-frame__chrome">
+            <span class="screen-frame__dot"></span>
+            <span class="screen-frame__dot"></span>
+            <span class="screen-frame__dot"></span>
+            <span class="screen-frame__url">payla.ng/@yourname</span>
+          </div>
+          <div class="screen-frame__viewport">
+            <img
+              src="assets/visuals/paylink-card.png"
+              alt=""
+              class="screen-frame__image"
+              loading="lazy"
+            />
+          </div>
+        </div>
+
+        <div class="subscription-metric">
+          <p class="subscription-metric__eyebrow">Payment activity</p>
+          <p class="subscription-metric__value">₦640,000</p>
+          <p class="subscription-metric__delta">
+            <i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i>
+            +18.4% this month
+          </p>
+          <div class="subscription-metric__bars" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         VALUE STRIP — what Silver gives you
+    ============================================================ -->
+    <section class="value-strip" aria-label="Silver features">
+      <div class="value-strip__item">
+        <span class="value-strip__icon">
+          <i class="fa-solid fa-link" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong>Branded paylinks</strong>
+          <small>A payment identity that feels like yours.</small>
+        </div>
+      </div>
+
+      <div class="value-strip__item">
+        <span class="value-strip__icon">
+          <i class="fa-regular fa-file-lines" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong>Polished invoices</strong>
+          <small>Send clear, professional payment requests.</small>
+        </div>
+      </div>
+
+      <div class="value-strip__item">
+        <span class="value-strip__icon">
+          <i class="fa-regular fa-bell" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong>Automatic reminders</strong>
+          <small>Follow up without chasing every payment.</small>
+        </div>
+      </div>
+
+      <div class="value-strip__item">
+        <span class="value-strip__icon">
+          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong>Payment analytics</strong>
+          <small>See activity and understand what is paid.</small>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         PRICING
+    ============================================================ -->
+    <section class="pricing-section" id="pricing" aria-labelledby="pricing-title">
+
+      <header class="section-head">
+        <p class="eyebrow">Simple, transparent pricing</p>
+        <h2 id="pricing-title" class="section-head__title">
+          One plan. More room to work.
+        </h2>
+        <p class="section-head__sub">
+          Choose the billing rhythm that works for you. Your selected price is
+          confirmed before you pay.
+        </p>
+      </header>
+
+      <!-- Founding offer panel -->
+      <div id="founding-offer" class="founding-panel" hidden>
+        <div class="founding-panel__icon">
+          <i class="fa-solid fa-star" aria-hidden="true"></i>
+        </div>
+
+        <div class="founding-panel__copy">
+          <strong id="founding-title">Founding member pricing</strong>
+          <p id="founding-description">
+            Founding pricing is available to eligible accounts while places remain.
+          </p>
+        </div>
+
+        <div class="founding-panel__capacity">
+          <strong id="founding-remaining">—</strong>
+          <span>places remaining</span>
+        </div>
+      </div>
+
+      <div class="pricing-layout">
+
+        <!-- Silver card -->
+        <article class="plan-card" id="silver-plan">
+          <div class="plan-card__glow" aria-hidden="true"></div>
+
+          <div class="plan-card__head">
+            <div class="plan-card__title-row">
+              <p class="plan-kicker">For independent professionals</p>
+              <h3 class="plan-card__name">Silver</h3>
+            </div>
+            <span class="plan-card__mark" aria-hidden="true">
+              <i class="fa-solid fa-sparkles"></i>
+            </span>
+          </div>
+
+          <p class="plan-card__description">
+            Everything you need to make getting paid feel like part of your brand.
+          </p>
+
+          <!-- Billing toggle -->
+          <div class="billing-toggle" role="group" aria-label="Billing frequency">
+            <button
+              type="button"
+              class="billing-toggle__btn is-selected"
+              data-cycle="monthly"
+              aria-pressed="true"
+            >
+              Monthly
             </button>
+            <button
+              type="button"
+              class="billing-toggle__btn"
+              data-cycle="yearly"
+              aria-pressed="false"
+            >
+              Yearly
+              <span class="billing-toggle__save">Save ₦15,000</span>
+            </button>
+          </div>
+
+          <!-- Hero price -->
+          <div class="plan-card__price" aria-live="polite">
+            <span class="plan-card__currency">₦</span>
+            <span class="plan-card__amount" id="silver-price">7,500</span>
+            <span class="plan-card__period" id="silver-period">/ month</span>
+          </div>
+
+          <p id="price-context" class="plan-card__context">
+            Billed monthly. No trial period.
+          </p>
+
+          <p id="founding-price-note"
+             class="plan-card__founding-note"
+             hidden></p>
+
+          <!-- Features -->
+          <ul class="plan-card__features">
+            <li>
+              <i class="fa-solid fa-check" aria-hidden="true"></i>
+              Branded payment links
+            </li>
+            <li>
+              <i class="fa-solid fa-check" aria-hidden="true"></i>
+              Professional invoices
+            </li>
+            <li>
+              <i class="fa-solid fa-check" aria-hidden="true"></i>
+              Automatic payment reminders
+            </li>
+            <li>
+              <i class="fa-solid fa-check" aria-hidden="true"></i>
+              Payment activity and analytics
+            </li>
+            <li>
+              <i class="fa-solid fa-check" aria-hidden="true"></i>
+              Silver and higher-tier eligible features
+            </li>
+          </ul>
+
+          <button class="btn btn--primary btn--block" id="silver-upgrade" type="button">
+            Continue with Silver
+            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </button>
+
+          <p class="plan-card__checkout-note">
+            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+            You'll review the price before completing secure checkout.
+          </p>
+
+          <p id="silver-status-hint"
+             class="plan-card__status-hint"
+             aria-live="polite"></p>
+        </article>
+
+        <!-- Right-hand value column -->
+        <aside class="pricing-aside">
+          <p class="eyebrow">Built for your work</p>
+
+          <h3 class="pricing-aside__title">
+            Less payment admin. A more consistent experience.
+          </h3>
+
+          <p class="pricing-aside__lead">
+            Payla brings the moments around a payment into one branded flow,
+            so your business looks considered before and after the money moves.
+          </p>
+
+          <div class="pricing-aside__proof">
+            <div class="pricing-aside__proof-icon">
+              <i class="fa-solid fa-fingerprint" aria-hidden="true"></i>
+            </div>
+            <div>
+              <strong>Your brand, up front</strong>
+              <span>Give clients a recognisable payment experience.</span>
+            </div>
+          </div>
+
+          <div class="pricing-aside__proof">
+            <div class="pricing-aside__proof-icon">
+              <i class="fa-regular fa-clock" aria-hidden="true"></i>
+            </div>
+            <div>
+              <strong>Fewer manual follow-ups</strong>
+              <span>Keep reminders and payment status in view.</span>
+            </div>
+          </div>
+
+          <div class="pricing-aside__proof">
+            <div class="pricing-aside__proof-icon">
+              <i class="fa-solid fa-chart-simple" aria-hidden="true"></i>
+            </div>
+            <div>
+              <strong>Know where things stand</strong>
+              <span>See payment activity without piecing it together.</span>
+            </div>
+          </div>
+
+          <p class="pricing-aside__footnote">
+            Gold and other future plans are not available for purchase yet.
+          </p>
+        </aside>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         BILLING DETAILS
+    ============================================================ -->
+    <section class="billing-details" aria-label="Subscription details">
+      <div class="billing-details__item">
+        <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
+        <div>
+          <strong>Recurring billing</strong>
+          <small>
+            Your chosen cycle renews automatically unless you cancel renewal.
+          </small>
         </div>
-    </div>
+      </div>
 
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Hero Section -->
-        <div class="hero">
-            <div class="hero-content">
-                <h1 class="hero-title" id="hero-title">Elevate Your Payment Experience</h1>
-                <p class="hero-subtitle" id="hero-subtitle">Join the elite creators who get paid with style, power, and precision</p>
-                
-                <div class="exclusivity">
-                    <div class="scarcity">
-                        <i class="fas fa-crown"></i>
-                        <span>Your Money. Your Identity.</span>
-                    </div>
-                    <div class="social-proof">
-                        <i class="fas fa-users"></i>
-                        <span>200+ creators upgraded</span>
-                    </div>
-                </div>
-                
-                <div class="urgency">
-                    <div class="countdown" id="countdown">Loading trial status...</div>
-                </div>
-                
-                <button class="btn-primary" id="hero-upgrade">
-                    <i class="fas fa-rocket"></i>
-                    Upgrade to Silver
-                </button>
-            </div>
+      <div class="billing-details__item">
+        <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+        <div>
+          <strong>Secure checkout</strong>
+          <small>Payments are processed by Paystack.</small>
         </div>
+      </div>
 
-        <!-- Pricing Grid -->
-        <div class="pricing-grid">
-            <!-- Silver – 7-day free trial -->
-            <div class="plan-card" data-plan="silver" id="silver-plan">
-                <div class="plan-glow silver-glow"></div>
-                <div class="plan-header">
-                    <h3>Payla Silver</h3>
-                    <div class="badge popular">Most Popular</div>
-                </div>
-                <p class="plan-tagline">"For creators who believe even payments should have style."</p>
-                <div class="plan-price">
-                    <span class="price">₦7,500</span>
-                    <span class="period">/month</span>
-                </div>
-                <p class="free-trial">Start Instantly • Cancel Anytime</p>
-                <ul class="plan-features">
-                    <li><i class="fas fa-check"></i>Unique Paylink</li>
-                    <li><i class="fas fa-check"></i>Unlimited invoices</li>
-                    <li><i class="fas fa-check"></i>Custom logo & branding</li>
-                    <li><i class="fas fa-check"></i>Daily Payouts</li>
-                    <li><i class="fas fa-check"></i>Zero Transaction fees</li>
-                    <li><i class="fas fa-check"></i>Verified Badge</li>
-                    <li><i class="fas fa-check"></i>Paylink Signature (Your Username)</li>
-                    <li><i class="fas fa-check"></i>Automated reminders (sms/whatsapp/email)</li>
-                    <li><i class="fas fa-check"></i>PDF receipts</li>
-                    <li><i class="fas fa-check"></i>Paylink analytics</li>
-                    <li><i class="fas fa-check"></i>Priority 1-hour support</li>
-                </ul>
-                <button class="btn-primary" id="silver-upgrade">
-                    <i class="fas fa-rocket"></i>
-                    Upgrade to Silver
-                </button>
-                <p class="status-hint">200+ creators upgraded this week</p>
-            </div>
-
-            <!-- Gold (coming soon) -->
-            <div class="plan-card" data-plan="gold">
-                <div class="plan-glow gold-glow"></div>
-                <div class="plan-header">
-                    <h3>Payla Gold</h3>
-                    <div class="badge gold">COMING Q1 2026</div>
-                </div>
-                <p class="plan-tagline">"For professionals who treat their brand like a business."</p>
-                <div class="plan-price">
-                    <span class="price">₦20,000</span>
-                    <span class="period">/month</span>
-                </div>
-                <p class="free-trial">Launching 2026</p>
-                <ul class="plan-features">
-                    <li><i class="fas fa-check"></i>Everything in Silver</li>
-                    <li><i class="fas fa-check"></i>Custom domain</li>
-                    <li><i class="fas fa-check"></i>Remove "Secured by Payla" branding</li>
-                    <li><i class="fas fa-check"></i>Team Paylinks</li>
-                    <li><i class="fas fa-check"></i>Team access (up to 5)</li>
-                    <li><i class="fas fa-check"></i>White-label invoicing (invoice looks entirely yours)</li>
-                    <li><i class="fas fa-check"></i>Client insights dashboard</li>
-                    <li><i class="fas fa-check"></i>API + integrations with workflow</li>
-                    <li><i class="fas fa-check"></i>Priority whatsapp support</li>
-                    <li><i class="fas fa-check"></i>Custom thank-you pages</li>
-                    <li><i class="fas fa-check"></i>Exclusive design themes</li>
-                </ul>
-                <button class="btn-gold" disabled>
-                    <i class="fas fa-bell"></i>
-                    Notify Me
-                </button>
-                <p class="hint">Launch 2026</p>
-            </div>
-
-            <!-- Opal (coming soon) -->
-            <div class="plan-card" data-plan="opal">
-                <div class="plan-glow opal-glow"></div>
-                <div class="plan-header">
-                    <h3>Payla Opal</h3>
-                    <div class="badge opal">COMING SOON</div>
-                </div>
-                <p class="plan-tagline">"For brands that move with influence."</p>
-                <div class="plan-price">
-                    <span class="price">₦49,999</span>
-                    <span class="period">/month</span>
-                </div>
-                <p class="free-trial"></p>
-                <ul class="plan-features">
-                    <li><i class="fas fa-check"></i>Everything in Gold</li>
-                    <li><i class="fas fa-check"></i>Priority Support & Account Management</li>
-                    <li><i class="fas fa-check"></i>Unlimited Paylinks & Custom Subdomains</li>
-                    <li><i class="fas fa-check"></i>payla.vip domain</li>
-                    <li><i class="fas fa-check"></i>API Access & Automation</li>
-                    <li><i class="fas fa-check"></i>Automated Workflow & CRM Integration</li>
-                    <li><i class="fas fa-check"></i>Advanced analytics & reports</li>
-                    <li><i class="fas fa-check"></i>Team & Role Management (Unlimited team members)</li>
-                    <li><i class="fas fa-check"></i>Exclusive Themes & Premium Brand Styling</li>
-                    <li><i class="fas fa-check"></i>Early Access to New Features</li>
-                </ul>
-                <button class="btn-opal" disabled>
-                    <i class="fas fa-envelope"></i>
-                    NOTIFY ME
-                </button>
-                <p class="hint">COMING SOON</p>
-            </div>
+      <div class="billing-details__item">
+        <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+        <div>
+          <strong>Control your renewal</strong>
+          <small>
+            Cancellation stops future renewals; paid access continues
+            through its paid-through date.
+          </small>
         </div>
+      </div>
+    </section>
 
-        <!-- Comparison Table -->
-        <div class="comparison-section">
-            <h2 class="section-title">Plan Comparison</h2>
-            <div class="comparison glass">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Feature</th>
-                            <th>
-                                <div>Silver</div>
-                                <span class="badge popular">Popular</span>
-                            </th>
-                            <th>
-                                <div>Gold</div>
-                                <span class="badge gold">Coming Soon</span>
-                            </th>
-                            <th>
-                                <div>Opal</div>
-                                <span class="badge opal">Coming Soon</span>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Invoice Limit</td>
-                            <td>Unlimited</td>
-                            <td>Unlimited</td>
-                            <td>Unlimited</td>
-                        </tr>
-                        <tr>
-                            <td>Custom Branding</td>
-                            <td><i class="fas fa-check"></i></td>
-                            <td><i class="fas fa-check"></i></td>
-                            <td><i class="fas fa-check"></i></td>
-                        </tr>
-                        <tr>
-                            <td>Analytics Dashboard</td>
-                            <td><i class="fas fa-check"></i></td>
-                            <td><i class="fas fa-check"></i></td>
-                            <td><i class="fas fa-check"></i></td>
-                        </tr>
-                        <tr>
-                            <td>Priority Support</td>
-                            <td>1-hour response</td>
-                            <td>WhatsApp</td>
-                            <td>Dedicated manager</td>
-                        </tr>
-                        <tr>
-                            <td>Team Members</td>
-                            <td><i class="fas fa-times"></i></td>
-                            <td>Up to 5</td>
-                            <td>Unlimited</td>
-                        </tr>
-                        <tr>
-                            <td>White-label</td>
-                            <td><i class="fas fa-times"></i></td>
-                            <td><i class="fas fa-times"></i></td>
-                            <td><i class="fas fa-check"></i></td>
-                        </tr>
-                        <tr>
-                            <td>API Access</td>
-                            <td><i class="fas fa-times"></i></td>
-                            <td><i class="fas fa-times"></i></td>
-                            <td><i class="fas fa-check"></i></td>
-                        </tr>
-                        <tr>
-                            <td>Custom Domain</td>
-                            <td><i class="fas fa-times"></i></td>
-                            <td><i class="fas fa-check"></i></td>
-                            <td><i class="fas fa-check"></i></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <!-- ============================================================
+         MANAGE SUBSCRIPTION (hidden by default; JS reveals)
+    ============================================================ -->
+    <section id="manage-subscription" class="manage-subscription" hidden>
+      <div>
+        <p class="eyebrow">Your subscription</p>
+        <h2 class="manage-subscription__title">Manage Silver</h2>
+        <p id="manage-summary" class="manage-subscription__summary">
+          Review your billing status or manage future renewals.
+        </p>
+      </div>
 
-        <!-- FAQ Section -->
-        <div class="faq-section">
-            <h2 class="section-title">Frequently Asked Questions</h2>
-            <div class="faq">
-                <details class="glass">
-                    <summary>
-                        <span>Can I cancel anytime?</span>
-                        <i class="fas fa-plus"></i>
-                    </summary>
-                    <p>Yes. No contracts. Cancel anytime from your account settings with one click.</p>
-                </details>
-                <details class="glass">
-                    <summary>
-                        <span>What payment methods do you accept?</span>
-                        <i class="fas fa-plus"></i>
-                    </summary>
-                    <p>We accept all major debit and credit cards through our secure Paystack integration.</p>
-                </details>
-                <details class="glass">
-                    <summary>
-                        <span>Will I lose access to my invoices if I cancel?</span>
-                        <i class="fas fa-plus"></i>
-                    </summary>
-                    <p>No, you'll retain access to all your existing invoices and data. You just won't be able to create new premium invoices.</p>
-                </details>
-                <details class="glass">
-                    <summary>
-                        <span>Is my payment information secure?</span>
-                        <i class="fas fa-plus"></i>
-                    </summary>
-                    <p>Yes, we use Paystack for payment processing. Your card details are never stored on our servers and all transactions are encrypted.</p>
-                </details>
-                <details class="glass">
-                    <summary>
-                        <span>When will Gold and Opal be available?</span>
-                        <i class="fas fa-plus"></i>
-                    </summary>
-                    <p>Payla Gold is launching in Q1 2026, while Payla Opal remains invite-only for elite brands and agencies.</p>
-                </details>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sticky CTA (Mobile Only) -->
-    <div class="sticky-cta">
-        <div class="sticky-info">
-            <div class="badge popular">No Charges</div>
-            <div class="sticky-details">
-                <strong>Payla Silver</strong>
-                <span>₦7,500/month</span>
-            </div>
-        </div>
-        <button class="btn-primary" id="sticky-upgrade">
-            Upgrade Now
+      <div class="manage-subscription__actions">
+        <button id="manage-billing" class="btn btn--outline" type="button">
+          Manage billing
         </button>
-    </div>
 
-    <!-- Toast Notification -->
-    <div class="toast" id="toast">
-        <i class="fas fa-check-circle"></i>
-        <span id="toast-message">Successfully upgraded!</span>
-    </div>
+        <button id="cancel-renewal" class="btn btn--text" type="button">
+          Cancel renewal
+        </button>
+      </div>
+    </section>
 
-    <script type="module" src="/js/subscription.js"></script>
+  </main>
+
+  <!-- ============================================================
+       FOOTER
+  ============================================================ -->
+  <footer class="footer">
+    <div class="footer__brand">
+      <a href="/dashboard" class="footer__logo">Payla</a>
+      <p class="footer__tagline">Thoughtful tools for getting paid.</p>
+    </div>
+    <a href="/dashboard" class="footer__link">Back to dashboard</a>
+  </footer>
+
+  <!-- ============================================================
+       TOAST
+  ============================================================ -->
+  <div id="subscription-toast"
+       class="subscription-toast"
+       role="status"
+       aria-live="polite"
+       hidden></div>
+
+  <!-- ============================================================
+       CONFIRM MODAL
+  ============================================================ -->
+  <div class="modal-overlay" id="subscription-confirm-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <button class="modal-close" id="confirm-close" type="button" aria-label="Close">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
+
+      <p class="eyebrow">Confirm your plan</p>
+      <h2 id="confirm-title" class="modal-title">Continue with Silver?</h2>
+
+      <p id="confirm-description" class="modal-description">
+        You'll be redirected to secure Paystack checkout.
+      </p>
+
+      <div class="confirm-summary">
+        <div class="confirm-summary__row">
+          <span id="confirm-cycle">Monthly billing</span>
+          <strong id="confirm-price">₦7,500</strong>
+        </div>
+        <p id="confirm-price-note" class="confirm-summary__note">
+          Renews monthly until cancelled.
+        </p>
+      </div>
+
+      <p id="confirm-founding-note" class="confirm-founding-note" hidden></p>
+
+      <div class="modal-actions">
+        <button id="confirm-checkout" class="btn btn--primary btn--block" type="button">
+          Continue to checkout
+        </button>
+
+        <button id="confirm-back" class="btn btn--outline btn--block" type="button">
+          Go back
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SUCCESS MODAL
+  ============================================================ -->
+  <div class="modal-overlay" id="subscription-success-modal" hidden>
+    <div class="modal modal--success" role="dialog" aria-modal="true" aria-labelledby="success-title">
+      <div class="modal-success-icon">
+        <i class="fa-solid fa-check" aria-hidden="true"></i>
+      </div>
+
+      <p class="eyebrow">Payment confirmed</p>
+      <h2 id="success-title" class="modal-title">Silver is ready.</h2>
+
+      <p class="modal-description">
+        Your payment has been verified and your subscription access is active.
+      </p>
+
+      <button id="success-dashboard" class="btn btn--primary btn--block" type="button">
+        Go to dashboard
+      </button>
+    </div>
+  </div>
+
 </body>
 </html>

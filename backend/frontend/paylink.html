@@ -1,200 +1,208 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0A0A0A" />
     <title>Payla Paylink</title>
-    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/paylink.css">
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
-    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Cormorant+Garamond:wght@400;500;600;700&family=Great+Vibes&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="css/paylink.css?v=2" />
+
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+
     <script>
     !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
     },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
     a=t.getElementsByTagName(n)[0],a.parentNode.insertBefore(u,a))}(window,document,'script');
     twq('config','r4oqa');
     </script>
+
     <script>
         const es = new EventSource("/reload");
         es.onmessage = () => {
-            console.log("🔄 Frontend updated — reloading...");
+            console.log("Frontend updated — reloading...");
             location.reload();
         };
     </script>
 </head>
 <body>
-    <div class="glitter"></div>
-    <!-- Loading State -->
+
+    <div class="payla-ambient" aria-hidden="true"></div>
+
+    <!-- ============================================================
+         LOADING STATE
+    ============================================================ -->
     <div class="loading-state" id="loadingState">
         <div class="loading-content">
-            <!-- Text Logo -->
-            <div class="loading-logo">
-                Payla
-            </div>
-
-            <!-- Username -->
-            <div class="loading-signature" id="loadingSignature">
-                @username
-            </div>
-
-            <!-- Subtext -->
-            <p class="loading-subtext">Secure Paylink Loading…</p>
+            <p class="loading-logo">Payla</p>
+            <p class="loading-signature" id="loadingSignature">@username</p>
+            <p class="loading-subtext">Preparing your secure card</p>
         </div>
     </div>
 
-
-    <!-- Error State -->
+    <!-- ============================================================
+         ERROR STATE
+    ============================================================ -->
     <div class="error-state hidden" id="errorState">
         <div class="error-content">
-            <div class="error-icon">
-                <i class="fas fa-exclamation-circle"></i>
-            </div>
-            <h2>This Payla link doesn't exist or is inactive.</h2>
-            <p>The payment link you're looking for cannot be found.</p>
-            <a href="/" class="secured-by">
-                <i class="fas fa-plus"></i>
-                Create New Paylink
+            <span class="error-icon" aria-hidden="true">
+                <i class="fas fa-link-slash"></i>
+            </span>
+            <h2 class="error-title">This Payla link is not available.</h2>
+            <p class="error-description">
+                The payment link you're looking for doesn't exist or is no longer active.
+            </p>
+            <a href="/" class="error-action">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                Create a Payla link
             </a>
         </div>
     </div>
 
-    <!-- Paylink Content -->
-    <div class="paylink-content hidden" id="paylinkContent">
+    <!-- ============================================================
+         PAYLINK CARD
+    ============================================================ -->
+    <main class="paylink-content hidden" id="paylinkContent" aria-label="Paylink">
         <div class="paylink-container">
-            <!-- Paylink Preview Card -->
-            <div class="paylink-preview-card glass">
-                <!-- Silver Glow Effects -->
-                <div class="silver-glow-effect"></div>
-                <div class="silver-stripe"></div>
-                
-                <!-- Silver Plan Badge -->
-                <div class="silver-plan-badge" style="display:none">
-                    <div class="badge-glow"></div>
-                    <i class="fas fa-gem"></i>
-                    <span id="previewPlanName">Verified</span>
-                </div>
 
-                <!-- Header -->
-                <div class="preview-header">
-                    <div class="preview-logo" id="previewLogo">
-                        <span id="previewLogoInitials"></span>
-                        <div class="logo-glow"></div>
-                    </div>
-                </div>
+            <article class="paylink-card" aria-label="Payment card">
+                <div class="paylink-card__glow" aria-hidden="true"></div>
+                <div class="paylink-card__reflection" aria-hidden="true"></div>
 
-                <!-- Brand Section -->
-                <div class="preview-brand">
-                    <div class="preview-name" id="previewName"></div>
-                    <div class="preview-tagline" id="previewTagline"></div>
-                    <div class="preview-handle" id="previewHandle"></div>
-                </div>
-
-                <!-- Contact Cards -->
-                <div class="contact-cards">
-                    <div class="contact-card email-card">
-                        <div class="contact-header">
-                            <div class="contact-glow"></div>
-                        </div>
-                        <div class="contact-content">
-                            <div class="contact-value" id="previewEmail"></div>
-                        </div>
+                <!-- Header: logo + trust mark -->
+                <header class="paylink-card__header">
+                    <div class="paylink-card__logo" id="previewLogo">
                     </div>
 
-                    <div class="contact-card whatsapp-card">
-                        <div class="contact-header">
-                            <div class="contact-glow"></div>
-                        </div>
-                        <div class="contact-content">
-                            <div class="contact-value" id="previewWhatsapp"></div>
-                        </div>
-                    </div>
-                </div>
+                    <!-- Trust mark container — JS fills this in -->
+                    <div class="paylink-card__trust" id="trustMark" aria-live="polite"></div>
+                </header>
 
-                <!-- CTA Section -->
-                <div class="cta-section">
-                    <button class="send-money-btn primary" id="transferBtn">
-                        <i class="fas fa-paper-plane"></i>
+                <!-- Brand -->
+                <section class="paylink-card__brand">
+                    <h1 class="paylink-card__name" id="previewName"></h1>
+                    <p class="paylink-card__tagline" id="previewTagline"></p>
+                    <p class="paylink-card__trust-label" id="trustLabel"></p>
+                </section>
+
+                <!-- Contact actions -->
+                <section class="paylink-card__actions" aria-label="Contact options">
+                    <a id="previewEmailAction" href="#" class="paylink-card__action" style="display:none">
+                        <i class="fas fa-envelope" aria-hidden="true"></i>
+                        <span>Email</span>
+                    </a>
+                    <a id="previewPhoneAction" href="#" class="paylink-card__action" style="display:none">
+                        <i class="fas fa-phone" aria-hidden="true"></i>
+                        <span>Call</span>
+                    </a>
+                </section>
+
+                <!-- CTA -->
+                <section class="paylink-card__cta">
+                    <button class="paylink-card__transfer" id="transferBtn" type="button">
+                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
                         Transfer
                     </button>
+                    <p class="paylink-card__trust-cue">
+                        Secure payment via <span>Paystack</span> ·
+                        You'll see the account holder's name before you pay
+                    </p>
+                </section>
+
                 <!-- Footer -->
-                <div class="preview-footer">
-                    <div class="powered-by" style="display:none">
-                        Elegantly powered by <span id="previewPowered"></span>
-                    </div>
-                    <a href="https://payla.ng" target="_blank" class="no-underline">
-                        <div class="secured-by">
-                            <i class="fas fa-gem"></i>
-                            Secured by Payla Silver
-                        </div>
+                <footer class="paylink-card__footer">
+                    <span class="paylink-card__signature" id="previewPowered"></span>
+                    <a href="https://payla.ng" target="_blank" rel="noopener" class="paylink-card__secured" id="securedByLine">
+                        <i class="fas fa-gem" aria-hidden="true"></i>
+                        <span id="securedByText">Secured by Payla</span>
                     </a>
-                </div>
-            </div>
+                </footer>
+
+            </article>
+
         </div>
-    </div>
+    </main>
 
-    <!-- Paystack Modal -->
-    <div class="modal-overlay hidden" id="paystackModal">
-        <div class="modal premium-modal">
-            <button class="modal-close" id="modalClose">
-                <i class="fas fa-times"></i>
+    <!-- ============================================================
+         PAYSTACK MODAL
+    ============================================================ -->
+    <div class="modal-overlay hidden" id="paystackModal" role="dialog" aria-modal="true" aria-labelledby="paystackTitle">
+        <div class="modal">
+            <button class="modal-close" id="modalClose" type="button" aria-label="Close">
+                <i class="fas fa-times" aria-hidden="true"></i>
             </button>
-            
-            <div class="modal-header">
-                <h2 class="modal-title">Complete Payment</h2>
-                <p class="modal-subtitle">Secure transaction via Paystack</p>
-            </div>
 
-            <div class="payment-form" id="paymentForm">
+            <header class="modal-header">
+                <p class="modal-eyebrow">Payment</p>
+                <h2 class="modal-title" id="paystackTitle">Complete your transfer</h2>
+            </header>
+
+            <form class="payment-form" id="paymentForm" novalidate>
                 <div class="form-group">
                     <label for="paymentAmount">Amount (NGN)</label>
-                    <input type="number" id="paymentAmount" placeholder="enter amount" min="1000" required>
-                    <small style="color: #888; font-size: 0.75rem; margin-top: 5px; display: block;">
-                        Minimum transfer: 1,000 NGN
-                    </small>
+                    <input type="number" id="paymentAmount" placeholder="10,000" min="1000" required inputmode="numeric" />
+                    <span class="form-hint">Minimum transfer is ₦1,000</span>
                 </div>
 
                 <div class="form-group">
-                    <label for="payerEmail">Email for Receipt</label>
-                    <input type="email" id="payerEmail" placeholder="your@email.com" required>
+                    <label for="payerEmail">Email for your receipt</label>
+                    <input type="email" id="payerEmail" placeholder="you@example.com" required autocomplete="email" />
+                </div>
+
+                <!-- Bank-confirmed recipient block — populates when the modal opens -->
+                <div class="payment-recipient" id="paymentRecipient" hidden>
+                    <p class="payment-recipient__label">You're transferring to</p>
+                    <p class="payment-recipient__name" id="recipientName"></p>
+                    <p class="payment-recipient__proof">
+                        <i class="fas fa-circle-check" aria-hidden="true"></i>
+                        Bank-confirmed name
+                    </p>
                 </div>
 
                 <div class="payment-security">
-                    <i class="fas fa-lock"></i>
-                    <span>Paystack processing fees apply, Payla takes zero transaction fees</span>
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <span>Paystack processing fees apply. Payla takes zero transaction fees.</span>
                 </div>
 
-                <button type="submit" class="submit-btn" id="processPayment";>
-                    <i class="fas fa-lock"></i>
-                    Proceed to Paystack
+                <button type="submit" class="submit-btn" id="processPayment">
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    Continue to Paystack
                 </button>
-            </div>
+            </form>
         </div>
     </div>
 
-    <!-- Success Modal -->
-    <div class="modal-overlay hidden" id="successModal">
-        <div class="modal premium-modal">
-            <button class="modal-close" id="successClose">
-                <i class="fas fa-times"></i>
+    <!-- ============================================================
+         SUCCESS MODAL
+    ============================================================ -->
+    <div class="modal-overlay hidden" id="successModal" role="dialog" aria-modal="true" aria-labelledby="successTitle">
+        <div class="modal modal--success">
+            <button class="modal-close" id="successClose" type="button" aria-label="Close">
+                <i class="fas fa-times" aria-hidden="true"></i>
             </button>
-            
-            <div class="modal-header">
-                <div class="success-icon">
-                    <i class="fas fa-check-circle"></i>
+
+            <header class="modal-header">
+                <div class="success-mark" aria-hidden="true">
+                    <i class="fas fa-check"></i>
                 </div>
-                <h2 class="modal-title">Payment Successful!</h2>
-                <p class="modal-subtitle">Your transaction has been completed</p>
-            </div>
+                <p class="modal-eyebrow">Payment received</p>
+                <h2 class="modal-title" id="successTitle">Your transfer is complete</h2>
+                <p class="modal-subtitle">A receipt has been prepared for you.</p>
+            </header>
 
             <div class="success-details">
                 <div class="detail-row">
-                    <span>Amount Paid</span>
+                    <span>Amount</span>
                     <strong id="paidAmount"></strong>
                 </div>
                 <div class="detail-row">
@@ -202,27 +210,23 @@
                     <strong id="recipientInfo"></strong>
                 </div>
                 <div class="detail-row">
-                    <span>Transaction ID</span>
+                    <span>Reference</span>
                     <strong id="transactionId"></strong>
                 </div>
                 <div class="detail-row">
-                    <span>Date & Time</span>
+                    <span>Date</span>
                     <strong id="transactionDate"></strong>
                 </div>
             </div>
 
             <div class="success-actions">
-                <button class="btn-secondary" id="printReceipt">
-                    <i class="fas fa-print"></i>
-                    Print Receipt
-                </button>
-                <button class="btn-primary" id="closeSuccess">
-                    <i class="fas fa-check"></i>
+                <button class="btn btn--primary" id="closeSuccess" type="button">
                     Done
                 </button>
             </div>
         </div>
     </div>
+
     <script type="module" src="/js/paylink.js"></script>
     <script src="https://js.paystack.co/v2/inline.js"></script>
 </body>

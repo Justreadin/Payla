@@ -1,244 +1,997 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PAYLA: Premium Payment Identity for Creators | Get Paid Faster & Beautifully</title>
-    <meta name="description" content="Payla helps creators, brands and freelancers get paid instantly without sharing bank details. Send payla.ng/@yourname, automate reminders, and receive payments directly to your account.">
-    <meta name="keywords" content="payment identity, branded paylink, premium invoicing, creator payments, elegant payments, payment solutions, invoicing, get paid faster, payment links, beautiful receipts">
-    <meta name="author" content="Payla Signature Ltd">
-    <meta name="robots" content="index, follow, max-image-preview:large">
-    
-    <meta property="og:title" content="PAYLA: Premium Payment Identity for Creators">
-    <meta property="og:description" content="Your elegant payment identity. Get paid faster with branded paylinks and beautiful invoices.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://payla.ng">
-    <meta property="og:image" content="https://payla.ng/og-image.jpg">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A0A0A" />
 
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:site" content="@payla_opal">
-    <meta name="twitter:title" content="PAYLA: Premium Payment Identity for Creators">
-    <meta name="twitter:description" content="Get paid faster with elegant branded paylinks and beautiful invoices.">
-    <meta name="twitter:image" content="https://payla.ng/og-image.jpg">
-    
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "PAYLA",
-        "description": "Premium payment identity platform for creators with elegant branded paylinks and beautiful invoicing",
-        "applicationCategory": "FinanceApplication",
-        "operatingSystem": "Web",
-        "provider": { "@type": "Organization", "name": "Payla" },
-        "offers": { "@type": "Offer", "price": "5000", "priceCurrency": "NGN" },
-        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "127" }
-    }
-    </script>
-    
-    <link rel="canonical" href="https://payla.ng">
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
-    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+  <title>Payla — Your Payment Identity</title>
+  <meta name="description" content="Beautiful payment pages. Professional invoices. Payment reminders that follow through. Get paid without the chasing." />
+  <meta name="author" content="Payla Signature Ltd" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
-    
-    <link rel="stylesheet" href="css/payla.css" />
-    <link rel="stylesheet" href="css/payla_modal.css" />
-    
-    <script>
+  <meta property="og:title" content="Payla — Your Payment Identity" />
+  <meta property="og:description" content="Get paid. Without the chasing." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://payla.ng" />
+  <meta property="og:image" content="https://payla.ng/og-image.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@payla_opal" />
+  <meta name="twitter:title" content="Payla — Your Payment Identity" />
+  <meta name="twitter:description" content="Get paid. Without the chasing." />
+  <meta name="twitter:image" content="https://payla.ng/og-image.jpg" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Payla",
+    "description": "Payment identity platform for creators and freelancers. Branded payment links, professional invoices, and automated payment reminders.",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "Web",
+    "provider": { "@type": "Organization", "name": "Payla" },
+    "offers": [
+      { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "NGN" },
+      { "@type": "Offer", "name": "Silver Monthly", "price": "7500", "priceCurrency": "NGN" },
+      { "@type": "Offer", "name": "Silver Yearly", "price": "75000", "priceCurrency": "NGN" }
+    ]
+  }
+  </script>
+
+  <link rel="canonical" href="https://payla.ng" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Cormorant+Garamond:wght@400;500;600;700&family=Great+Vibes&display=swap"
+    rel="stylesheet"
+  />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    media="print"
+    onload="this.media='all'"
+  />
+
+  <link rel="stylesheet" href="css/payla.css" />
+  <link rel="stylesheet" href="css/payla_modal.css" />
+
+  <script>
     !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
     },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
     a=t.getElementsByTagName(n)[0],a.parentNode.insertBefore(u,a))}(window,document,'script');
     twq('config','r4oqa');
-    </script>
+  </script>
 </head>
+
 <body>
-    <header class="header" id="header">
-        <a class="logo" href="#hero" aria-label="Payla Home">
-            <div>PAYLA</div>
-        </a>
-        <div class="contact">hello@payla.vip</div>
-    </header>
 
-    <main class="container">
-        <section class="hero" id="hero">
-            <div class="hero-left">
-                <h1 class="title">Your Payment Identity</h1>
-                <p class="lead"><strong>Stop sharing account numbers, Start sending your name.</strong><em> Get paid faster with <strong>payla.ng/@yourname</strong>, straight to your account. <strong>Client pays the fee.</strong></em></p>
-                
-                <div class="cta-row">
-                    <button class="btn free" id="join-waitlist">[CLAIM] MY @USERNAME</button>
-                    <button class="btn paid" id="lock-year">SEE HOW IT WORKS</button>
-                </div>
-                <h5>Claim your name before someone else does.</h5>
+  <a href="#main" class="skip-link">Skip to content</a>
 
-                <div class="social-proof">
-                    <div class="testimonial">"No more sending account number. payla.ng/@janet just feels right." — Janet, Brand Strategist</div>
-                </div>
-            </div>
+  <!-- ============================================================
+       NAVIGATION
+  ============================================================ -->
+  <header class="nav" id="nav">
+    <div class="container nav__inner">
 
-            <div class="iphone-wrap">
-                <div class="iphone" id="iphone">
-                    <div class="notch"><div class="dynamic-island"></div></div>
-                    <div class="screen">
-                        <div class="status-bar">
-                            <div class="time">9:41</div>
-                            <div class="icons">Signal • Wi-Fi • Battery</div>
-                        </div>
-                        <div class="chat-container">
-                            <div class="chat">
-                                <div class="msg left delay1">Hi Layla, good morning. Could you share your paylink?</div>
-                                <div class="msg right delay2">Morning Ada! ₦712,000. One sec, let me send it.</div>
-                                <div class="msg right delay3">Here's my paylink<br><a href="#" style="color:#007AFF; text-decoration:underline;">payla.ng/@layla</a></div>
-                                <div class="invoice-card">
-                                    <h4>Layla DESIGNS</h4>
-                                    <div class="amount">Logo Design Package — ₦712,000</div>
-                                    <div class="due">payla.ng/@layla</div>
-                                    <div class="pay">Transfer Now</div>
-                                </div>
-                                <div class="msg left delay4">Thanks! Just paid now.</div>
-                                <div class="msg right delay5">Just entered my account! Thanks Ada, appreciate the quick one</div>
-                            </div>
-                        </div>
-                        <div class="paid-overlay" id="paid-overlay">Client paid in 12 sec</div>
-                    </div>
-                </div>
-            </div>
-        </section>
+      <a href="#top" class="nav__logo" aria-label="Payla home">
+        <span class="nav__logo-mark">Payla</span>
+      </a>
 
-        <section class="why-payla" aria-labelledby="why-payla-title">
-            <div class="why-header">
-                <h2 id="why-payla-title">We built Payla because this was every week:</h2>
-            </div>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#product">Product</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="mailto:hello@payla.vip">Contact</a>
+      </nav>
 
-            <div class="pain-quotes">
-                <div class="quote">
-                    "Hi boss, haven't i sent the payment"
-                    <span>— Every client, every week</span>
-                </div>
-                <div class="quote">
-                    "Paid?" 😅 "Oh, I forgot!",
-                    <span>— The silence after your 4th follow-ups</span>
-                </div>
-                <div class="quote">
-                    "Please, check your phone"<br>
-                    <span>— Your life before Payla</span>
-                </div>
-                <div class="quote">
-                    "Seen, Will pay tomorrow"<br>
-                    <span>— Tomorrow never comes</span>
-                </div>
-            </div>
+      <div class="nav__actions">
+        <a href="/entry" class="nav__signin">Sign in</a>
+        <a href="#claim" class="btn btn--primary btn--sm" data-claim-trigger>Claim Your Username</a>
+      </div>
 
-            <div class="solution">
-                <h3>With Payla, you just send your name.</h3>
-                <div class="features-list">
-                    <div class="feature-item"><strong>Your personal payment link → payla.ng/@yourname</strong></div>
-                    <div class="feature-item"><strong>Clients pay you directly</strong></div>
-                    <div class="feature-item"><strong>No bank details ever again</strong></div>
-                    <div class="feature-item"><strong>Beautiful invoices/receipts your clients remember</strong></div>
-                    <div class="feature-item"><strong>Daily automated payouts (T+1)</strong></div>
-                    <div class="feature-item"><strong>Payla takes zero transaction fees</strong></div>
-                    <div class="feature-item"><strong>Auto reminders via SMS, Email & WhatsApp.</strong></div>
-                    <div class="feature-item"><strong>Zero follow-ups ever again</strong></div>
-                </div>
-            </div>
-        </section>
+      <button
+        class="nav__toggle"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+        id="navToggle"
+      >
+        <span></span><span></span><span></span>
+      </button>
 
-        <section class="offer" aria-labelledby="offer-title">
-            <div class="offer-badge">Founding 500 Creator Offer</div>
-            <h2 id="offer-title">Free for 1 Full Year</h2>
-            <div class="features">
-                <div class="feature">✔️ Unique @yourname (never expires)</div>
-                <div class="feature">✔️ Unlimited invoices & receipts</div>
-                <div class="feature">✔️ Auto payment reminders</div>
-                <div class="feature">✔️ Automated Payouts to local accounts</div>
-                <div class="feature">✔️ 1 year price-lock</div>
-                <div class="feature">✔️ Payments Processed by Paystack</div>
-            </div>
-
-            <div class="social-proof">
-                <div class="testimonial">
-                    "I got my first payment 11 minutes after sending my link" — Mercy, Notion Creator
-                </div>
-            </div>
-
-            <div class="launch-timer">Price becomes ₦7,500/month <strong>after first 500</strong></div>
-        </section>
-    </main>
-
-    <div class="sticky-cta">
-        <button class="btn free" id="sticky-free">[CLAIM] MY @USERNAME</button>
-        <button class="btn paid" id="sticky-paid">[SIGN IN]</button>
     </div>
 
-    <footer class="footer" role="contentinfo">
-        <div class="footer-gradient"></div>
-        <div class="footer-container">
-            <div class="footer-main">
-                <div class="footer-brand">
-                    <h2 class="footer-logo">PAYLA</h2>
-                    <p class="footer-tagline">Your Payment Identity</p>
-                    <p class="footer-description">Get paid faster, elegantly.</p>
-                </div>
-                
-                <div class="footer-grid">
-                    <div class="footer-section">
-                        <h3 class="footer-heading">Contact</h3>
-                        <ul class="footer-links">
-                            <li><a href="mailto:hello@payla.vip" class="footer-link">
-                                <span class="footer-link-icon">✉️</span>
-                                <span>hello@payla.vip</span>
-                            </a></li>
-                            <li><a href="mailto:support@payla.vip" class="footer-link">
-                                <span class="footer-link-icon">🛟</span>
-                                <span>support@payla.vip</span>
-                            </a></li>
-                        </ul>
-                    </div>
-                    
-                    <div class="footer-section">
-                        <h3 class="footer-heading">Connect</h3>
-                        <p class="footer-subtext">Join creators getting paid faster</p>
-                        <div class="footer-social">
-                            <a href="https://x.com/payla_opal" target="_blank" rel="noopener noreferrer" class="social-button" aria-label="Follow us on X (Twitter)">
-                                <i class="fab fa-twitter"></i>
-                            </a>
-                            <a href="https://instagram.com/payla_opal" target="_blank" rel="noopener noreferrer" class="social-button" aria-label="Follow us on Instagram">
-                                <i class="fab fa-instagram"></i>
-                            </a>
-                            <a href="https://tiktok.com/@payla_opal" target="_blank" rel="noopener noreferrer" class="social-button" aria-label="Follow us on TikTok">
-                                <i class="fab fa-tiktok"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
+    <div class="nav__mobile" id="mobile-menu" hidden>
+      <nav class="nav__mobile-links" aria-label="Mobile">
+        <a href="#product">Product</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="mailto:hello@payla.vip">Contact</a>
+      </nav>
+
+      <div class="nav__mobile-secondary">
+        <a href="/entry" class="nav__mobile-signin">Sign in</a>
+      </div>
+
+      <a href="#claim" class="btn btn--primary btn--block nav__mobile-cta" data-claim-trigger>Claim Your Username</a>
+    </div>
+  </header>
+
+
+  <main id="main">
+
+    <!-- ============================================================
+         01 — HERO
+    ============================================================ -->
+    <section class="hero" id="top">
+      <div class="hero__glow" aria-hidden="true"></div>
+
+      <div class="container hero__inner">
+
+        <div class="hero__content">
+
+          <h1 class="hero__headline">
+            Get paid.
+            <span class="hero__headline-accent">Without the chasing.</span>
+          </h1>
+
+          <p class="hero__subhead">
+            Claim your payment link. Send an invoice. Let Layla handle the follow-up.
+          </p>
+
+          <form class="hero-claim" id="heroClaimForm" autocomplete="off" novalidate>
+            <label for="heroUsername" class="hero-claim__label">
+              Choose your Payla username
+            </label>
+
+            <div class="hero-claim__field" id="heroClaimField">
+              <span class="hero-claim__prefix">payla.ng/</span>
+              <input
+                type="text"
+                id="heroUsername"
+                name="username"
+                class="hero-claim__input"
+                placeholder="yourname"
+                maxlength="20"
+                pattern="[a-z0-9_-]+"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                required
+              />
+              <span class="hero-claim__status" id="heroUsernameStatus" aria-live="polite">
+                <span class="hero-claim__spinner" aria-hidden="true"></span>
+                <i class="fas fa-check-circle hero-claim__check" aria-hidden="true"></i>
+              </span>
             </div>
-            
-            <div class="footer-bottom">
-                <div class="footer-copyright">
-                    <p>&copy; 2026 <strong>Payla</strong> </p>
-                    <h6>Payments are processed by Paystack. Standard processing fees may apply.</h6>
-                </div>
-                <div class="footer-credits">
-                    <p>Made with <span class="heart">♥</span> for creators everywhere</p>
-                </div>
-            </div>
+
+            <button
+              type="submit"
+              class="btn btn--primary btn--lg hero-claim__submit"
+              id="heroClaimBtn"
+              disabled
+            >
+              Claim Your Username, free
+            </button>
+            <p class="hero-claim__feedback" id="heroFeedback" role="status"></p>
+          </form>
+
+          <div class="hero__badge" role="note">
+            <span class="hero__badge-dot" aria-hidden="true"></span>
+            <span>
+              <strong>Founding offer:</strong>
+              The first 200 customers who upgrade to Silver lock in the founding price.
+            </span>
+          </div>
         </div>
-    </footer>
-    
-    <script src="https://js.paystack.co/v2/inline.js" defer></script>
-    <script type="module" src="/js/payla.js" defer></script>
-    <script type="module" src="/js/payla_modal.js" defer></script>
-    <script type="module" src="/js/web_analytics.js" defer></script>
+
+        <!-- ============================================================
+             HERO VISUAL — paylink card + Layla notification. Two elements.
+        ============================================================ -->
+        <div class="hero__visual" data-visual="hero-composition">
+
+          <div class="hero__visual-stage">
+            <div class="frame frame--primary frame--hero">
+              <div class="frame__chrome" aria-hidden="true">
+                <span class="frame__dot"></span>
+                <span class="frame__dot"></span>
+                <span class="frame__dot"></span>
+                <span class="frame__url">payla.ng/@favour</span>
+              </div>
+              <div class="frame__bezel">
+                <div class="frame__viewport">
+                  <img
+                    src="assets/visuals/paylink-card.png"
+                    alt="A Payla payment page showing a creator's brand, contact details and a Transfer action."
+                    class="frame__image"
+                    loading="eager"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="layla-notification" data-visual="layla-notification">
+            <div class="layla-notification__head">
+              <span class="layla-notification__signature">Layla</span>
+              <span class="layla-notification__status">
+                <i class="fas fa-circle-check" aria-hidden="true"></i>
+                Reminder sent
+              </span>
+            </div>
+            <p class="layla-notification__body">
+              Just a reminder that your invoice is awaiting payment.
+            </p>
+            <div class="layla-notification__channels">
+              <span>WhatsApp</span>
+              <span class="dot" aria-hidden="true">·</span>
+              <span>SMS</span>
+              <span class="dot" aria-hidden="true">·</span>
+              <span>Email</span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         02 — THE PROBLEM
+    ============================================================ -->
+    <section class="problem" id="problem">
+      <div class="container problem__inner">
+
+        <h2 class="problem__headline">
+          Your work is done. Getting paid shouldn't become another job.
+        </h2>
+
+        <div class="problem__copy">
+          <p>You've delivered the work. Sent the invoice. Shared your payment details.</p>
+          <p class="problem__lead">Now comes the part nobody puts on the invoice.</p>
+        </div>
+
+        <div class="problem__quotes" aria-label="Common payment follow-ups">
+          <p class="problem__quote">"Good morning, just a gentle reminder…"</p>
+          <p class="problem__quote">"Please, have you seen my last message?"</p>
+          <p class="problem__quote">"I'll make the payment today."</p>
+          <p class="problem__quote">"Sorry, I completely forgot."</p>
+        </div>
+
+        <div class="problem__resolution">
+          <p>
+            You didn't start your business to spend your time following up on money
+            you've already earned.
+          </p>
+          <p>
+            But when payment follow-ups depend entirely on you remembering to send
+            another message, getting paid becomes another task on your list.
+          </p>
+
+          <p class="problem__transition">
+            <strong>Payla brings your payment process together.</strong>
+          </p>
+
+          <p>
+            Create your payment link. Send an invoice your client can pay directly.
+            With Silver, track outstanding payments and let Layla handle the reminders.
+          </p>
+
+          <p class="problem__closing">
+            Less chasing. More time for the work itself.
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         03 — THE PRODUCT
+    ============================================================ -->
+    <section class="product" id="product">
+      <div class="container">
+
+        <header class="section-head">
+          <p class="eyebrow">The Product</p>
+          <h2 class="section-head__title">
+            Beautifully presented. Thoughtfully followed through.
+          </h2>
+          <p class="section-head__sub">
+            Payla gives your payments a professional identity and helps you manage
+            what happens after you send them.
+          </p>
+        </header>
+
+        <!-- FREE — one frame, centered. -->
+        <div class="product__block" id="product-free">
+          <div class="product__block-copy">
+            <p class="product__tier">Free</p>
+            <h3 class="product__title">Your personal payment link</h3>
+            <p class="product__lead">A better way to receive payments.</p>
+            <p>
+              Claim your own Payla link and give clients a dedicated page to pay you.
+            </p>
+
+            <ul class="feature-list">
+              <li>Your personal <code>payla.ng/@username</code> link</li>
+              <li>A beautifully branded page where clients can pay you, with your name and personal link</li>
+              <li>Payment history: a record of payments you've received, on your payouts page</li>
+              <li>Payments sent directly to your connected bank account</li>
+            </ul>
+
+            <p class="product__note">
+              A complete payment page for your business. No subscription required.
+            </p>
+            <p class="product__note">
+              Claim your identity for free. Add your name and receiving bank details to activate your link.
+            </p>
+
+            <a href="#claim" class="btn btn--primary" data-claim-trigger>Claim Your Username</a>
+          </div>
+
+          <div class="product__block-visual" data-visual="free-payment-page">
+            <div class="visual-showcase visual-showcase--solo">
+              <div class="frame frame--primary">
+                <div class="frame__chrome" aria-hidden="true">
+                  <span class="frame__dot"></span>
+                  <span class="frame__dot"></span>
+                  <span class="frame__dot"></span>
+                  <span class="frame__url">payla.ng/@yourname</span>
+                </div>
+                <div class="frame__bezel">
+                  <div class="frame__viewport">
+                    <img
+                      src="assets/visuals/paylink-card.png"
+                      alt="A Payla payment page as seen by a client."
+                      class="frame__image"
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SILVER — invoice primary, receipt floating lower-left. The one deliberate layer. -->
+        <div class="product__block product__block--reverse" id="product-silver">
+          <div class="product__block-copy">
+            <p class="product__tier">Silver</p>
+            <h3 class="product__title">Your payment workflow</h3>
+            <p class="product__lead">
+              For people ready to spend less time following up.
+            </p>
+            <p>
+              Everything you need to present invoices professionally, track payments,
+              and let Layla handle the reminders.
+            </p>
+
+            <ul class="feature-list">
+              <li>Branded invoices clients can pay directly</li>
+              <li>Your own VIP payment link: <code>payla.vip/@username</code>, alongside your <code>payla.ng/@username</code> link</li>
+              <li>Layla's automated payment reminders via WhatsApp, SMS, and email</li>
+              <li>Custom reminder messages</li>
+              <li>Payment tracking for outstanding and paid invoices</li>
+              <li>Payment analytics: see what's been paid and what's outstanding</li>
+              <li>Paylink analytics: see how your payment page is performing</li>
+              <li>Branded PDF receipts</li>
+              <li>Your logo on your payment page</li>
+              <li>Custom logo and branding on invoices</li>
+              <li>A Silver seal on your paylink: "Powered by Payla Silver"</li>
+              <li>Automatic invoice closure after successful payment</li>
+            </ul>
+
+            <p class="product__note">
+              Your invoices look professional. Your payment activity stays organised.
+              Layla handles the repetitive follow-ups.
+            </p>
+
+            <p class="product__price-line">
+              <span class="product__price">₦7,500</span>/month
+              <span class="product__price-sep">·</span>
+              <span class="product__price">₦75,000</span>/year
+            </p>
+
+            <a href="#pricing" class="btn btn--primary">Get Silver</a>
+          </div>
+
+          <div class="product__block-visual" data-visual="silver-invoice">
+            <div class="visual-showcase visual-showcase--silver">
+              <div class="frame frame--primary frame--invoice">
+                <div class="frame__chrome" aria-hidden="true">
+                  <span class="frame__dot"></span>
+                  <span class="frame__dot"></span>
+                  <span class="frame__dot"></span>
+                  <span class="frame__url">Invoice INV_FAVO</span>
+                </div>
+                <div class="frame__bezel">
+                  <div class="frame__viewport">
+                    <img
+                      src="assets/visuals/invoice-full.png"
+                      alt="A branded Payla invoice with a direct payment action."
+                      class="frame__image"
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="receipt-card" data-visual="paid-receipt">
+                <div class="receipt-card__head">
+                  <span class="receipt-card__label">Receipt</span>
+                  <span class="receipt-card__status">
+                    <i class="fas fa-circle-check" aria-hidden="true"></i>
+                    Paid
+                  </span>
+                </div>
+                <p class="receipt-card__amount">₦100,002.00</p>
+                <p class="receipt-card__meta">Invoice INV_FAVO · Closed automatically</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ANALYTICS — wide, horizontal, restrained. -->
+        <div class="product__analytics" data-visual="silver-analytics">
+          <div class="product__analytics-copy">
+            <p class="product__analytics-eyebrow">Payment analytics</p>
+            <h3 class="product__analytics-title">See what's been paid, and what hasn't.</h3>
+            <p class="product__analytics-body">
+              Payment analytics relates to your payment activity. Paylink analytics
+              relates to the performance of your payment page. Both live inside
+              Silver: clear, legible and grounded in real data.
+            </p>
+          </div>
+
+          <div class="frame frame--analytics">
+            <div class="frame__chrome" aria-hidden="true">
+              <span class="frame__dot"></span>
+              <span class="frame__dot"></span>
+              <span class="frame__dot"></span>
+              <span class="frame__url">Analytics</span>
+            </div>
+            <div class="frame__bezel">
+              <div class="frame__viewport">
+                <img
+                  src="assets/visuals/analytics-modal.png"
+                  alt="Payla's analytics view showing payment activity and outstanding amounts."
+                  class="frame__image"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         04 — MEET LAYLA
+    ============================================================ -->
+    <section class="layla" id="layla">
+      <div class="layla__glow" aria-hidden="true"></div>
+
+      <div class="container layla__inner">
+
+        <div class="layla__copy">
+          <p class="eyebrow">Meet Layla</p>
+          <h2 class="layla__title">
+            She follows up. You get back to work.
+          </h2>
+
+          <p class="layla__lead">
+            Meet Layla, your personal payment-reminder concierge.
+          </p>
+
+          <p>
+            When an invoice goes unpaid, Layla sends a reminder on your behalf
+            through supported channels: WhatsApp, SMS, and email.
+          </p>
+
+          <p>
+            Use Payla's default reminder message or write your own custom message.
+            Layla handles the follow-up, while you focus on your work.
+          </p>
+
+          <p class="layla__note">
+            She doesn't replace your relationship with your clients. She takes one
+            repetitive task off your hands.
+          </p>
+        </div>
+
+        <div class="layla__visual" data-visual="layla-reminder">
+          <div class="layla-platform">
+            <div class="frame frame--primary frame--email">
+              <div class="frame__chrome" aria-hidden="true">
+                <span class="frame__dot"></span>
+                <span class="frame__dot"></span>
+                <span class="frame__dot"></span>
+                <span class="frame__url">Update regarding Favour</span>
+              </div>
+              <div class="frame__bezel">
+                <div class="frame__viewport">
+                  <img
+                    src="assets/visuals/layla-email.png"
+                    alt="A Payla payment reminder email sent by Layla, showing the invoice reference, amount due and a payment action."
+                    class="frame__image"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="channel-card" data-visual="layla-channels">
+              <p class="channel-card__title">Supported reminder channels</p>
+              <ul class="channel-card__list">
+                <li>
+                  <i class="fab fa-whatsapp" aria-hidden="true"></i>
+                  <span>WhatsApp</span>
+                </li>
+                <li>
+                  <i class="fas fa-comment-sms" aria-hidden="true"></i>
+                  <span>SMS</span>
+                </li>
+                <li>
+                  <i class="fas fa-envelope" aria-hidden="true"></i>
+                  <span>Email</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         05 — HOW IT WORKS
+    ============================================================ -->
+    <section class="how" id="how-it-works">
+      <div class="container">
+
+        <header class="section-head">
+          <p class="eyebrow">How It Works</p>
+          <h2 class="section-head__title">From your link to payment received.</h2>
+        </header>
+
+        <ol class="how__steps">
+          <li class="how__step">
+            <span class="how__number">01</span>
+            <h3 class="how__step-title">Claim your identity</h3>
+            <p>Choose your personal Payla username and claim your payment link for free.</p>
+          </li>
+          <li class="how__step">
+            <span class="how__number">02</span>
+            <h3 class="how__step-title">Activate your link</h3>
+            <p>Add your name and receiving bank details. Once activated, your link is ready to receive payments.</p>
+          </li>
+          <li class="how__step">
+            <span class="how__number">03</span>
+            <h3 class="how__step-title">Send an invoice or share your link</h3>
+            <p>Share your payment link or, with Silver, send a branded invoice your client can pay directly.</p>
+          </li>
+          <li class="how__step">
+            <span class="how__number">04</span>
+            <h3 class="how__step-title">Let Layla follow through</h3>
+            <p>Layla handles the reminders. Payla tracks payments and closes invoices. On Silver, Payla also issues branded receipts when payment is received.</p>
+          </li>
+        </ol>
+
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         06 — TRUST
+    ============================================================ -->
+    <section class="trust" id="trust">
+      <div class="container trust__inner">
+
+        <header class="trust__head">
+          <p class="eyebrow">Trust</p>
+          <h2 class="trust__title">Your payments. Your bank account.</h2>
+        </header>
+
+        <p class="trust__lead">
+          Payla helps you present and manage payments. It doesn't hold your money.
+        </p>
+        <p class="trust__lead-secondary">
+          Payments are processed through Paystack and sent to your connected bank account.
+        </p>
+
+        <div class="trust__flow" aria-label="Payment flow: client, Paystack, connected bank account">
+          <div class="trust__node">
+            <i class="fas fa-user" aria-hidden="true"></i>
+            <span class="trust__node-label">Client</span>
+          </div>
+          <span class="trust__arrow" aria-hidden="true">
+            <i class="fas fa-arrow-right"></i>
+          </span>
+          <div class="trust__node">
+            <i class="fas fa-shield-halved" aria-hidden="true"></i>
+            <span class="trust__node-label">Paystack</span>
+          </div>
+          <span class="trust__arrow" aria-hidden="true">
+            <i class="fas fa-arrow-right"></i>
+          </span>
+          <div class="trust__node">
+            <i class="fas fa-building-columns" aria-hidden="true"></i>
+            <span class="trust__node-label">Your bank account</span>
+          </div>
+        </div>
+
+        <ul class="trust__points">
+          <li>
+            <strong>Direct to your bank:</strong>
+            Payments go to your connected bank account.
+          </li>
+          <li>
+            <strong>Clear payment management:</strong>
+            Keep track of your payment activity through Payla.
+          </li>
+          <li>
+            <strong>Bank-confirmed name:</strong>
+            Before paying, your client sees the bank-confirmed name on the receiving account.
+          </li>
+          <li>
+            <strong>A Sealed stamp:</strong>
+            When the name on the connected bank account matches the name on the Payla page, a Sealed stamp appears on the card. It tells your client they're paying the right account.
+          </li>
+          <li>
+            <strong>No transaction fees from Payla:</strong>
+            Payla takes zero. Paystack's processing fees apply, and you choose whether you or your client pays them.
+          </li>
+        </ul>
+
+        <p class="trust__closing">
+          A better payment experience should come with clarity about where your money goes.
+        </p>
+
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         07 — PRICING
+    ============================================================ -->
+    <section class="pricing" id="pricing">
+      <div class="container">
+
+        <header class="section-head">
+          <p class="eyebrow">Pricing</p>
+          <h2 class="section-head__title">Start free. Upgrade when you're ready.</h2>
+          <p class="section-head__sub">
+            You don't need a subscription to claim your payment identity.
+          </p>
+        </header>
+
+        <div class="pricing__toggle" role="tablist" aria-label="Billing period">
+          <button
+            class="pricing__toggle-btn is-active"
+            role="tab"
+            aria-selected="true"
+            data-billing="monthly"
+            id="tab-monthly"
+            aria-controls="pricing-panel"
+          >
+            Monthly
+          </button>
+          <button
+            class="pricing__toggle-btn"
+            role="tab"
+            aria-selected="false"
+            data-billing="annual"
+            id="tab-annual"
+            aria-controls="pricing-panel"
+          >
+            Annual
+            <span class="pricing__toggle-save">Save ₦15,000</span>
+          </button>
+        </div>
+
+        <div class="pricing__grid" id="pricing-panel">
+
+          <article class="plan-card">
+            <div class="plan-card__glow" aria-hidden="true"></div>
+
+            <div class="plan-card__head">
+              <div class="plan-card__title-row">
+                <h3 class="plan-card__name">Free</h3>
+                <span class="plan-card__badge plan-card__badge--free">Always free</span>
+              </div>
+              <p class="plan-card__lead">Your personal payment link.</p>
+              <p class="plan-card__price">
+                <span class="plan-card__amount">₦0</span>
+              </p>
+            </div>
+
+            <ul class="plan-card__features">
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Personal Payla username and link</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Branded payment page</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Payment history: a record of payments you've received, on your payouts page</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Direct payments to your connected bank account</span></li>
+            </ul>
+
+            <p class="plan-card__meta">No subscription. No card. No time limit.</p>
+
+            <a href="#claim" class="btn btn--outline btn--block" data-claim-trigger>Claim Your Username</a>
+          </article>
+
+          <article class="plan-card plan-card--featured">
+            <div class="plan-card__glow plan-card__glow--rose" aria-hidden="true"></div>
+
+            <div class="plan-card__head">
+              <div class="plan-card__title-row">
+                <h3 class="plan-card__name">Silver</h3>
+                <span class="plan-card__badge plan-card__badge--silver">Founding price</span>
+              </div>
+              <p class="plan-card__lead">
+                Everything you need to manage payments and spend less time chasing them.
+              </p>
+              <p class="plan-card__price">
+                <span
+                  class="plan-card__amount"
+                  data-monthly="₦7,500"
+                  data-annual="₦75,000"
+                >₦7,500</span>
+                <span
+                  class="plan-card__period"
+                  data-monthly="/month"
+                  data-annual="/year"
+                >/month</span>
+              </p>
+            </div>
+
+            <ul class="plan-card__features">
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Branded invoices with direct payment</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Automated reminders from Layla</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Custom reminder messages</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>WhatsApp, SMS, and email reminders</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Payment tracking: keep track of outstanding and paid invoices</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Payment analytics: see what's been paid and what's outstanding</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Paylink analytics: see how your payment page is performing</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Branded PDF receipts</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Your logo on your payment page</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Custom logo and branding on invoices</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>A Silver seal on your paylink: "Powered by Payla Silver"</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Your own VIP payment link: payla.vip/@username</span></li>
+              <li><i class="fas fa-check" aria-hidden="true"></i><span>Automatic invoice closure after successful payment</span></li>
+            </ul>
+
+            <a href="#claim" class="btn btn--primary btn--block" data-claim-trigger>Get Silver</a>
+          </article>
+
+        </div>
+
+        <p class="pricing__saving" data-billing-note="annual" hidden>
+          Paying annually saves you ₦15,000 compared with twelve monthly payments.
+        </p>
+
+        <div class="founding">
+          <p class="founding__eyebrow">The Founding Offer</p>
+          <h3 class="founding__title">
+            The first 200 Silver customers lock in the founding price.
+          </h3>
+          <p class="founding__lead">Choose your founding billing option:</p>
+          <ul class="founding__options">
+            <li>₦7,500 monthly</li>
+            <li>₦75,000 annually</li>
+          </ul>
+          <p class="founding__note">
+            Your founding price stays with your account. If you cancel and later resubscribe, you keep the founding rate.
+          </p>
+          <p class="founding__note">
+            The founding offer applies to Silver. Your free account is unaffected.
+          </p>
+        </div>
+
+        <p class="pricing__fees">
+          Payla charges no transaction fees. Paystack's processing fees apply, and you choose whether you or your client pays them.
+        </p>
+
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         08 — FAQ
+    ============================================================ -->
+    <section class="faq" id="faq">
+      <div class="container faq__inner">
+
+        <header class="section-head section-head--left">
+          <p class="eyebrow">FAQ</p>
+          <h2 class="section-head__title">Questions, answered.</h2>
+        </header>
+
+        <div class="faq__list">
+
+          <details class="faq__item">
+            <summary>Is Payla free?</summary>
+            <div class="faq__answer">
+              <p>Yes. You can claim your personal Payla username and link without paying a subscription fee. Your link becomes functional for payments after you add your name and receiving bank details to activate it.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>Do I need to subscribe to receive payments?</summary>
+            <div class="faq__answer">
+              <p>No. You can use the free plan to receive payments through your personal Payla link. Silver adds branded invoices, Layla's automated reminders, payment tracking, analytics, receipts, and other payment-management features.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>What does Layla do?</summary>
+            <div class="faq__answer">
+              <p>Layla sends automated reminders about outstanding payments on your behalf through supported channels, including WhatsApp, SMS, and email. She handles reminders; she does not answer clients' questions or manage conversations.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>Can I customise Layla's messages?</summary>
+            <div class="faq__answer">
+              <p>Yes. You can use Payla's default reminder template or write your own custom reminder message. Your custom message is used across the supported reminder channels.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>What analytics does Silver include?</summary>
+            <div class="faq__answer">
+              <p>Silver includes payment analytics and paylink analytics. Payment analytics relates to payment activity, while paylink analytics relates to the performance of your payment page.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>What's the difference between payment history and payment tracking?</summary>
+            <div class="faq__answer">
+              <p>Payment history gives you a record of payments you've received, available to every account through your payouts page. Silver's payment tracking helps you keep track of outstanding and paid invoices.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>Can my clients pay directly from an invoice?</summary>
+            <div class="faq__answer">
+              <p>Yes. Silver invoices include a direct payment option, so clients can pay from the invoice.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>Does Payla hold my money?</summary>
+            <div class="faq__answer">
+              <p>No. Payments are processed through Paystack and sent to your connected bank account. Payla does not hold your funds.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>What happens when an invoice is paid?</summary>
+            <div class="faq__answer">
+              <p>Once successful payment is recorded, Payla automatically closes the invoice. On Silver, Payla also issues a branded PDF receipt, for you and for your client.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>What does Silver cost?</summary>
+            <div class="faq__answer">
+              <p>Silver costs ₦7,500 per month or ₦75,000 per year. The annual plan saves ₦15,000 compared with paying monthly for a full year.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>What is the founding offer?</summary>
+            <div class="faq__answer">
+              <p>The first 200 customers who upgrade to Silver lock in the founding price. Your founding price stays with your account. If you cancel and later resubscribe, you keep the founding rate.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>What if I never upgrade?</summary>
+            <div class="faq__answer">
+              <p>You can continue using the free plan. You don't need to subscribe to keep your free payment link.</p>
+            </div>
+          </details>
+
+          <details class="faq__item">
+            <summary>Are there transaction fees?</summary>
+            <div class="faq__answer">
+              <p>Payla charges no transaction fees. Paystack's processing fees apply at checkout, and you choose whether you or your client pays them.</p>
+            </div>
+          </details>
+          <details class="faq__item">
+            <summary>Can I use a payla.vip link?</summary>
+            <div class="faq__answer">
+              <p>Yes, on Silver. You can choose <code>payla.vip/@username</code> or <code>payla.ng/@username</code> as your primary link. The one you choose is the canonical URL; the other redirects to it, so both addresses always work. If you later cancel Silver, your <code>payla.vip</code> link redirects to your <code>payla.ng</code> link, so anything you've already shared keeps working.</p>
+            </div>
+          </details>
+
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         09 — FINAL CTA
+    ============================================================ -->
+    <section class="final-cta" id="claim">
+      <div class="final-cta__glow" aria-hidden="true"></div>
+
+      <div class="container final-cta__inner">
+        <h2 class="final-cta__title">
+          You've done the work. Let Layla handle the follow-ups.
+        </h2>
+
+        <div class="final-cta__lines">
+          <p>Give your payments a professional identity.</p>
+          <p>Send invoices your clients can pay directly.</p>
+          <p>Spend less time reminding people to pay you.</p>
+          <p>Start free. Upgrade when you're ready.</p>
+        </div>
+
+        <a href="#" class="btn btn--primary btn--lg" data-claim-trigger>Claim Your Username</a>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- ============================================================
+       10 — FOOTER
+  ============================================================ -->
+  <footer class="footer">
+    <div class="container footer__inner">
+
+      <div class="footer__brand">
+        <p class="footer__logo">Payla</p>
+        <p class="footer__tagline">Your Payment Identity.</p>
+        <p class="footer__desc">A more considered way to receive and manage payments.</p>
+      </div>
+
+      <div class="footer__col">
+        <p class="footer__col-title">Product</p>
+        <ul>
+          <li><a href="#product-free">Free Payment Link</a></li>
+          <li><a href="#pricing">Silver</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+        </ul>
+      </div>
+
+      <div class="footer__col">
+        <p class="footer__col-title">Contact</p>
+        <ul>
+          <li><a href="mailto:hello@payla.vip">Contact</a></li>
+          <li><a href="/privacy">Privacy Policy</a></li>
+          <li><a href="/terms">Terms of Service</a></li>
+        </ul>
+      </div>
+
+      <div class="footer__legal">
+        <p>
+          Payments are processed through Paystack and sent to your connected bank account.
+          Payla does not hold your funds.
+        </p>
+        <p class="footer__copy">© Payla. All rights reserved.</p>
+      </div>
+
+    </div>
+  </footer>
+
+
+  <script type="module" src="js/payla_modal.js"></script>
+  <script type="module" src="js/payla.js"></script>
 </body>
 </html>

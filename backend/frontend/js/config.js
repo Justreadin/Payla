@@ -4,7 +4,7 @@ const ENV = {
     local: {
         API_BASE: 'http://127.0.0.1:8000/api',
         BACKEND_BASE: 'http://127.0.0.1:8000',
-        PAYSTACK_PUBLIC_KEY: 'pk_live_5fd633509cfb0a377962ec6bb97bdd3a142bd465' 
+        PAYSTACK_PUBLIC_KEY: 'pk_test_7352e8504fe57783c16c2cd37cd092b8b3d860d6' 
     },
     production: {
         API_BASE: 'https://payla.ng/api',
@@ -38,3 +38,6 @@ export const API_BASE = CURRENT_ENV.API_BASE;
 export const BACKEND_BASE = CURRENT_ENV.BACKEND_BASE;
 export const PAYSTACK_PUBLIC_KEY = CURRENT_ENV.PAYSTACK_PUBLIC_KEY;
 export { isLocal };
+export const WHATSAPP_CHANNEL_STATUS = "disabled";
+export const SMS_CHANNEL_STATUS = "active";
+export const EMAIL_CHANNEL_STATUS = "active";

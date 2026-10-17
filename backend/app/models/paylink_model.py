@@ -8,8 +8,9 @@ class PaylinkCreate(BaseModel):
     """Payload when user creates/updates their @username link."""
     username: str = Field(..., description="e.g. 'tunde' → payla.ng/@tunde")
     display_name: str = Field(..., description="Shown on link page")
-    description: Optional[str] = "Description/Tagline"
+    description: Optional[str] = "Your Payment Identity."
     currency: Literal["NGN", "USD", "GBP", "EUR"] = "NGN"
+    preferred_domain: Optional[Literal["ng", "vip"]] = None
 
 
 # models/paylink_model.py  (or paylink.py)
@@ -24,6 +25,7 @@ class Paylink(BaseModel):
     active: bool = True
 
     link_url: str
+    preferred_domain: Literal["ng", "vip"] = "ng"
     paystack_page_url: Optional[str] = None        # ← NEW
     paystack_reference: Optional[str] = None       # ← NEW (permanent reference)
 

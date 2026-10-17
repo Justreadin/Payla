@@ -1,0 +1,1018 @@
+/* ============================================================
+   PAYLA — INVOICE RECEIPT PAGE
+   A certificate, not a receipt. Obsidian glass, rose signature.
+   ============================================================ */
+
+
+/* ============================================================
+   01. TOKENS
+   ============================================================ */
+:root {
+  --obsidian: #0A0A0A;
+  --obsidian-secondary: #0F0F0F;
+  --obsidian-card-top: #0F0F11;
+  --obsidian-card-mid: #09090B;
+  --obsidian-card-bottom: #050506;
+  --obsidian-edge: #040405;
+
+  --rose-gold: #E8B4B8;
+  --rose-gold-deep: #D89FA4;
+  --rose-gold-light: #F0C5C9;
+  --rose-glow: rgba(232, 180, 184, 0.12);
+  --rose-wash: rgba(232, 180, 184, 0.05);
+  --rose-hairline: rgba(232, 180, 184, 0.15);
+
+  --platinum: #E5E5E5;
+  --platinum-muted: #A8A8A8;
+  --platinum-soft: #C8C8C8;
+
+  --verified-green: #4ADE80;
+  --verified-green-soft: rgba(74, 222, 128, 0.08);
+  --verified-green-border: rgba(74, 222, 128, 0.2);
+
+  --pending-amber: #F0B768;
+  --pending-amber-soft: rgba(240, 183, 104, 0.1);
+
+  --error-red: #FF5C6C;
+  --error-red-soft: rgba(255, 92, 108, 0.1);
+
+  --text-primary: #FDFDFD;
+  --text-secondary: #B8B8B8;
+  --text-tertiary: #7A7A7A;
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-cormorant: 'Cormorant Garamond', Georgia, serif;
+  --font-lora: 'Lora', Georgia, serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-script: 'Great Vibes', cursive;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 999px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 180ms;
+  --duration-base: 320ms;
+  --duration-slow: 600ms;
+
+  --card-width: 520px;
+  --card-radius: 20px;
+  --card-padding: clamp(1.5rem, 5vw, 2.25rem);
+}
+
+
+/* ============================================================
+   02. RESET + BASE
+   ============================================================ */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--obsidian);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 3vw, 2rem);
+  position: relative;
+}
+
+img, svg { display: block; max-width: 100%; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+a { color: inherit; text-decoration: none; }
+
+::selection {
+  background: var(--rose-gold);
+  color: var(--obsidian);
+}
+
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--rose-gold);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(232, 180, 184, 0.25);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(232, 180, 184, 0.4); }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(232, 180, 184, 0.3) transparent;
+}
+
+[hidden] { display: none !important; }
+
+
+/* ============================================================
+   03. AMBIENT BACKGROUND
+   ============================================================ */
+.receipt-ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(232, 180, 184, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(232, 180, 184, 0.04) 0%, transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(232, 180, 184, 0.05) 0%, transparent 55%);
+  animation: ambientDrift 24s ease-in-out infinite;
+}
+
+@keyframes ambientDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+  50%      { transform: translate3d(-2%, 1%, 0) scale(1.04); opacity: 0.85; }
+}
+
+
+/* ============================================================
+   04. PAGE WRAPPER
+   ============================================================ */
+.receipt-page {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--card-width);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+
+/* ============================================================
+   05. BRAND HEADER
+   ============================================================ */
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-2);
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--rose-gold);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.brand-name span {
+  color: var(--text-tertiary);
+}
+
+.brand-caption {
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+
+/* ============================================================
+   06. THE CARD — a certificate surface
+   ============================================================ */
+.receipt-card {
+  position: relative;
+  width: 100%;
+  padding: var(--card-padding);
+  background: linear-gradient(180deg,
+    var(--obsidian-card-top) 0%,
+    var(--obsidian-card-mid) 55%,
+    var(--obsidian-card-bottom) 100%);
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+
+  box-shadow:
+    0 1px 0 rgba(232, 180, 184, 0.1) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.9) inset,
+    0 1px 0 rgba(232, 180, 184, 0.05),
+    0 3px 0 -1px #060608,
+    0 5px 0 -2px var(--obsidian-edge),
+    0 16px 32px rgba(0, 0, 0, 0.7),
+    0 32px 64px rgba(0, 0, 0, 0.4),
+    0 0 48px rgba(232, 180, 184, 0.08);
+
+  animation: cardFloat 7s ease-in-out infinite;
+  isolation: isolate;
+}
+
+@keyframes cardFloat {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -3px, 0); }
+}
+
+.receipt-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(232, 180, 184, 0.03) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, rgba(232, 180, 184, 0.024) 0.5px, transparent 0.5px);
+  background-size: 12px 12px, 12px 12px;
+  mask-image: radial-gradient(ellipse at 50% 45%, black 25%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 45%, black 25%, transparent 85%);
+  z-index: 0;
+  opacity: 0.9;
+}
+
+.receipt-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
+  opacity: 0.7;
+  z-index: 3;
+}
+
+.receipt-card__glow {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 130%;
+  height: 130%;
+  background: radial-gradient(circle,
+    rgba(232, 180, 184, 0.14) 0%,
+    rgba(232, 180, 184, 0.04) 30%,
+    transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.receipt-card__reflection {
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232, 180, 184, 0.5), transparent);
+  opacity: 0.4;
+  z-index: 3;
+}
+
+.receipt-card > *:not(.receipt-card__glow):not(.receipt-card__reflection) {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* ============================================================
+   07. STATUS HEADER — medallion + eyebrow + title
+   ============================================================ */
+.receipt-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+}
+
+.status-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  position: relative;
+  flex-shrink: 0;
+  transition: all var(--duration-base) var(--ease-out);
+}
+
+.status-icon span {
+  display: block;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+/* Success — filled rose-gold medallion */
+.status-icon.success {
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  box-shadow:
+    0 0 0 6px rgba(232, 180, 184, 0.08),
+    0 0 0 1px rgba(232, 180, 184, 0.35),
+    0 4px 0 -2px rgba(0, 0, 0, 0.4),
+    0 12px 32px rgba(232, 180, 184, 0.3);
+  animation: successPop var(--duration-slow) var(--ease-out);
+}
+
+/* Pending — muted rose ring, no fill */
+.status-icon.pending {
+  background: var(--rose-wash);
+  color: var(--rose-gold);
+  border: 1px solid var(--rose-hairline);
+  box-shadow:
+    0 0 0 6px rgba(232, 180, 184, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: pendingPulse 2.4s ease-in-out infinite;
+}
+
+/* Error — red ring, no fill */
+.status-icon.error {
+  background: var(--error-red-soft);
+  color: var(--error-red);
+  border: 1px solid rgba(255, 92, 108, 0.3);
+  box-shadow:
+    0 0 0 6px rgba(255, 92, 108, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes successPop {
+  0%   { transform: scale(0); opacity: 0; }
+  70%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes pendingPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.04); opacity: 0.9; }
+}
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--rose-gold);
+  margin: 0;
+}
+
+#receiptTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.375rem, 5vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.status-message {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+
+/* ============================================================
+   08. AMOUNT BAND — the hero
+   ============================================================ */
+.amount-block {
+  position: relative;
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(ellipse 80% 120% at 25% -10%,
+      rgba(232, 180, 184, 0.1) 0%,
+      transparent 60%),
+    linear-gradient(155deg,
+      rgba(28, 22, 24, 0.7) 0%,
+      rgba(20, 16, 17, 0.7) 50%,
+      rgba(13, 10, 11, 0.7) 100%);
+  border: 1px solid rgba(232, 180, 184, 0.18);
+  text-align: center;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.amount-block::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
+  opacity: 0.8;
+  z-index: 2;
+}
+
+.amount-block > * {
+  position: relative;
+  z-index: 1;
+}
+
+.amount-block span {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--rose-gold);
+  margin-bottom: var(--space-2);
+}
+
+.amount-block strong {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 7vw, 2.75rem);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 32px rgba(232, 180, 184, 0.15);
+}
+
+
+/* ============================================================
+   09. MERCHANT BLOCK
+   ============================================================ */
+.merchant-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+
+.merchant-logo-wrap {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border-radius: 50%;
+  padding: 2px;
+  background: conic-gradient(from 0deg,
+    rgba(232, 180, 184, 0.9),
+    rgba(216, 159, 164, 0.5),
+    rgba(232, 180, 184, 0.9));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(232, 180, 184, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 6px 18px rgba(232, 180, 184, 0.14);
+}
+
+.merchant-logo-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  background: var(--obsidian-card-mid);
+}
+
+.merchant-details {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.merchant-details .muted {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  line-height: 1.2;
+}
+
+.merchant-details strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--platinum);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  margin: 2px 0;
+}
+
+#merchantEmail {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+
+/* ============================================================
+   10. DIVIDER
+   ============================================================ */
+.receipt-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-hairline), transparent);
+  opacity: 0.9;
+  margin: 0 var(--space-2);
+}
+
+
+/* ============================================================
+   11. DETAILS GRID
+   ============================================================ */
+.receipt-details {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+}
+
+.receipt-details > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid rgba(232, 180, 184, 0.07);
+}
+
+.receipt-details > div:first-child { padding-top: 0; }
+.receipt-details > div:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.receipt-details dt {
+  flex: 0 0 auto;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.receipt-details dd {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.5;
+  text-align: right;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* Mono treatment for technical strings */
+.receipt-details dd.is-mono {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+}
+
+.paid-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: var(--verified-green-soft);
+  border: 1px solid var(--verified-green-border);
+  color: var(--verified-green);
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.paid-label::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+
+/* ============================================================
+   12. ACTIONS
+   ============================================================ */
+.receipt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 13px 18px;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+.button-primary {
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 4px 0 -2px rgba(0, 0, 0, 0.4),
+    0 10px 28px rgba(232, 180, 184, 0.25);
+}
+
+.button-primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.3) inset,
+    0 6px 0 -3px rgba(0, 0, 0, 0.4),
+    0 14px 36px rgba(232, 180, 184, 0.35);
+}
+
+.button-secondary {
+  background: transparent;
+  border-color: var(--rose-hairline);
+  color: var(--text-primary);
+}
+
+.button-secondary:hover {
+  border-color: var(--rose-gold);
+  color: var(--rose-gold);
+  background: var(--rose-wash);
+}
+
+.button-quiet {
+  grid-column: 1 / -1;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.button-quiet:hover {
+  color: var(--rose-gold);
+}
+
+
+/* ============================================================
+   13. RECEIPT NOTE
+   ============================================================ */
+.receipt-note {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin: 0;
+  line-height: 1.5;
+}
+
+
+/* ============================================================
+   14. ERROR ACTIONS
+   ============================================================ */
+#errorActions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+
+/* ============================================================
+   15. FOOTER — signature + secured
+   ============================================================ */
+.page-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-2);
+  min-height: 22px;
+}
+
+.page-footer__signature {
+  font-family: var(--font-script);
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--rose-gold);
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(232, 180, 184, 0.2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.page-footer__secured {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.page-footer__secured:hover { color: var(--rose-gold); }
+
+.page-footer__secured i {
+  color: var(--rose-gold);
+  font-size: 8px;
+  opacity: 0.9;
+}
+
+
+/* ============================================================
+   16. RESPONSIVE
+   ============================================================ */
+@media (max-width: 520px) {
+  :root {
+    --card-padding: 1.375rem;
+    --card-radius: 18px;
+  }
+
+  .status-icon {
+    width: 56px;
+    height: 56px;
+    font-size: 1.5rem;
+  }
+
+  .amount-block strong {
+    font-size: clamp(1.75rem, 8vw, 2.25rem);
+  }
+
+  .merchant-logo-wrap {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+  }
+
+  .merchant-details strong {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 380px) {
+  :root {
+    --card-padding: 1.25rem;
+  }
+
+  .receipt-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .button-quiet {
+    grid-column: auto;
+  }
+
+  .receipt-details dt {
+    font-size: 0.625rem;
+  }
+
+  .receipt-details dd {
+    font-size: 0.75rem;
+  }
+
+  .page-footer__signature {
+    font-size: 1rem;
+  }
+}
+
+
+/* ============================================================
+   17. PRINT — light, document-grade
+   ============================================================ */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .receipt-ambient,
+  .receipt-card__glow,
+  .receipt-card__reflection,
+  .receipt-actions,
+  .page-footer__secured {
+    display: none !important;
+  }
+
+  .receipt-page {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    gap: 16px;
+  }
+
+  .brand {
+    padding: 0;
+  }
+
+  .brand-name {
+    color: #111111 !important;
+  }
+
+  .brand-name span {
+    color: #999999 !important;
+  }
+
+  .brand-caption {
+    color: #666666 !important;
+  }
+
+  .receipt-card {
+    background: #ffffff !important;
+    border: 1px solid #dddddd !important;
+    box-shadow: none !important;
+    padding: 24px !important;
+    animation: none !important;
+    border-radius: 12px !important;
+    gap: 16px;
+  }
+
+  .receipt-card::before,
+  .receipt-card::after {
+    display: none !important;
+  }
+
+  .status-icon.success {
+    background: #E8B4B8 !important;
+    color: #111111 !important;
+    box-shadow: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .eyebrow {
+    color: #8a5a60 !important;
+  }
+
+  #receiptTitle,
+  .receipt-details dd,
+  .amount-block strong,
+  .merchant-details strong {
+    color: #111111 !important;
+  }
+
+  .status-message,
+  .merchant-details .muted,
+  #merchantEmail,
+  .receipt-details dt,
+  .receipt-note {
+    color: #555555 !important;
+  }
+
+  .amount-block {
+    background: #faf7f7 !important;
+    border: 1px solid #ece4e5 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .amount-block span {
+    color: #8a5a60 !important;
+  }
+
+  .amount-block::before {
+    display: none;
+  }
+
+  .merchant-logo-wrap {
+    background: none !important;
+    box-shadow: none !important;
+    border: 1px solid #e0e0e0;
+    padding: 0;
+  }
+
+  .merchant-logo-wrap img {
+    border-radius: 50%;
+  }
+
+  .receipt-divider {
+    background: #e0e0e0 !important;
+  }
+
+  .receipt-details > div {
+    border-bottom: 1px solid #eeeeee !important;
+  }
+
+  .paid-label {
+    background: transparent !important;
+    border: 1px solid #cccccc !important;
+    color: #111111 !important;
+  }
+
+  .page-footer__signature {
+    color: #8a5a60 !important;
+    text-shadow: none !important;
+  }
+}
+
+
+/* ============================================================
+   18. ACCESSIBILITY
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .receipt-card,
+  .receipt-ambient,
+  .status-icon.success,
+  .status-icon.pending {
+    animation: none;
+  }
+}

@@ -1,36 +1,27 @@
 // Payla Dashboard - Enhancement Features
 // Additional features: notifications, analytics, paylinks, and UI enhancements
 
-import { dashboard } from './dashboard.js';
 import { API_BASE } from './config.js';
-import { authFetch, showUpgradeToast, showUpgradeModal } from './upgrade-handler.js';
+import { authFetch, showUpgradeRequired } from './upgrade-handler.js';
 
-// SINGLE initialization - removed duplicate listeners
 class DashboardEnhancements {
     constructor() {
-        // Force log to verify API_BASE value
-        //console.log('🔧 DashboardEnhancements initialized');
-        //console.log('📍 API_BASE from config:', API_BASE);
-        //console.log('🌐 Current hostname:', window.location.hostname);
-        //console.error(`%c🔧 ENHANCEMENTS INIT`, 'color: #ff00ff; font-size: 16px; font-weight: bold;');
-        //console.error(`%c📍 API_BASE: ${API_BASE}`, 'color: #ff00ff; font-size: 14px;');
-        
         if (window.enhancementsInstance) {
             return window.enhancementsInstance;
         }
         window.enhancementsInstance = this;
 
         this.API_BASE = API_BASE;
-        
-        // 2. STATE LOCKS: Prevent double-clicks and double-triggers
         this.isProcessingToggle = false;
-        this.initialized = false; 
+        this.initialized = false;
+        this.analyticsLoaded = false;
 
         this.init();
     }
 
     init() {
         if (this.initialized) return;
+
         // Enhancement DOM Elements
         this.copyLinkBtn = document.getElementById('copy-link-btn');
         this.notificationsBtn = document.getElementById('notifications-btn');
@@ -43,55 +34,46 @@ class DashboardEnhancements {
         this.analyticsClose = document.getElementById('analytics-close');
         this.analyticsContent = document.getElementById('analyticsContent');
 
-        // Paylink Toggle Elements
+        // Paylink toggle elements
         this.paylinkToggle = document.getElementById('paylink-toggle');
         this.statusBadge = document.getElementById('status-badge');
 
-        // Enhancement State
+        // Enhancement state
         this.notifications = [];
         this.analyticsData = null;
         this.isProcessingToggle = false;
 
-        // Setup Enhancement Event Listeners
         this.setupEnhancementListeners();
-
-        // Initialize Enhancements
         this.initEnhancements();
         this.initialized = true;
     }
 
     setupEnhancementListeners() {
-        // Copy link button
         if (this.copyLinkBtn) {
             this.copyLinkBtn.addEventListener('click', () => {
                 this.copyPaylink();
             });
         }
 
-        // Notifications button
         if (this.notificationsBtn) {
             this.notificationsBtn.addEventListener('click', () => {
                 this.openNotificationsModal();
             });
         }
 
-        // Analytics button
         if (this.analyticsBtn) {
             this.analyticsBtn.addEventListener('click', () => {
-                this.openAnalyticsModal();
+                this.handleAnalyticsClick();
             });
         }
 
-        // Paylink toggle
         if (this.paylinkToggle) {
             this.paylinkToggle.addEventListener('click', (e) => {
                 const isActive = e.target.checked;
-                console.log("Toggle clicked:", isActive);
                 this.handlePaylinkToggle(isActive);
             });
         }
 
-        // Modal close buttons
         if (this.notificationsClose) {
             this.notificationsClose.addEventListener('click', () => {
                 this.closeNotificationsModal();
@@ -104,7 +86,6 @@ class DashboardEnhancements {
             });
         }
 
-        // Close enhancement modals with Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.closeNotificationsModal();
@@ -114,17 +95,15 @@ class DashboardEnhancements {
 
         const urlEl = document.getElementById('paylink-url');
         if (urlEl) {
-            urlEl.style.cursor = 'pointer'; // Make it look clickable
+            urlEl.style.cursor = 'pointer';
             urlEl.addEventListener('click', () => {
                 const fullUrl = urlEl.dataset.fullUrl;
                 if (fullUrl) {
-                    // Open the link in a new tab
                     window.open(fullUrl, '_blank', 'noopener,noreferrer');
                 }
             });
         }
 
-        // Optional: Do the same for the user-paylink element if it exists
         const userEl = document.getElementById('user-paylink');
         if (userEl) {
             userEl.style.cursor = 'pointer';
@@ -139,7 +118,7 @@ class DashboardEnhancements {
 
     async initEnhancements() {
         try {
-            await this.loadEnhancementData();
+            await this.loadNotifications();
             this.updatePaylinkInfo();
             this.updateNotificationBadge();
             this.initializePaylinkToggle();
@@ -150,7 +129,12 @@ class DashboardEnhancements {
         }
     }
 
-    async loadEnhancementData() {
+    /**
+     * Notifications only. Analytics is fetched lazily when the user
+     * clicks View Analytics — it's a Silver endpoint and would 403 on
+     * page load for Free users, incorrectly triggering the upgrade modal.
+     */
+    async loadNotifications() {
         try {
             const token = this.getAuthToken();
             if (!token) {
@@ -158,38 +142,52 @@ class DashboardEnhancements {
                 return;
             }
 
-            console.log('🔄 Loading enhancement data from:', this.API_BASE);
-
-            // Load notifications
-            const notificationsResponse = await fetch(`${this.API_BASE}/dashboard/notifications/`, {
+            const response = await fetch(`${this.API_BASE}/dashboard/notifications/`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            
-            if (notificationsResponse.ok) {
-                this.notifications = await notificationsResponse.json();
-                console.log('✅ Loaded notifications:', this.notifications.length);
-            } else {
-                console.error('❌ Failed to load notifications:', notificationsResponse.status);
-            }
 
-            // Load analytics
-            const analyticsResponse = await authFetch(`${this.API_BASE}/dashboard/analytics/`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            
-            if (analyticsResponse.ok) {
-                this.analyticsData = await analyticsResponse.json();
-                console.log('✅ Loaded analytics data');
+            if (response.ok) {
+                this.notifications = await response.json();
             } else {
-                console.error('❌ Failed to load analytics:', analyticsResponse.status);
+                console.error('Failed to load notifications:', response.status);
             }
-
         } catch (error) {
-            console.error('❌ Error loading enhancement data:', error);
+            console.error('Error loading notifications:', error);
+        }
+    }
+
+    async loadAnalyticsData() {
+        try {
+            const token = this.getAuthToken();
+            if (!token) return false;
+
+            const response = await authFetch(`${this.API_BASE}/dashboard/analytics/`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                feature: 'analytics',
+                silverHistory: window.dashboard?.entitlement?.silver_history
+            });
+
+            if (!response.ok) {
+                console.error('Failed to load analytics:', response.status);
+                return false;
+            }
+
+            this.analyticsData = await response.json();
+            this.analyticsLoaded = true;
+
+            // Refresh the paylink card with the newly available stats.
+            this.updatePaylinkInfo();
+
+            return true;
+        } catch (error) {
+            if (error.message !== 'Upgrade Required') {
+                console.error('Error loading analytics:', error);
+            }
+            return false;
         }
     }
 
@@ -197,16 +195,37 @@ class DashboardEnhancements {
         return localStorage.getItem('idToken') || '';
     }
 
-    initializePaylinkToggle() {
-        const paylink = dashboard?.dashboardData?.paylink;
-        if (!paylink) {
-            console.log('No paylink data found for toggle initialization');
+    /**
+     * Analytics is a Silver action. For Free users we show the
+     * analytics-specific upgrade modal. For Silver users we load
+     * the data (once) then open the modal.
+     */
+    async handleAnalyticsClick() {
+        const hasSilver = window.dashboard?.entitlement?.has_silver;
+
+        if (!hasSilver) {
+            showUpgradeRequired({
+                feature: 'analytics',
+                source: 'soft_gate',
+                silverHistory: window.dashboard?.entitlement?.silver_history
+            });
             return;
         }
 
+        if (!this.analyticsLoaded) {
+            const ok = await this.loadAnalyticsData();
+            if (!ok) return;
+        }
+
+        this.openAnalyticsModal();
+    }
+
+    initializePaylinkToggle() {
+        const paylink = window.dashboard?.dashboardData?.paylink;
+        if (!paylink) return;
+
         const isActive = paylink.active !== false;
-        console.log('Initializing toggle with active state:', isActive);
-        
+
         if (this.paylinkToggle) {
             this.paylinkToggle.checked = isActive;
         }
@@ -229,8 +248,7 @@ class DashboardEnhancements {
 
         try {
             this.isProcessingToggle = true;
-            
-            // Disable the toggle visually while loading
+
             if (this.paylinkToggle) this.paylinkToggle.disabled = true;
 
             if (isActive) {
@@ -240,7 +258,6 @@ class DashboardEnhancements {
             }
         } catch (error) {
             console.error('Toggle operation failed:', error);
-            // Revert the toggle state on failure
             if (this.paylinkToggle) this.paylinkToggle.checked = !isActive;
             this.showToggleErrorModal(isActive, error);
         } finally {
@@ -251,11 +268,7 @@ class DashboardEnhancements {
 
     async activatePaylink() {
         const token = this.getAuthToken();
-        if (!token) {
-            throw new Error('No authentication token found');
-        }
-
-        console.log('Activating paylink...');
+        if (!token) throw new Error('No authentication token found');
 
         const response = await fetch(`${this.API_BASE}/paylinks/me/activate/`, {
             method: 'PATCH',
@@ -264,8 +277,6 @@ class DashboardEnhancements {
                 'Content-Type': 'application/json'
             }
         });
-
-        console.log('Activation response status:', response.status);
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
@@ -278,35 +289,24 @@ class DashboardEnhancements {
             this.statusBadge.classList.add('active');
         }
 
-        if (dashboard?.dashboardData?.paylink) {
-            dashboard.dashboardData.paylink.active = true;
+        if (window.dashboard?.dashboardData?.paylink) {
+            window.dashboard.dashboardData.paylink.active = true;
         }
 
-        if (dashboard) {
-            dashboard.showToast('Paylink activated successfully!', 'success');
-        }
-
-        console.log('Paylink activated successfully');
+        window.dashboard?.showToast?.('Paylink activated successfully', 'success');
     }
 
     async deactivatePaylink() {
         const token = this.getAuthToken();
-        if (!token) {
-            throw new Error('No authentication token found');
-        }
-
-        console.log('Starting deactivation process...');
+        if (!token) throw new Error('No authentication token found');
 
         const confirmed = await this.showDeactivationConfirmation();
         if (!confirmed) {
-            console.log('Deactivation cancelled by user');
             if (this.paylinkToggle) {
                 this.paylinkToggle.checked = true;
             }
             return;
         }
-
-        console.log('User confirmed deactivation, making API call...');
 
         const response = await fetch(`${this.API_BASE}/paylinks/me/deactivate/`, {
             method: 'PATCH',
@@ -315,8 +315,6 @@ class DashboardEnhancements {
                 'Content-Type': 'application/json'
             }
         });
-
-        console.log('Deactivation response status:', response.status);
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
@@ -329,15 +327,11 @@ class DashboardEnhancements {
             this.statusBadge.classList.add('inactive');
         }
 
-        if (dashboard?.dashboardData?.paylink) {
-            dashboard.dashboardData.paylink.active = false;
+        if (window.dashboard?.dashboardData?.paylink) {
+            window.dashboard.dashboardData.paylink.active = false;
         }
 
-        if (dashboard) {
-            dashboard.showToast('Paylink deactivated', 'info');
-        }
-
-        console.log('Paylink deactivated successfully');
+        window.dashboard?.showToast?.('Paylink deactivated', 'info');
     }
 
     showDeactivationConfirmation() {
@@ -435,7 +429,7 @@ class DashboardEnhancements {
         document.body.appendChild(modal);
 
         const closeBtn = modal.querySelector('#close-error');
-        
+
         closeBtn.addEventListener('click', () => {
             document.body.removeChild(modal);
         });
@@ -452,47 +446,78 @@ class DashboardEnhancements {
         return url.replace(/^https?:\/\//, '');
     }
 
+    /**
+     * Paylink card content depends on entitlement:
+     *   Silver → link, toggle, copy, stats (Received / Payments / Success rate)
+     *   Free   → link, toggle, copy, nudge (no stats)
+     */
     updatePaylinkInfo() {
-        const paylink = dashboard?.dashboardData?.paylink;
-        const analytics = this.analyticsData; 
-
+        const paylink = window.dashboard?.dashboardData?.paylink;
         if (!paylink) return;
+
+        const hasSilver = Boolean(window.dashboard?.entitlement?.has_silver);
 
         const urlEl = document.getElementById('paylink-url');
         if (urlEl) {
-            const fullUrl = paylink.url || `https://payla.ng/@${dashboard.dashboardData.user.username}`;
+            const fullUrl = paylink.url || `https://payla.ng/@${window.dashboard?.dashboardData?.user?.username || ''}`;
             urlEl.textContent = fullUrl.replace(/^https?:\/\//, '');
             urlEl.dataset.fullUrl = fullUrl;
         }
+
         const userEl = document.getElementById('user-paylink');
         if (userEl) {
-            const userUrl = paylink.url || `https://payla.ng/@${dashboard.dashboardData.user.username}`;
+            const userUrl = paylink.url || `https://payla.ng/@${window.dashboard?.dashboardData?.user?.username || ''}`;
             userEl.textContent = userUrl.replace(/^https?:\/\//, '');
             userEl.dataset.userUrl = userUrl;
         }
 
-        const totalReceived = analytics?.total_received ?? paylink.total_received ?? 0;
-        const totalTransactions = analytics?.total_transactions ?? paylink.total_transactions ?? 0;
-        
-        let successRate = "0%";
-        if (analytics?.success_rate) {
-            successRate = analytics.success_rate;
-        } else if (paylink.total_requested > 0) {
-            successRate = `${Math.round((totalReceived / paylink.total_requested) * 100)}%`;
+        const statsEl = document.querySelector('.paylink-stats');
+
+        if (!hasSilver) {
+            if (statsEl) statsEl.hidden = true;
+        } else {
+            if (statsEl) statsEl.hidden = false;
+
+            const totalReceived = Number(
+                this.analyticsData?.total_received
+                ?? paylink.total_received
+                ?? 0
+            );
+
+            const totalTransactions = Number(
+                this.analyticsData?.total_transactions
+                ?? paylink.total_transactions
+                ?? 0
+            );
+
+            // Prefer the analytics value once it's been loaded. Fall back
+            // to the paylink summary from the dashboard response so the
+            // card is complete on first render.
+            const successRate = this.analyticsLoaded
+                ? (this.analyticsData?.success_rate
+                    || paylink.success_rate
+                    || "0%")
+                : (paylink.success_rate || "0%");
+
+            const receivedEl = document.getElementById('paylink-received');
+            const transactionsEl = document.getElementById('paylink-transactions');
+            const successRateEl = document.getElementById('paylink-success-rate');
+
+            if (receivedEl) {
+                receivedEl.textContent = `₦${totalReceived.toLocaleString()}`;
+            }
+            if (transactionsEl) {
+                transactionsEl.textContent = totalTransactions;
+            }
+            if (successRateEl) {
+                successRateEl.textContent = successRate;
+            }
         }
 
-        const receivedEl = document.getElementById('paylink-received');
-        const transactionsEl = document.getElementById('paylink-transactions');
-        const successRateEl = document.getElementById('paylink-success-rate');
-
-        if (receivedEl) {
-            receivedEl.textContent = `₦${totalReceived.toLocaleString()}`;
-        }
-        if (transactionsEl) {
-            transactionsEl.textContent = totalTransactions;
-        }
-        if (successRateEl) {
-            successRateEl.textContent = successRate;
+        const nudgeEl = document.getElementById('paylink-nudge');
+        if (nudgeEl) {
+            const received = Number(paylink.total_received || 0);
+            nudgeEl.hidden = received > 0;
         }
     }
 
@@ -527,7 +552,7 @@ class DashboardEnhancements {
                 <div class="empty-state">
                     <i class="fas fa-bell-slash"></i>
                     <h3>No notifications</h3>
-                    <p>You're all caught up!</p>
+                    <p>You're all caught up</p>
                 </div>
             `;
             return;
@@ -544,12 +569,18 @@ class DashboardEnhancements {
                     <div class="notification-time">${this.formatTimeAgo(notification.created_at)}</div>
                 </div>
                 ${!notification.read ? `
-                <button class="mark-read-btn" onclick="enhancements.markNotificationRead('${notification.id}')">
+                <button class="mark-read-btn" data-notification-id="${notification.id}">
                     <i class="fas fa-check"></i>
                 </button>
                 ` : ''}
             </div>
         `).join('');
+
+        this.notificationsList.querySelectorAll('[data-notification-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.markNotificationRead(btn.getAttribute('data-notification-id'));
+            });
+        });
     }
 
     getNotificationIcon(type) {
@@ -566,20 +597,20 @@ class DashboardEnhancements {
         if (!dateString) return 'Just now';
         const date = new Date(dateString);
         if (isNaN(date)) return 'Just now';
-        
+
         const now = new Date();
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
-        
+
         if (diffMins < 1) return 'Just now';
         if (diffMins < 60) return `${diffMins}m ago`;
-        
+
         const diffHours = Math.floor(diffMs / 3600000);
         if (diffHours < 24) return `${diffHours}h ago`;
-        
+
         const diffDays = Math.floor(diffMs / 86400000);
         if (diffDays < 7) return `${diffDays}d ago`;
-        
+
         return date.toLocaleDateString();
     }
 
@@ -605,8 +636,8 @@ class DashboardEnhancements {
         }
     }
 
-    async openAnalyticsModal() {
-        await this.renderAnalytics();
+    openAnalyticsModal() {
+        this.renderAnalytics();
         this.analyticsModal.classList.add('open');
         document.body.style.overflow = 'hidden';
     }
@@ -616,7 +647,7 @@ class DashboardEnhancements {
         document.body.style.overflow = 'auto';
     }
 
-    async renderAnalytics() {
+    renderAnalytics() {
         if (!this.analyticsContent) return;
 
         if (!this.analyticsData) {
@@ -631,60 +662,322 @@ class DashboardEnhancements {
         }
 
         const analytics = this.analyticsData;
-        const totalReceived = analytics.total_received ?? 0;
-        const totalTransactions = analytics.total_transactions ?? 0;
-        const totalRequested = analytics.total_requested ?? 0;
-        const successRate = totalRequested > 0 ? Math.round((totalTransactions / totalRequested) * 100) : 0;    
-        const pageViews = analytics.page_views ?? 0;
-        const transferClicks = analytics.transfer_clicks ?? 0;
-        const conversionRate = pageViews > 0 ? Math.round((transferClicks / pageViews) * 100) : 0;
+
+        const totalReceived = Number(analytics.total_received ?? 0);
+        const totalTransactions = Number(analytics.total_transactions ?? 0);
+        const pageViews = Number(analytics.page_views ?? 0);
+        const transferClicks = Number(analytics.transfer_clicks ?? 0);
+
+        const successFraction = analytics.success_fraction || 'No attempts yet';
+
+        const averagePayment = Number(analytics.average_payment ?? 0);
+
+        const thisMonth = Number(analytics.this_month_revenue ?? 0);
+        const lastMonth = Number(analytics.last_month_revenue ?? 0);
+        const monthDelta = this.monthOverMonth(thisMonth, lastMonth);
+        const bestWeekday = this.bestWeekday(analytics.weekday_totals);
+
         const dailyViews = analytics.daily_page_views ?? {};
         const dailyClicks = analytics.daily_transfer_clicks ?? {};
 
+        const revenueSplit = this.revenueSplit(
+            analytics.net_invoice_revenue ?? 0,
+            analytics.net_paylink_revenue ?? 0
+        );
+
+        const funnel = this.buildFunnel(analytics.funnel || {});
+
+        const payments = Array.isArray(analytics.payments)
+            ? analytics.payments.slice(0, 20)
+            : [];
+
         this.analyticsContent.innerHTML = `
-            <div class="analytics-overview">
-                <div class="analytics-stat">
-                    <div class="analytics-value">₦${totalReceived.toLocaleString()}</div>
-                    <div class="analytics-label">Total Received</div>
-                </div>
-                <div class="analytics-stat">
-                    <div class="analytics-value">${totalTransactions}</div>
-                    <div class="analytics-label">Total Transactions</div>
-                </div>
-                <div class="analytics-stat">
-                    <div class="analytics-value">${successRate}%</div>
-                    <div class="analytics-label">Success Rate</div>
-                </div>
-                <div class="analytics-stat">
-                    <div class="analytics-value">${pageViews}</div>
-                    <div class="analytics-label">Page Views</div>
-                </div>
-                <div class="analytics-stat">
-                    <div class="analytics-value">${conversionRate}%</div>
-                    <div class="analytics-label">Conversion Rate</div>
-                </div>
-            </div>
+            <section class="analytics-section">
+                <header class="analytics-section__head">
+                    <h3 class="analytics-section__title">Your payment link</h3>
+                    <p class="analytics-section__sub">
+                        Activity on your Payla link and its payment page.
+                    </p>
+                </header>
 
-            <div class="analytics-trends">
-                <h4>7-Day Performance</h4>
-                <div class="trend-chart-container">
-                    ${this.generateTrendChart(dailyViews, dailyClicks)}
+                <div class="analytics-overview">
+                    <div class="analytics-stat">
+                        <div class="analytics-value">₦${totalReceived.toLocaleString()}</div>
+                        <div class="analytics-label">Received via your link</div>
+                    </div>
+                    <div class="analytics-stat">
+                        <div class="analytics-value">${totalTransactions}</div>
+                        <div class="analytics-label">Link payments</div>
+                    </div>
+                    <div class="analytics-stat">
+                        <div class="analytics-value">${successFraction}</div>
+                        <div class="analytics-label">Successful attempts</div>
+                    </div>
+                    <div class="analytics-stat">
+                        <div class="analytics-value">${pageViews.toLocaleString()}</div>
+                        <div class="analytics-label">Page views</div>
+                    </div>
+                    <div class="analytics-stat">
+                        <div class="analytics-value">${transferClicks.toLocaleString()}</div>
+                        <div class="analytics-label">Transfer taps</div>
+                    </div>
+                    <div class="analytics-stat">
+                        <div class="analytics-value">₦${Math.round(averagePayment).toLocaleString()}</div>
+                        <div class="analytics-label">Average payment (all)</div>
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="analytics-chart-placeholder">
-                <i class="fas fa-chart-bar"></i>
-                <p>Advanced analytics and revenue charts coming soon</p>
-                <small>Real-time tracking and detailed insights</small>
+            ${funnel ? `
+            <section class="analytics-section">
+                <header class="analytics-section__head">
+                    <h3 class="analytics-section__title">Where people drop off</h3>
+                    <p class="analytics-section__sub">
+                        Views, taps, attempts, and payments on your link.
+                    </p>
+                </header>
+                ${funnel}
+            </section>
+            ` : ''}
+
+            <section class="analytics-section">
+                <header class="analytics-section__head">
+                    <h3 class="analytics-section__title">All payments</h3>
+                    <p class="analytics-section__sub">
+                        Money you've received from every source.
+                    </p>
+                </header>
+
+                ${revenueSplit ? `
+                <div class="analytics-panel">
+                    <div class="analytics-panel__head">
+                        <h4>Where your money comes from</h4>
+                    </div>
+                    <div class="analytics-split">
+                        <div class="analytics-split__bar" aria-hidden="true">
+                            <div class="analytics-split__seg analytics-split__seg--invoice"
+                                 style="width:${revenueSplit.invoicePct}%"></div>
+                            <div class="analytics-split__seg analytics-split__seg--paylink"
+                                 style="width:${revenueSplit.paylinkPct}%"></div>
+                        </div>
+                        <div class="analytics-split__legend">
+                            <span class="analytics-split__item">
+                                <span class="analytics-split__dot analytics-split__dot--invoice"></span>
+                                Invoices ${revenueSplit.invoicePct}% · ₦${revenueSplit.invoice.toLocaleString()}
+                            </span>
+                            <span class="analytics-split__item">
+                                <span class="analytics-split__dot analytics-split__dot--paylink"></span>
+                                Paylink ${revenueSplit.paylinkPct}% · ₦${revenueSplit.paylink.toLocaleString()}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="analytics-panel">
+                    <div class="analytics-panel__head">
+                        <h4>This month</h4>
+                        <span class="analytics-panel__delta ${monthDelta.tone}">
+                            ${monthDelta.label}
+                        </span>
+                    </div>
+                    <p class="analytics-panel__value">₦${thisMonth.toLocaleString()}</p>
+                    ${lastMonth > 0 ? `
+                    <p class="analytics-panel__sub">vs ₦${lastMonth.toLocaleString()} last month</p>
+                    ` : `<p class="analytics-panel__sub">No revenue last month</p>`}
+                </div>
+
+                <div class="analytics-panel">
+                    <div class="analytics-panel__head">
+                        <h4>7-Day Performance</h4>
+                    </div>
+                    <div class="trend-chart-container">
+                        ${this.generateTrendChart(dailyViews, dailyClicks)}
+                    </div>
+                </div>
+
+                ${bestWeekday ? `
+                <div class="analytics-panel">
+                    <div class="analytics-panel__head">
+                        <h4>When you get paid</h4>
+                    </div>
+                    <p class="analytics-panel__value analytics-panel__value--accent">
+                        ${bestWeekday.label}
+                    </p>
+                    <p class="analytics-panel__sub">Strongest day by payment volume</p>
+                </div>
+                ` : ''}
+
+                ${payments.length > 0 ? `
+                <div class="analytics-panel analytics-panel--payments">
+                    <div class="analytics-panel__head">
+                        <h4>Recent payments</h4>
+                        <span class="analytics-panel__count">${payments.length}</span>
+                    </div>
+                    <ul class="analytics-payments">
+                        ${payments.map(p => `
+                            <li class="analytics-payment">
+                                <div class="analytics-payment__main">
+                                    <p class="analytics-payment__amount">₦${Number(p.amount || 0).toLocaleString()}</p>
+                                    <p class="analytics-payment__meta">
+                                        <span class="analytics-payment__tag analytics-payment__tag--${p.source}">
+                                            ${p.source === 'invoice' ? 'Invoice' : 'Paylink'}
+                                        </span>
+                                        <span class="analytics-payment__date">${this.formatPaymentDate(p.paid_at)}</span>
+                                    </p>
+                                </div>
+                                ${p.client_email ? `
+                                    <span class="analytics-payment__email">${p.client_email}</span>
+                                ` : ''}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </section>
+        `;
+    }
+
+    /**
+     * Build the funnel bars. Returns null if there is nothing to show.
+     * Each stage is rendered as a horizontal bar whose width is
+     * proportional to the first stage (views).
+     */
+    buildFunnel(funnel) {
+        const views = Number(funnel.views || 0);
+        const taps = Number(funnel.taps || 0);
+        const attempts = Number(funnel.attempts || 0);
+        const paid = Number(funnel.paid || 0);
+
+        if (views <= 0 && taps <= 0 && attempts <= 0 && paid <= 0) {
+            return null;
+        }
+
+        const base = Math.max(views, taps, attempts, paid, 1);
+
+        const stages = [
+            { key: 'views', label: 'Link views', value: views },
+            { key: 'taps', label: 'Transfer taps', value: taps },
+            { key: 'attempts', label: 'Payment attempts', value: attempts },
+            { key: 'paid', label: 'Payments received', value: paid },
+        ];
+
+        const total = stages[0].value || 1;
+
+        return `
+            <div class="analytics-funnel">
+                ${stages.map((stage, index) => {
+                    const widthPct = (stage.value / base) * 100;
+                    const ofTotal = total > 0
+                        ? Math.round((stage.value / total) * 100)
+                        : 0;
+
+                    const showPct = index > 0 && total > 0;
+
+                    return `
+                        <div class="analytics-funnel__stage">
+                            <div class="analytics-funnel__labels">
+                                <span class="analytics-funnel__label">${stage.label}</span>
+                                <span class="analytics-funnel__value">
+                                    ${stage.value.toLocaleString()}${showPct ? ` · ${ofTotal}%` : ''}
+                                </span>
+                            </div>
+                            <div class="analytics-funnel__track">
+                                <div class="analytics-funnel__fill" style="width:${widthPct}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
             </div>
         `;
+    }
+
+    revenueSplit(invoiceAmount, paylinkAmount) {
+        const invoice = Number(invoiceAmount || 0);
+        const paylink = Number(paylinkAmount || 0);
+        const total = invoice + paylink;
+
+        if (total <= 0) return null;
+
+        return {
+            invoice,
+            paylink,
+            invoicePct: Math.round((invoice / total) * 100),
+            paylinkPct: Math.round((paylink / total) * 100),
+        };
+    }
+
+    monthOverMonth(thisMonth, lastMonth) {
+        if (lastMonth <= 0 && thisMonth <= 0) {
+            return { tone: 'neutral', label: 'No activity yet' };
+        }
+
+        if (lastMonth <= 0) {
+            return { tone: 'up', label: 'New this month' };
+        }
+
+        const delta = ((thisMonth - lastMonth) / lastMonth) * 100;
+        const rounded = Math.round(delta);
+
+        if (rounded === 0) {
+            return { tone: 'neutral', label: 'No change' };
+        }
+
+        if (rounded > 0) {
+            return { tone: 'up', label: `+${rounded}% vs last month` };
+        }
+
+        return { tone: 'down', label: `${rounded}% vs last month` };
+    }
+
+    bestWeekday(totals) {
+        if (!totals || typeof totals !== 'object') return null;
+
+        const labels = {
+            mon: 'Mondays', tue: 'Tuesdays', wed: 'Wednesdays',
+            thu: 'Thursdays', fri: 'Fridays', sat: 'Saturdays', sun: 'Sundays',
+        };
+
+        let best = null;
+        let bestAmount = 0;
+
+        Object.entries(totals).forEach(([key, value]) => {
+            const amount = Number(value || 0);
+            if (amount > bestAmount) {
+                bestAmount = amount;
+                best = key;
+            }
+        });
+
+        if (!best || bestAmount <= 0) return null;
+
+        return { key: best, amount: bestAmount, label: labels[best] };
+    }
+
+    formatPaymentDate(value) {
+        if (!value) return '—';
+
+        let date;
+        if (typeof value === 'number') {
+            date = new Date(value * 1000);
+        } else if (typeof value === 'object' && value.seconds) {
+            date = new Date(value.seconds * 1000);
+        } else {
+            date = new Date(value);
+        }
+
+        if (Number.isNaN(date.getTime())) return '—';
+
+        return date.toLocaleDateString('en-NG', {
+            day: 'numeric', month: 'short',
+        });
     }
 
     generateTrendChart(dailyViews, dailyClicks) {
         const dates = Object.keys(dailyViews).sort().slice(-7);
         if (dates.length === 0) return '<p class="no-data">No trend data available yet</p>';
 
-        const maxViews = Math.max(...Object.values(dailyViews), 1); 
+        const maxViews = Math.max(...Object.values(dailyViews), 1);
         const maxClicks = Math.max(...Object.values(dailyClicks), 1);
         const overallMax = Math.max(maxViews, maxClicks);
 
@@ -695,7 +988,7 @@ class DashboardEnhancements {
                     const clicks = dailyClicks[date] || 0;
                     const vHeight = (views / overallMax) * 100;
                     const cHeight = (clicks / overallMax) * 100;
-                    
+
                     return `
                         <div class="trend-bar-group">
                             <div class="bar-stack">
@@ -720,7 +1013,7 @@ class DashboardEnhancements {
 
         if (fullUrl) {
             navigator.clipboard.writeText(fullUrl).then(() => {
-                if (dashboard) dashboard.showToast('Paylink copied ♡');
+                window.dashboard?.showToast?.('Paylink copied');
                 this.copyLinkBtn.classList.add('success');
                 setTimeout(() => {
                     this.copyLinkBtn.classList.remove('success');
@@ -732,10 +1025,9 @@ class DashboardEnhancements {
     setupAutoRefresh(interval = 300000) {
         setInterval(async () => {
             try {
-                await this.loadEnhancementData();
+                await this.loadNotifications();
                 this.updatePaylinkInfo();
                 this.updateNotificationBadge();
-                console.log("Dashboard enhancements auto-refreshed");
             } catch (error) {
                 console.error("Enhancements auto-refresh failed:", error);
             }
@@ -744,22 +1036,13 @@ class DashboardEnhancements {
 
     setupUIEnhancements() {
         this.animateNewInvoices();
-        this.highlightOverdueInvoices();
         this.setupSmoothAnimations();
     }
 
     animateNewInvoices() {
         const cards = document.querySelectorAll('.invoice-card');
         cards.forEach((card, index) => {
-            card.style.animation = `cardAppear 0.5s ease-out ${index * 0.1}s forwards`;
-        });
-    }
-
-    highlightOverdueInvoices() {
-        const overdueCards = document.querySelectorAll('.invoice-card[data-status="overdue"]');
-        overdueCards.forEach(card => {
-            card.style.border = '2px solid #e74c3c';
-            card.style.boxShadow = '0 0 10px rgba(231, 76, 60, 0.3)';
+            card.style.animation = `cardAppear 0.5s ease-out ${index * 0.05}s forwards`;
         });
     }
 
@@ -776,23 +1059,22 @@ class DashboardEnhancements {
     }
 }
 
-// SINGLE initialization point - wait for dashboard to load first
 let enhancements;
 document.addEventListener('DOMContentLoaded', async () => {
-    // Check if instance already exists on window (added safety for hot-reloads)
     if (window.enhancementsInstance) return;
 
-    if (!dashboard) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    if (!window.dashboard) {
         console.error('Dashboard not loaded yet');
         return;
     }
 
     try {
-        // Ensure core data is there before enhancements try to read it
-        if (!dashboard.dashboardData) {
-            await dashboard.loadDashboardData();
+        if (!window.dashboard.dashboardData) {
+            await window.dashboard.loadDashboardData();
         }
-        
+
         enhancements = new DashboardEnhancements();
         window.enhancements = enhancements;
     } catch (err) {

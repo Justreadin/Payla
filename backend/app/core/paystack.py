@@ -1,43 +1,160 @@
+
 import httpx
 import logging
+
 from app.core.config import settings
-from datetime import datetime, timezone
 
 logger = logging.getLogger("payla")
 
-# --- NEW: Create Subaccount ---
-async def create_paystack_subaccount(business_name: str, bank_code: str, account_number: str) -> str:
+
+async def create_paystack_subaccount(
+    business_name: str,
+    bank_code: str,
+    account_number: str,
+) -> str:
     """
-    Creates a Paystack Subaccount for a creator.
-    Returns the subaccount_code (e.g., 'ACCT_xxxxxx')
+    Create a Paystack subaccount for a creator.
+
+    Returns:
+        The Paystack subaccount code, e.g. ACCT_xxxxxx.
+
+    Raises:
+        HTTPException:
+            400: Paystack rejected the supplied details.
+            502: Paystack returned an unexpected/provider error.
+            503: Paystack is temporarily unavailable or rate-limited.
+            504: The request timed out.
     """
+    from fastapi import HTTPException
+
     url = "https://api.paystack.co/subaccount"
+
+    secret_key = settings.PAYSTACK_SECRET_KEY
+    if not secret_key:
+        logger.error("PAYSTACK_SECRET_KEY is not configured")
+        raise HTTPException(
+            status_code=500,
+            detail="Payment service is not configured.",
+        )
+
     headers = {
-        "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json",
     }
+
     payload = {
-        "business_name": business_name,
+        "business_name": business_name.strip(),
         "settlement_bank": bank_code,
-        "account_number": account_number,
-        "percentage_charge": 0,  # Payla takes 0%, Creator gets 100% minus Paystack fees
+        "account_number": account_number.strip(),
+        "percentage_charge": 0,
     }
 
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            res_data = response.json()
-            
-            if response.status_code in (200, 201) and res_data.get("status"):
-                sub_code = res_data["data"]["subaccount_code"]
-                logger.info(f"Subaccount created for {business_name}: {sub_code}")
-                return sub_code
-            
-            logger.error(f"Paystack Subaccount error: {res_data.get('message')}")
-            return None
-    except Exception as e:
-        logger.error(f"Failed to create subaccount for {business_name}: {e}")
-        return None
+            response = await client.post(
+                url,
+                json=payload,
+                headers=headers,
+            )
+
+    except httpx.TimeoutException:
+        logger.warning(
+            "Paystack subaccount request timed out for business %s",
+            business_name,
+        )
+        raise HTTPException(
+            status_code=504,
+            detail="Paystack took too long to set up your payout account. Please try again.",
+        )
+
+    except httpx.RequestError:
+        logger.exception(
+            "Network error creating Paystack subaccount for business %s",
+            business_name,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Paystack is temporarily unreachable. Please try again shortly.",
+        )
+
+    # Parse the provider response safely.
+    try:
+        response_data = response.json()
+    except ValueError:
+        logger.error(
+            "Paystack returned non-JSON subaccount response: HTTP %s",
+            response.status_code,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Paystack returned an unexpected response. Please try again.",
+        )
+
+    provider_message = (
+        response_data.get("message", "Unknown Paystack error")
+        if isinstance(response_data, dict)
+        else "Unexpected Paystack response"
+    )
+
+    # Success requires both an HTTP success status and a valid response body.
+    if (
+        response.status_code in (200, 201)
+        and isinstance(response_data, dict)
+        and response_data.get("status") is True
+    ):
+        data = response_data.get("data") or {}
+        subaccount_code = data.get("subaccount_code")
+
+        if not subaccount_code:
+            logger.error(
+                "Paystack reported subaccount success without a subaccount code"
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="Paystack did not return a payout subaccount code.",
+            )
+
+        logger.info(
+            "Paystack subaccount created successfully for business %s",
+            business_name,
+        )
+        return subaccount_code
+
+    # Log the status and provider message, but never log the secret key.
+    logger.error(
+        "Paystack subaccount creation failed: HTTP %s; message=%s",
+        response.status_code,
+        provider_message,
+    )
+
+    # Rate limiting or temporary provider unavailability.
+    if response.status_code == 429 or response.status_code >= 500:
+        raise HTTPException(
+            status_code=503,
+            detail="Paystack is temporarily unavailable or rate-limited. Please try again later.",
+        )
+
+    # Credentials/configuration errors should not be presented as invalid
+    # creator bank details.
+    if response.status_code in (401, 403):
+        raise HTTPException(
+            status_code=502,
+            detail="Paystack authentication failed. Please contact support.",
+        )
+
+    # These responses commonly indicate rejected input. Other 4xx responses
+    # are reported as provider request errors rather than assumed to be
+    # invalid bank details.
+    if response.status_code in (400, 404, 422):
+        raise HTTPException(
+            status_code=400,
+            detail="Paystack rejected the payout details. Please check the bank and account information.",
+        )
+
+    raise HTTPException(
+        status_code=502,
+        detail="Unable to create the payout subaccount with Paystack.",
+    )
 
 # --- UPDATED: Permanent Payment Page ---
 async def create_permanent_payment_page(username: str, display_name: str, subaccount_code: str = None) -> dict:

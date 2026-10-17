@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Payla Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <link href="css/dashboard.css?v=2" rel="stylesheet">
-    <link href="css/analytics.css?v=2" rel="stylesheet">
-    <link href="css/upgrade.css?v=2" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="css/dashboard.css?v=4" rel="stylesheet">
+    <link href="css/upgrade.css?v=3" rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
     <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png">
@@ -24,11 +23,10 @@
     <script>
         const es = new EventSource("/reload");
         es.onmessage = () => {
-            console.log("🔄 Frontend updated — reloading...");
+            console.log("Frontend updated — reloading...");
             location.reload();
         };
     </script>
-
 </head>
 <body>
     <div class="glitter"></div>
@@ -37,9 +35,9 @@
     <div class="topbar glass">
         <a href="/dashboard" class="logo">
             <div>PAYLA</div>
-        </a> 
+        </a>
         <div class="paylink" id="user-paylink">
-            <!-- Will be populated from backend --->
+            <!-- Will be populated from backend -->
         </div>
         <div class="actions">
             <button class="icon-btn" id="notifications-btn">
@@ -50,13 +48,16 @@
                 <i class="fas fa-user"></i>
             </button>
         </div>
-        
+
         <!-- Dropdown -->
         <div class="dropdown glass" id="dropdown">
             <a href="/profile"><i class="fas fa-user-circle"></i> Profile & Branding</a>
             <a href="/payout"><i class="fas fa-wallet"></i> Payouts</a>
             <a href="/invoice"><i class="fas fa-file-invoice"></i> Create Invoice</a>
-            <a href="/subscription"><i class="fas fa-crown"></i> Subscription</a>
+            <a href="/subscription" id="subscription-link">
+                <i class="fas fa-crown"></i>
+                <span id="subscription-label">Subscription</span>
+            </a>
             <hr>
             <a href="#" id="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div>
@@ -64,12 +65,13 @@
 
     <!-- Main Content -->
     <div class="main-content">
+        <div id="subscriptionBanner" class="subscription-banner" hidden></div>
         <!-- Stats Bar -->
         <div class="stats-bar">
             <div class="stat glass">
                 <h3 id="total-earned">0</h3>
                 <p>Collected</p>
-                <span class="trend up" id="growth-trend"><i class="fas fa-arrow-up"></i> Loading...</span>
+                <span class="stat-breakdown" id="collected-breakdown"></span>
             </div>
             <div class="stat glass">
                 <h3 id="pending-amount">₦0</h3>
@@ -83,27 +85,39 @@
             </div>
         </div>
 
+        <!-- Settlement strip -->
+        <div class="settlement-strip" id="settlement-strip" hidden>
+            <i class="fas fa-building-columns" aria-hidden="true"></i>
+            <span id="settlement-text"></span>
+        </div>
+
         <!-- Enhanced Invoice Cards Section -->
         <div class="invoice-cards-container glass">
             <div class="section-header">
                 <h1 class="section-title">Invoices</h1>
-                <div class="filter-controls">
-                    <button class="filter-btn" data-filter="paid">
-                        <span>Show Paid</span>
-                        <span class="filter-count">0</span>
-                    </button>
-                    <button class="filter-btn" data-filter="overdue">
-                        <span>Show Overdue</span>
-                        <span class="filter-count">0</span>
-                    </button>
-                    <button class="filter-btn" data-filter="pending">
-                        <span>Show Pending</span>
-                        <span class="filter-count">0</span>
-                    </button>
-                    <button class="filter-btn" data-filter="failed">
-                        <span>Show Failed</span>
-                        <span class="filter-count">0</span>
-                    </button>
+                <div class="section-header-right">
+                    <a href="/invoice" class="section-action">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        New Invoice
+                    </a>
+                    <div class="filter-controls">
+                        <button class="filter-btn" data-filter="paid">
+                            <span>Show Paid</span>
+                            <span class="filter-count">0</span>
+                        </button>
+                        <button class="filter-btn" data-filter="overdue">
+                            <span>Show Overdue</span>
+                            <span class="filter-count">0</span>
+                        </button>
+                        <button class="filter-btn" data-filter="pending">
+                            <span>Show Pending</span>
+                            <span class="filter-count">0</span>
+                        </button>
+                        <button class="filter-btn" data-filter="failed">
+                            <span>Show Failed</span>
+                            <span class="filter-count">0</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -148,10 +162,14 @@
                     Copy Link
                 </button>
             </div>
+            <div class="paylink-nudge" id="paylink-nudge" hidden>
+                <i class="fas fa-lightbulb" aria-hidden="true"></i>
+                <span>Share your link to start receiving payments</span>
+            </div>
             <div class="paylink-stats">
                 <div class="stat-item">
                     <div class="stat-value" id="paylink-received">0</div>
-                    <div class="stat-label">Total Received</div>
+                    <div class="stat-label">Received via your link</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-value" id="paylink-transactions">0</div>
@@ -173,57 +191,6 @@
                         support@payla.vip
                     </button>
                 </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- FAB -->
-    <button class="fab" id="fab">
-        <i class="fas fa-plus"></i>
-    </button>
-
-    <!-- Quick Invoice Modal -->
-    <div class="modal-overlay" id="quick-invoice-modal">
-        <div class="modal compact-modal">
-            <button class="modal-close" id="modal-close">
-                <i class="fas fa-times"></i>
-            </button>
-            <h2 class="modal-title">Quick Invoice</h2>
-            <p class="modal-subtitle">Send in 30 seconds</p>
-
-            <form class="modal-form" id="quick-invoice-form">
-                <div class="form-group">
-                    <label>Description *</label>
-                    <input type="text" id="invoice-description" placeholder="e.g., Website Design for Client X" required>
-                </div>
-                
-                <div class="form-group">
-                    <label>Amount *</label>
-                    <div class="input-group">
-                        <select id="invoice-currency">
-                            <option value="NGN">NGN</option>
-                        </select>
-                        <input type="number" id="invoice-amount" placeholder="150000" min="0.01" step="0.01" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Due Date *</label>
-                    <input type="date" id="due-date" required>
-                </div>
-
-                <button type="submit" class="submit-btn">
-                    <i class="fas fa-paper-plane"></i>
-                    Send Invoice Now
-                    <div class="btn-glow"></div>
-                </button>
-            </form>
-            
-            <div class="modal-actions">
-                <button type="button" class="btn-link" onclick="window.location.href='/invoice'">
-                    <i class="fas fa-cog"></i>
-                    Advanced Settings
-                    <i class="fas fa-arrow-right"></i>
-                </button>
             </div>
         </div>
     </div>
@@ -274,7 +241,7 @@
             <button class="modal-close" id="analytics-close">
                 <i class="fas fa-times"></i>
             </button>
-            <h2 class="modal-title">Paylink Analytics</h2>
+            <h2 class="modal-title">Analytics</h2>
             <div class="analytics-content" id="analyticsContent">
                 <!-- Analytics will be dynamically loaded -->
             </div>
@@ -286,13 +253,11 @@
         <i class="fas fa-check-circle"></i>
         <span id="toast-message">Copied!</span>
     </div>
-    
-    <!-- FIXED: Added cache-busting version numbers to force fresh load -->
+
     <script type="module" src="/js/config.js"></script>
-    <script type="module" src="/js/presell.js"></script>
     <script type="module" src="/js/dashboard.js"></script>
     <script type="module" src="/js/dashboard-enhancements.js"></script>
-    
+
     <script>
     document.addEventListener("DOMContentLoaded", () => {
         const logoutLink = document.getElementById("logout-link");
@@ -302,17 +267,13 @@
         logoutLink.addEventListener("click", (e) => {
             e.preventDefault();
 
-            // 1️⃣ Clear auth data
             localStorage.removeItem("idToken");
             localStorage.removeItem("userData");
             sessionStorage.clear();
 
-            // 2️⃣ Hard redirect (no back button)
             window.location.replace("/entry");
         });
     });
     </script>
-
-
 </body>
 </html>

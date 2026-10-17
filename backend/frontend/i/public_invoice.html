@@ -1,328 +1,232 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice • Payla</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-    <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
-    <link rel="icon" href="../assets/favicon.ico" type="image/x-icon">
-    <script src="https://js.paystack.co/v1/inline.js"></script>
-    <link rel="stylesheet" href="../css/public_invoice.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A0A0A" />
+  <title>Invoice • Payla</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Cormorant+Garamond:wght@400;500;600;700&family=Great+Vibes&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'" />
+
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="icon" href="../assets/favicon.ico" type="image/x-icon" />
+
+  <link rel="stylesheet" href="../css/public_invoice.css?v=2" />
 </head>
 <body>
-    <!-- Animated Background -->
-    <div class="glitter"></div>
-    
-    <!-- Top Bar -->
-    <div class="topbar glass">
-        <div class="invoice-header">
-            <div class="invoice-badge glass">
-                <i class="fas fa-file-invoice-dollar"></i>
-                <span>INVOICE</span>
-            </div>
-            <div class="invoice-status" id="invoiceStatus">
-                <i class="fas fa-circle"></i>
-                <span id="statusText">Loading...</span>
-            </div>
-        </div>
+
+  <div class="payla-ambient" aria-hidden="true"></div>
+
+  <!-- ============================================================
+       LOADING STATE
+  ============================================================ -->
+  <div class="loading-state" id="loadingState">
+    <div class="loading-content">
+      <p class="loading-logo">Payla</p>
+      <p class="loading-signature" id="loadingSignature"></p>
+      <p class="loading-subtext">Preparing your invoice</p>
     </div>
+  </div>
 
-    <!-- Loading State -->
-    <div class="loading-state" id="loadingState">
-        <div class="loading-content">
-            <div class="loading-logo">
-                <span>Invoice</span>
-            </div>
-            <div class="loading-signature">
-                <h2 id="loadingSignature"></h2>
-                <p class="loading-subtext">Loading invoice details…</p>
-            </div>
-        </div>
+  <!-- ============================================================
+       ERROR STATE
+  ============================================================ -->
+  <div class="error-state hidden" id="errorState">
+    <div class="error-content">
+      <span class="error-icon" aria-hidden="true">
+        <i class="fas fa-file-circle-xmark"></i>
+      </span>
+      <h2 class="error-title">This invoice isn't available.</h2>
+      <p class="error-description">
+        The invoice you're looking for doesn't exist, has expired, or is no longer active.
+      </p>
+      <a href="/" class="error-action">
+        <i class="fas fa-plus" aria-hidden="true"></i>
+        Create a Payla invoice
+      </a>
     </div>
+  </div>
 
-    <!-- Error State -->
-    <div class="error-state hidden glass" id="errorState">
-        <div class="error-content">
-            <div class="error-icon">
-                <i class="fas fa-exclamation-circle"></i>
-            </div>
-            <h2>Invoice Not Found</h2>
-            <p class="error-message">This invoice doesn't exist or has expired.</p>
-            <a href="/" class="btn-link">
-                <i class="fas fa-plus"></i>
-                Create New Invoice
-            </a>
-        </div>
+  <!-- ============================================================
+       INVOICE
+  ============================================================ -->
+  <main class="invoice-content hidden" id="invoiceContent">
+    <div class="invoice-container">
+
+      <!-- Top bar -->
+      <header class="invoice-topbar">
+        <span class="invoice-badge">
+          <i class="fas fa-file-invoice" aria-hidden="true"></i>
+          Invoice
+        </span>
+        <span class="invoice-status" id="invoiceStatus">
+          <span class="invoice-status__dot" aria-hidden="true"></span>
+          <span id="statusText">Loading</span>
+        </span>
+      </header>
+
+      <!-- Card -->
+      <article class="invoice-card" aria-label="Invoice">
+
+        <div class="invoice-card__glow" aria-hidden="true"></div>
+        <div class="invoice-card__reflection" aria-hidden="true"></div>
+
+        <!-- Header: brand -->
+        <section class="invoice-card__brand">
+          <div class="brand-logo" id="previewLogo">
+            <span class="brand-logo__initials" id="previewLogoInitials"></span>
+          </div>
+          <div class="brand-details">
+            <h1 class="brand-name" id="previewName">Loading…</h1>
+            <p class="brand-handle" id="previewHandle"></p>
+          </div>
+        </section>
+
+        <!-- Hero amount -->
+        <section class="invoice-card__hero">
+          <p class="invoice-card__hero-label">Amount due</p>
+          <p class="invoice-card__hero-amount" id="invoiceAmount">₦0</p>
+          <p class="invoice-card__hero-currency" id="invoiceCurrency">NGN</p>
+          <div class="invoice-card__hero-status" id="dueStatus" data-status="far">
+            <i class="fas fa-clock" aria-hidden="true"></i>
+            <span id="dueText">Loading…</span>
+          </div>
+        </section>
+
+        <!-- Detail rows -->
+        <section class="invoice-card__details">
+          <div class="detail-item detail-item--full">
+            <p class="detail-label">
+              <i class="fas fa-align-left" aria-hidden="true"></i>
+              Description
+            </p>
+            <p class="detail-value" id="invoiceDescription">Loading…</p>
+          </div>
+
+          <div class="detail-item">
+            <p class="detail-label">
+              <i class="fas fa-hashtag" aria-hidden="true"></i>
+              Invoice
+            </p>
+            <p class="detail-value detail-value--mono" id="invoiceNumber"></p>
+          </div>
+
+          <div class="detail-item">
+            <p class="detail-label">
+              <i class="fas fa-calendar-day" aria-hidden="true"></i>
+              Due date
+            </p>
+            <p class="detail-value" id="invoiceDueDate">Loading…</p>
+          </div>
+
+          <div class="detail-item">
+            <p class="detail-label">
+              <i class="fas fa-calendar-plus" aria-hidden="true"></i>
+              Created
+            </p>
+            <p class="detail-value" id="createdDate">Loading…</p>
+          </div>
+
+          <div class="detail-item">
+            <p class="detail-label">
+              <i class="fas fa-envelope" aria-hidden="true"></i>
+              From
+            </p>
+            <p class="detail-value" id="senderEmail">Loading…</p>
+          </div>
+        </section>
+
+        <!-- Notes -->
+        <section class="invoice-card__notes hidden" id="notesBox">
+          <p class="detail-label">
+            <i class="fas fa-sticky-note" aria-hidden="true"></i>
+            Notes
+          </p>
+          <p class="notes-content" id="invoiceNotes"></p>
+        </section>
+
+        <!-- CTA -->
+        <button type="button" class="pay-button" id="payBtn">
+          <span class="btn-text">Pay now</span>
+          <span class="btn-loader" aria-hidden="true">
+            <span class="loading-spinner"></span>
+          </span>
+        </button>
+
+        <!-- Footer -->
+        <footer class="invoice-card__footer">
+          <p class="powered-by">
+            Invoice from <strong id="poweredBy">Payla</strong>
+          </p>
+          <a href="https://payla.ng" target="_blank" rel="noopener" class="secured-by">
+            <i class="fas fa-gem" aria-hidden="true"></i>
+            Secured by Payla
+          </a>
+        </footer>
+
+      </article>
+
     </div>
+  </main>
 
-    <!-- Paid State -->
-    <div class="paid-state hidden glass" id="paidState">
-        <div class="paid-content">
-            <div class="paid-icon">
-                <i class="fas fa-check"></i>
-                <div class="icon-glow"></div>
-            </div>
-            <h2>Payment Complete!</h2>
-            <p class="paid-date" id="paidDate"></p>
-            
-            <div class="paid-details glass">
-                <div class="detail-row">
-                    <span>Amount Paid</span>
-                    <strong id="paidAmount">₦0</strong>
-                </div>
-                <div class="detail-row">
-                    <span>Invoice ID</span>
-                    <strong id="invoiceId">INV-0000</strong>
-                </div>
-                <div class="detail-row">
-                    <span>Paid To</span>
-                    <strong id="paidTo">Loading...</strong>
-                </div>
-            </div>
+  <!-- ============================================================
+       PAYSTACK MODAL
+  ============================================================ -->
+  <div class="modal-overlay hidden" id="paystackModal" role="dialog" aria-modal="true" aria-labelledby="paystackTitle">
+    <div class="modal">
+      <button class="modal-close" id="modalClose" type="button" aria-label="Close">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
 
-            <div class="paid-actions">
-                <button class="btn btn-secondary" id="downloadReceipt">
-                    <i class="fas fa-download"></i>
-                    Download Receipt
-                </button>
-                <a href="/" class="btn-link">
-                    <i class="fas fa-home"></i>
-                    Return Home
-                </a>
-            </div>
+      <header class="modal-header">
+        <p class="modal-eyebrow">Payment</p>
+        <h2 class="modal-title" id="paystackTitle">Complete your payment</h2>
+      </header>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="payerEmail">Email for your receipt</label>
+          <input type="email" id="payerEmail" placeholder="you@example.com" required autocomplete="email" />
         </div>
-    </div>
 
-    <!-- Invoice Content -->
-    <div class="invoice-content hidden" id="invoiceContent">
-        <div class="invoice-container">
-            <!-- Invoice Card -->
-            <div class="invoice-card glass">
-                <!-- Header -->
-                <div class="invoice-header-section">
-                    <div class="brand-info">
-                        <div class="brand-logo" id="previewLogo">
-                            <div class="logo-initials" id="previewLogoInitials"></div>
-                            <img id="logoImg" src="" alt="" style="display: none">
-                            <div class="logo-glow"></div>
-                        </div>
-                        <div class="brand-details">
-                            <h2 class="brand-name" id="previewName">Loading...</h2>
-                            <p class="brand-handle" id="previewHandle"></p>
-                        </div>
-                    </div>
-                    
-                    <div class="invoice-id">
-                        <span class="label">Invoice</span>
-                        <strong id="invoiceNumber"></strong>
-                    </div>
-                </div>
-
-                <!-- Amount & Status -->
-                <div class="amount-status-section">
-                    <div class="amount-display">
-                        <span class="label">Total Amount</span>
-                        <div class="amount-value" id="invoiceAmount">₦0</div>
-                        <span class="currency" id="invoiceCurrency">NGN</span>
-                    </div>
-                    
-                    <div class="status-display" id="dueStatus">
-                        <i class="fas fa-clock"></i>
-                        <span id="dueText">Loading...</span>
-                    </div>
-                </div>
-
-                <!-- Invoice Details Grid -->
-                <div class="details-grid glass">
-                    <!-- Description -->
-                    <div class="detail-item full-width">
-                        <div class="detail-header">
-                            <i class="fas fa-align-left"></i>
-                            <span>Description</span>
-                        </div>
-                        <p class="detail-content" id="invoiceDescription">
-                            Loading invoice description...
-                        </p>
-                    </div>
-
-                    <!-- Left Column -->
-                    <div class="detail-item">
-                        <div class="detail-header">
-                            <i class="fas fa-calendar-day"></i>
-                            <span>Due Date</span>
-                        </div>
-                        <p class="detail-content" id="invoiceDueDate">Loading...</p>
-                    </div>
-
-                    <div class="detail-item">
-                        <div class="detail-header">
-                            <i class="fas fa-calendar-plus"></i>
-                            <span>Created</span>
-                        </div>
-                        <p class="detail-content" id="createdDate">Loading...</p>
-                    </div>
-
-                    <!-- Right Column -->
-                    <div class="detail-item">
-                        <div class="detail-header">
-                            <i class="fas fa-envelope"></i>
-                            <span>From Email</span>
-                        </div>
-                        <p class="detail-content" id="senderEmail">loading@example.com</p>
-                    </div>
-
-                    <div class="detail-item">
-                        <div class="detail-header">
-                            <i class="fas fa-user"></i>
-                            <span>From Name</span>
-                        </div>
-                        <p class="detail-content" id="senderName">Loading...</p>
-                    </div>
-                </div>
-
-                <!-- Notes (if any) -->
-                <div class="notes-section glass hidden" id="notesBox">
-                    <div class="notes-header">
-                        <i class="fas fa-sticky-note"></i>
-                        <span>Notes</span>
-                    </div>
-                    <p class="notes-content" id="invoiceNotes"></p>
-                </div>
-
-                <!-- Payment Button -->
-                <button class="pay-button btn-primary" id="payBtn">
-                    <span class="btn-text">Pay Now</span>
-                    <div class="btn-loader">
-                        <div class="loading-spinner"></div>
-                    </div>
-                </button>
-
-                <!-- Footer -->
-                <div class="invoice-footer">
-                    <div class="powered-by">
-                        Powered by <strong id="poweredBy">Payla</strong>
-                    </div>
-                    <a href="https://payla.ng" target="_blank" class="secured-by">
-                        <i class="fas fa-gem"></i>
-                        <span>Secured by Payla</span>
-                    </a>
-                </div>
-            </div>
+        <div class="modal-recipient" id="modalRecipientBlock">
+          <p class="modal-recipient__label">You're paying</p>
+          <p class="modal-recipient__name" id="modalRecipient">Loading…</p>
+          <p class="modal-recipient__proof">
+            <i class="fas fa-circle-check" aria-hidden="true"></i>
+            Bank-confirmed name
+          </p>
         </div>
-    </div>
 
-    <!-- Paystack Modal -->
-    <div class="modal-overlay hidden" id="paystackModal">
-        <div class="modal glass">
-            <button class="modal-close" id="modalClose">
-                <i class="fas fa-times"></i>
-            </button>
-            
-            <div class="modal-header">
-                <div class="modal-icon">
-                    <i class="fas fa-lock"></i>
-                    <div class="icon-glow"></div>
-                </div>
-                <h2 class="modal-title">Complete Payment</h2>
-                <p class="modal-subtitle">Secure transaction via Paystack</p>
-            </div>
-
-            <div class="modal-body">
-                <!-- Email Input -->
-                <div class="form-group">
-                    <label for="payerEmail">
-                        <i class="fas fa-envelope"></i>
-                        Your Email for Receipt
-                    </label>
-                    <input type="email" id="payerEmail" placeholder="your@email.com" required>
-                </div>
-
-                <!-- Amount Display -->
-                <div class="amount-display glass">
-                    <span class="label">Amount to Pay</span>
-                    <span class="value" id="modalAmount">₦0</span>
-                </div>
-
-                <!-- Recipient Info -->
-                <div class="recipient-info glass">
-                    <div class="info-row">
-                        <span>To:</span>
-                        <strong id="modalRecipient">Loading...</strong>
-                    </div>
-                    <div class="info-row">
-                        <span>For:</span>
-                        <span id="modalDescription">Loading...</span>
-                    </div>
-                </div>
-
-                <!-- Security Note -->
-                <div class="security-note">
-                    <i class="fas fa-shield-alt"></i>
-                    <span>Your payment details are encrypted and secure</span>
-                </div>
-
-                <!-- Submit Button -->
-                <button class="submit-btn btn-primary" id="processPayment">
-                    <i class="fas fa-lock"></i>
-                    <span class="btn-text">Proceed to Paystack</span>
-                    <div class="btn-loader">
-                        <div class="loading-spinner"></div>
-                    </div>
-                </button>
-            </div>
+        <div class="modal-amount">
+          <span class="modal-amount__label">Amount</span>
+          <span class="modal-amount__value" id="modalAmount">₦0</span>
         </div>
-    </div>
 
-    <!-- Success Modal -->
-    <div class="modal-overlay hidden" id="successModal">
-        <div class="modal glass">
-            <div class="modal-header">
-                <div class="modal-icon success">
-                    <i class="fas fa-check"></i>
-                    <div class="icon-glow success-glow"></div>
-                </div>
-                <h2 class="modal-title">Payment Successful!</h2>
-                <p class="modal-subtitle">Thank you for your payment</p>
-            </div>
+        <p class="modal-description" id="modalDescription"></p>
 
-            <div class="modal-body">
-                <div class="success-details glass">
-                    <div class="detail-row">
-                        <span>Amount:</span>
-                        <strong id="successAmount">₦0</strong>
-                    </div>
-                    <div class="detail-row">
-                        <span>Invoice:</span>
-                        <strong id="successInvoiceId">INV-0000</strong>
-                    </div>
-                    <div class="detail-row">
-                        <span>Date:</span>
-                        <strong id="successDate">Just now</strong>
-                    </div>
-                </div>
-
-                <div class="modal-actions">
-                    <button class="btn btn-primary" id="downloadSuccessReceipt">
-                        <i class="fas fa-download"></i>
-                        Download Receipt
-                    </button>
-                    <button class="btn btn-secondary" id="closeSuccessModal">
-                        <i class="fas fa-check"></i>
-                        Done
-                    </button>
-                </div>
-            </div>
+        <div class="modal-security">
+          <i class="fas fa-lock" aria-hidden="true"></i>
+          <span>Your payment is encrypted and processed by Paystack.</span>
         </div>
+
+        <button type="button" class="submit-btn" id="processPayment">
+          <span class="btn-text">Continue to Paystack</span>
+          <span class="btn-loader" aria-hidden="true">
+            <span class="loading-spinner"></span>
+          </span>
+        </button>
+      </div>
     </div>
-    <script type="module" src="../js/public_invoice.js"></script>
+  </div>
+
+  <script type="module" src="../js/public_invoice.js"></script>
 </body>
 </html>

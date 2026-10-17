@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome to Payla</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Lora:wght@400;600&family=Cormorant+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Lora:wght@400;600&family=Cormorant+Garamond:wght@400;500;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/onboarding.css">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
@@ -21,7 +21,6 @@
     </script>
 </head>
 <body>
-    <!-- Animated Background -->
     <div class="glitter"></div>
 
     <!-- Topbar -->
@@ -53,10 +52,8 @@
         </div>
     </div>
 
-    <!-- Main Content -->
     <div class="onboarding">
         <div class="onboarding-card glass">
-            <!-- Left: Form Section -->
             <div class="left">
                 <div class="hero">
                     <h1>Welcome to Your Money. Welcome to Payla.</h1>
@@ -87,7 +84,7 @@
                 <div class="step-content" id="step-2">
                     <div class="form-group">
                         <label for="business-name">Business Name</label>
-                        <input type="text" id="business-name" placeholder="layla Designs">
+                        <input type="text" id="business-name" placeholder="Layla Designs">
                         <p class="hint">Defaults to your name if blank</p>
                     </div>
                 </div>
@@ -116,233 +113,206 @@
                 <!-- Step 4: Plan -->
                 <div class="step-content" id="step-4">
                     <div class="plan-picker">
-                        <!-- Silver – 14 DAYS free trial -->
-                        <div class="plan-card active silver-active" data-plan="silver">
-                            <div class="plan-glow silver-glow"></div>
+
+                        <!-- Free: the account being created -->
+                        <div class="plan-card active" data-plan="free">
+                            <div class="plan-glow"></div>
+
+                            <div class="plan-header">
+                                <h3>Payla Free</h3>
+                                <div class="badge">Free forever</div>
+                            </div>
+
+                            <p class="plan-tagline">
+                                Your payment identity, without a subscription.
+                            </p>
+
+                            <div class="plan-price">
+                                <span class="price">₦0</span>
+                                <span class="period">/forever</span>
+                            </div>
+
+                            <p class="plan-note">
+                                No card. No time limit. Yours permanently.
+                            </p>
+
+                            <ul class="plan-features">
+                                <li><i class="fas fa-check"></i> Your personal Payla link</li>
+                                <li><i class="fas fa-check"></i> A branded payment page</li>
+                                <li><i class="fas fa-check"></i> Payment history</li>
+                                <li><i class="fas fa-check"></i> Payments straight to your bank</li>
+                            </ul>
+                        </div>
+
+                        <!-- Silver: optional upgrade, paid separately -->
+                        <div class="plan-card" data-plan="silver">
+                            <div class="plan-glow"></div>
+
                             <div class="plan-header">
                                 <h3>Payla Silver</h3>
-                                <div class="badge popular">14 DAYS EXCLUSIVE ACCESS</div>
+                                <div class="badge">Optional</div>
                             </div>
-                            <p class="plan-tagline">"For creators who believe even invoices should have style."</p>
+
+                            <p class="plan-tagline">
+                                For creators ready to spend less time chasing.
+                            </p>
+
                             <div class="plan-price">
                                 <span class="price">₦7,500</span>
                                 <span class="period">/month</span>
                             </div>
-                            <p class="free-trial">No card required • Start instantly</p>
+
+                            <p class="plan-note">
+                                Or ₦75,000/year. Upgrade any time after setup.
+                            </p>
+
                             <ul class="plan-features">
-                                <li><i class="fas fa-check"></i>Unique Paylink</li>
-                                <li><i class="fas fa-check"></i>Unlimited invoices</li>
-                                <li><i class="fas fa-check"></i>Custom logo & branding</li>
-                                <li><i class="fas fa-check"></i>Instant Payouts</li>
-                                <li><i class="fas fa-check"></i>Zero Transaction fees</li>
-                                <li><i class="fas fa-check"></i>Verified Badge</li>
-                                <li><i class="fas fa-check"></i>Paylink Signature (Your Username)</li>
-                                <li><i class="fas fa-check"></i>Automated reminders (sms/whatsapp/email)</li>
-                                <li><i class="fas fa-check"></i>PDF receipts</li>
-                                <li><i class="fas fa-check"></i>Paylink analytics</li>
-                                <li><i class="fas fa-check"></i>Priority 1-hour support</li>
+                                <li><i class="fas fa-check"></i> Branded invoices</li>
+                                <li><i class="fas fa-check"></i> Automated reminders from Layla</li>
+                                <li><i class="fas fa-check"></i> Payment tracking and analytics</li>
+                                <li><i class="fas fa-check"></i> Branded PDF receipts</li>
+                                <li><i class="fas fa-check"></i> Custom logo and branding</li>
+                                <li><i class="fas fa-check"></i> Your own payla.vip link</li>
                             </ul>
                         </div>
 
-                        <!-- Gold (coming soon) -->
-                        <div class="plan-soon" data-plan="gold">
-                            <div class="plan-glow gold-glow"></div>
-                            <div class="plan-header">
-                                <h3>Payla Gold</h3>
-                                <div class="badge gold">COMING Q1 2026</div>
-                            </div>
-                            <p class="plan-tagline">"For enterprises who treat their brand like a business."</p>
-                            <div class="plan-price">
-                                <span class="price">₦20,000</span>
-                                <span class="period">/month</span>
-                            </div>
-                            <p class="free-trial">Launching 2026</p>
-                            <ul class="plan-features">
-                                <li><i class="fas fa-check"></i>Everything in Silver</li>
-                                <li><i class="fas fa-check"></i>Custom domain</li>
-                                <li><i class="fas fa-check"></i>Remove "Secured by Payla" branding</li>
-                                <li><i class="fas fa-check"></i>Team Paylinks</li>
-                                <li><i class="fas fa-check"></i>Team access (up to 5)</li>
-                                <li><i class="fas fa-check"></i>White-label invoicing (invoice looks entirely yours)</li>
-                                <li><i class="fas fa-check"></i>Client insights dashboard</li>
-                                <li><i class="fas fa-check"></i>API + integrations with workflow</li>
-                                <li><i class="fas fa-check"></i>Priority 1-hour support</li>
-                                <li><i class="fas fa-check"></i>Custom thank-you pages</li>
-                                <li><i class="fas fa-check"></i>Exclusive design themes</li>
-                            </ul>
-                        </div>
-
-                        <!-- Opal (coming soon) -->
-                        <div class="plan-soon" data-plan="opal">
-                            <div class="plan-glow opal-glow"></div>
-                            <div class="plan-header">
-                                <h3>Payla Opal</h3>
-                                <div class="badge opal">Coming Soon</div>
-                            </div>
-                            <p class="plan-tagline">"For brands that invoice with influence."</p>
-                            <div class="plan-price">
-                                <span class="price">₦49,999</span>
-                                <span class="period">/month</span>
-                            </div>
-                            <p class="free-trial">Coming soon</p>
-                            <ul class="plan-features">
-                                <li><i class="fas fa-check"></i>Everything in Gold</li>
-                                <li><i class="fas fa-check"></i>Priority Support & Account Management</li>
-                                <li><i class="fas fa-check"></i>Unlimited Paylinks & Custom Subdomains</li>
-                                <li><i class="fas fa-check"></i>payla.vip domain</li>
-                                <li><i class="fas fa-check"></i>API Access & Automation</li>
-                                <li><i class="fas fa-check"></i>Automated Workflow & CRM Integration</li>
-                                <li><i class="fas fa-check"></i>Advanced analytics & reports</li>
-                                <li><i class="fas fa-check"></i>Team & Role Management (Unlimited team members)</li>
-                                <li><i class="fas fa-check"></i>Exclusive Themes & Premium Brand Styling</li>
-                                <li><i class="fas fa-check"></i>Early Access to New Features</li>
-                            </ul>
-                        </div>
                     </div>
                 </div>
 
-            <!-- Step 5: Live Preview -->
-            <div class="step-content" id="step-5">
-                <div class="preview-step">
-                    <h2>Your Payla Silver Preview</h2>
-                    <p class="preview-subtitle">This is how your customers will see your Paylink</p>
-                    
-                    <div class="live-preview-container">
-                        <div class="paylink-preview-card glass">
-                            <!-- Silver Glow Effects -->
-                            <div class="silver-glow-effect"></div>
-                            <div class="silver-stripe"></div>
-                            
-                            <!-- Silver Plan Badge -->
-                            <div class="silver-plan-badge">
-                                <div class="badge-glow"></div>
-                                <i class="fas fa-gem"></i>
-                                <span>Verified</span>
-                            </div>
+                <!-- Step 5: Preview -->
+                <div class="step-content" id="step-5">
+                    <div class="preview-step">
+                        <h2>Your Payla card</h2>
+                        <p class="preview-subtitle">
+                            This is how clients will see you when they open your link.
+                        </p>
 
-                            <!-- Header -->
-                            <div class="preview-header">
-                                <div class="preview-logo" id="final-preview-logo">
-                                    <span id="final-logo-initials">Payla</span>
-                                    <div class="logo-glow"></div>
-                                </div>
-                            </div>
+                        <div class="onboarding-preview-stage">
+                            <div class="onboarding-preview-card">
 
-                            <!-- Brand Section -->
-                            <div class="preview-brand">
-                                <div class="preview-name" id="final-preview-brand">Your Name</div>
-                                <div class="preview-tagline" id="final-preview-tagline">Your Description/Tagline</div>
-                                <div class="preview-handle" id="final-preview-link">Your Username</div>
-                            </div>
+                                <!-- The card itself, ported from paylink.css -->
+                                <article class="paylink-card" aria-label="Paylink preview">
 
-                            <!-- Contact Cards -->
-                            <div class="contact-cards">
-                                <div class="contact-card email-card">
-                                    <div class="contact-glow"></div>
-                                    <div class="contact-content">
-                                        <div class="contact-value">Your Email</div>
-                                    </div>
-                                </div>
+                                    <div class="paylink-card__glow" aria-hidden="true"></div>
+                                    <div class="paylink-card__reflection" aria-hidden="true"></div>
 
-                                <div class="contact-card whatsapp-card">
-                                    <div class="contact-glow"></div>
-                                    <div class="contact-content">
-                                        <div class="contact-value">Your Phone</div>
-                                    </div>
-                                </div>
-                            </div>
+                                    <header class="paylink-card__header">
+                                        <div class="paylink-card__logo initials-medallion" id="preview-logo">
+                                            <span class="initials-medallion__text" id="preview-logo-initials">P</span>
+                                        </div>
 
-                            <!-- CTA Section -->
-                            <div class="cta-section">
-                                <button class="send-money-btn primary">
-                                    <i class="fas fa-paper-plane"></i>
-                                    Transfer
-                                </button>
-                            </div>
+                                        <div class="paylink-card__trust" id="preview-trust"></div>
+                                    </header>
 
-                            <!-- Footer -->
-                            <div class="preview-footer">
-                                <div class="secured-by">
-                                    <i class="fas fa-gem"></i>
-                                    Secured by Payla Silver
-                                </div>
+                                    <section class="paylink-card__brand">
+                                        <h1 class="paylink-card__name" id="preview-brand">Your Name</h1>
+                                        <p class="paylink-card__tagline" id="preview-tagline">
+                                            Your Payment Identity
+                                        </p>
+                                    </section>
+
+                                    <section class="paylink-card__actions" aria-label="Contact options">
+                                        <a href="#" class="paylink-card__action" tabindex="-1">
+                                            <i class="fas fa-envelope" aria-hidden="true"></i>
+                                            <span>Email</span>
+                                        </a>
+                                        <a href="#" class="paylink-card__action" tabindex="-1">
+                                            <i class="fas fa-phone" aria-hidden="true"></i>
+                                            <span>Call</span>
+                                        </a>
+                                    </section>
+
+                                    <section class="paylink-card__cta">
+                                        <button class="paylink-card__transfer" type="button" tabindex="-1">
+                                            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                                            Transfer
+                                        </button>
+                                        <p class="paylink-card__trust-cue">
+                                            Secure payment via <span>Paystack</span> ·
+                                            You'll see the account holder's name before you pay
+                                        </p>
+                                    </section>
+
+                                    <footer class="paylink-card__footer">
+                                        <span class="paylink-card__signature" id="preview-link">@yourusername</span>
+                                        <a href="#" class="paylink-card__secured" tabindex="-1">
+                                            <i class="fas fa-gem" aria-hidden="true"></i>
+                                            <span>Secured by Payla</span>
+                                        </a>
+                                    </footer>
+
+                                </article>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="plan-summary">
-                        <h4>Selected Plan: <span id="final-plan-name">Payla Silver</span></h4>
-                        <p class="plan-details" id="final-plan-details">14 DAYS exclusive access • ₦7,500/month after trial</p>
+
+                        <p class="preview-note">
+                            Silver adds branded invoices, automated reminders, and PDF receipts.
+                            You can upgrade any time.
+                        </p>
                     </div>
                 </div>
-            </div>
-                <!-- Navigation -->
-                <div class="step-actions nav ">
+
+                <div class="step-actions nav">
                     <button class="btn btn-secondary" id="back-btn">Back</button>
                     <button class="btn btn-primary" id="next-btn">Continue</button>
                 </div>
             </div>
 
-            <!-- Right: Live Preview -->
+            <!-- Right: live preview (desktop only) -->
             <div class="right">
-                <div class="paylink-preview-card glass">
-                    <!-- Silver Glow Effects -->
-                    <div class="silver-glow-effect"></div>
-                    <div class="silver-stripe"></div>
-                    
-                    <!-- Silver Plan Badge -->
-                    <div class="silver-plan-badge">
-                        <div class="badge-glow"></div>
-                        <i class="fas fa-gem"></i>
-                        <span>Verified</span>
-                    </div>
+                <div class="onboarding-preview-stage">
+                    <div class="onboarding-preview-card">
 
-                    <!-- Header -->
-                    <div class="preview-header">
-                        <div class="preview-logo" id="preview-logo">
-                            <span id="logo-initials">Payla</span>
-                            <div class="logo-glow"></div>
-                        </div>
-                    </div>
+                        <article class="paylink-card" aria-label="Paylink preview">
+                            <div class="paylink-card__glow" aria-hidden="true"></div>
+                            <div class="paylink-card__reflection" aria-hidden="true"></div>
 
-                    <!-- Brand Section -->
-                    <div class="preview-brand">
-                        <div class="preview-name" id="preview-brand">Payla</div>
-                        <div class="preview-tagline" id="preview-tagline">Your Payment Identify</div>
-                        <div class="preview-handle" id="preview-link">payla.ng/@payla</div>
-                    </div>
+                            <header class="paylink-card__header">
+                                <div class="paylink-card__logo initials-medallion" id="side-preview-logo">
+                                    <span class="initials-medallion__text" id="side-preview-logo-initials">P</span>
+                                </div>
 
-                    <!-- Contact Cards -->
-                    <div class="contact-cards">
-                        <div class="contact-card email-card">
-                            <div class="contact-glow"></div>
-                            <div class="contact-content">
-                                <div class="contact-value">hello@payla.vip</div>
-                            </div>
-                        </div>
+                                <div class="paylink-card__trust" id="side-preview-trust"></div>
+                            </header>
 
-                        <div class="contact-card whatsapp-card">
-                            <div class="contact-glow"></div>
-                            <div class="contact-content">
-                                <div class="contact-value">+234 804 138 5402</div>
-                            </div>
-                        </div>
-                    </div>
+                            <section class="paylink-card__brand">
+                                <h1 class="paylink-card__name" id="side-preview-brand">Your Name</h1>
+                                <p class="paylink-card__tagline" id="side-preview-tagline">
+                                    Your Payment Identity
+                                </p>
+                            </section>
 
-                    <!-- CTA Section -->
-                    <div class="cta-section">
-                        <button class="send-money-btn primary">
-                            <i class="fas fa-paper-plane"></i>
-                            Transfer
-                        </button>
-                    </div>
+                            <section class="paylink-card__actions" aria-label="Contact options">
+                                <a href="#" class="paylink-card__action" tabindex="-1">
+                                    <i class="fas fa-envelope" aria-hidden="true"></i>
+                                    <span>Email</span>
+                                </a>
+                                <a href="#" class="paylink-card__action" tabindex="-1">
+                                    <i class="fas fa-phone" aria-hidden="true"></i>
+                                    <span>Call</span>
+                                </a>
+                            </section>
 
-                    <!-- Footer -->
-                    <div class="preview-footer">
-                        <div class="secured-by">
-                            <i class="fas fa-gem"></i>
-                            Secured by Payla Silver
-                        </div>
+                            <section class="paylink-card__cta">
+                                <button class="paylink-card__transfer" type="button" tabindex="-1">
+                                    <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                                    Transfer
+                                </button>
+                                <p class="paylink-card__trust-cue">
+                                    Secure payment via <span>Paystack</span> ·
+                                    You'll see the account holder's name before you pay
+                                </p>
+                            </section>
+
+                            <footer class="paylink-card__footer">
+                                <span class="paylink-card__signature" id="side-preview-link">@yourusername</span>
+                                <a href="#" class="paylink-card__secured" tabindex="-1">
+                                    <i class="fas fa-gem" aria-hidden="true"></i>
+                                    <span>Secured by Payla</span>
+                                </a>
+                            </footer>
+                        </article>
+
                     </div>
                 </div>
             </div>
@@ -355,9 +325,9 @@
             <div class="modal-icon success">
                 <i class="fas fa-check"></i>
             </div>
-            <h2 class="modal-title">You're All Set!</h2>
-            <p class="modal-subtitle">Your Payla account is ready. Start getting paid instantly.</p>
-            
+            <h2 class="modal-title">You're all set.</h2>
+            <p class="modal-subtitle">Your Payla identity is live. Start getting paid.</p>
+
             <div class="modal-actions">
                 <button class="btn btn-primary full" id="go-to-dashboard">
                     Go to Dashboard

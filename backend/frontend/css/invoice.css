@@ -168,44 +168,46 @@ body {
 
 /* Page Title */
 .page-title {
-  font-family: var(--font-cormorant);
-  font-size: 22px;
+  font-family: var(--font-playfair);
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  position: relative;
+  padding-left: 20px;
 }
 
+.page-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rose-gold);
+  box-shadow: 0 0 10px rgba(232, 180, 184, 0.5);
+}
 /* === MAIN CONTENT === */
 .main-content {
-  margin-top: 70px;
-  padding: 24px;
-  display: grid;
-  gap: 32px;
-  grid-template-columns: 1fr;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-@media (min-width: 1024px) {
-  .main-content {
-    grid-template-columns: 1fr 1fr;
-    gap: 48px;
-  }
-}
-
-/* === PREVIEW TOGGLE - LUXURY PILLS === */
-.preview-toggle {
+  margin-top: 72px;
+  padding: 32px 24px 80px;
   display: flex;
   justify-content: center;
-  margin-bottom: 24px;
-  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  min-height: calc(100vh - 72px);
 }
 
-@media (min-width: 1024px) {
-  .preview-toggle {
-    display: none;
+@media (min-width: 768px) {
+  .main-content {
+    padding: 56px 32px 100px;
   }
+}
+/* === PREVIEW TOGGLE - LUXURY PILLS === */
+.preview-toggle {
+  display: none;
 }
 
 .preview-toggle-btn {
@@ -233,18 +235,49 @@ body {
 }
 
 /* === FORM CONTAINER - GLASS CARD === */
+/* === FORM CONTAINER - GLASS CARD === */
 .form-container {
   border-radius: 24px;
-  padding: 32px;
+  padding: 32px 24px;
   display: flex;
   flex-direction: column;
   gap: 28px;
-  max-width: 480px;
-  margin: 0 auto;
   width: 100%;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  max-width: 560px;
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Subtle rose hairline at the top of the card */
+.form-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
+  opacity: 0.5;
+  border-radius: 24px 24px 0 0;
+}
+
+@media (min-width: 640px) {
+  .form-container {
+    padding: 44px 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .form-container {
+    padding: 56px 48px;
+    max-width: 600px;
+  }
 }
 
 @media (min-width: 768px) {
@@ -254,13 +287,14 @@ body {
 }
 
 /* === STEPPER - HORIZONTAL ELEGANCE === */
+/* === STEPPER - HORIZONTAL ELEGANCE === */
 .stepper {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 32px;
+  margin-bottom: 44px;
   position: relative;
-  padding: 0 12px;
+  padding: 0 24px;
 }
 
 .stepper::before {
@@ -521,8 +555,46 @@ input:active, select:active, textarea:active {
   transform: scale(1.05);
 }
 
-.chip:active {
+.chip:not(.active):active {
   transform: scale(0.95);
+}
+
+/* Disabled channel chip (e.g. WhatsApp while Meta is being set up) */
+.chip.channel:disabled,
+.chip.channel[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  position: relative;
+}
+
+.chip.channel:disabled::after {
+  content: 'Soon';
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rose-gold);
+  margin-left: 6px;
+  padding: 2px 6px;
+  background: rgba(232, 180, 184, 0.12);
+  border-radius: 999px;
+}
+
+.chip.channel:disabled i {
+  color: var(--text-tertiary);
+}
+
+/* Modal priority item in disabled state */
+.priority-item.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.priority-item.is-disabled .priority-badge {
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Schedule Tabs */
@@ -552,6 +624,9 @@ input:active, select:active, textarea:active {
   background: var(--rose-gold);
   color: var(--obsidian);
   box-shadow: 0 0 10px rgba(232, 180, 184, 0.3);
+}
+.tab:not(.active):active {
+  transform: scale(0.97);
 }
 
 /* Preset Chips */
@@ -1602,22 +1677,9 @@ input:active, select:active, textarea:active {
 }
 
 /* === MOBILE SECTIONS VISIBILITY === */
-@media (max-width: 1023px) {
-  #form-section {
-    display: flex;
-  }
-  
-  #preview-section {
-    display: none;
-  }
-  
-  .preview-toggle-btn[data-target="form"].active ~ #form-section {
-    display: flex;
-  }
-  
-  .preview-toggle-btn[data-target="preview"].active ~ #preview-section {
-    display: flex;
-  }
+/* === FORM SECTION VISIBILITY === */
+#form-section {
+  display: flex;
 }
 
 /* === UTILITY CLASSES === */

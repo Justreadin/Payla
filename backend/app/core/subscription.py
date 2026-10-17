@@ -1,152 +1,274 @@
-# core/subscription.py - COMPREHENSIVE FIX
-from fastapi import Depends, HTTPException, status
-from app.core.auth import get_current_user
-from app.models.user_model import User
-from typing import Optional
-from app.core.firebase import db
-from datetime import datetime, timezone, timedelta
+
+"""Silver entitlement checks for Payla's permanent Free tier."""
+from __future__ import annotations
+
 import logging
+from datetime import datetime, timezone, timedelta
+from typing import Any, Optional
+
+from fastapi import Depends, HTTPException, status
+
+from app.core.auth import get_current_user
+from app.core.firebase import db
+from app.models.user_model import User
 
 logger = logging.getLogger("payla")
 
-# --- GRACE PERIOD CONFIG ---
 SUBSCRIPTION_GRACE_DAYS = 7
 
-def parse_firestore_datetime(value) -> Optional[datetime]:
-    """Convert various datetime formats from Firestore to timezone-aware datetime"""
+# Only genuinely paid plans can grant subscription access.
+PAID_PLANS = {"silver", "gold", "opal"}
+
+# These states must never grant access by themselves.
+INACTIVE_STATES = {
+    "cancelled",
+    "canceled",
+    "expired",
+    "disabled",
+    "complete",
+    "completed",
+    "free",
+    "inactive",
+    "revoked",
+    "refunded",
+    "chargeback",
+    "suspended",
+}
+
+# These states stop renewal but do not immediately revoke already-paid access.
+VOLUNTARY_CANCELLATION_STATES = {
+    "non_renewing",
+    "cancel_at_period_end",
+    "cancellation_pending",
+    "cancelled",
+    "canceled",
+    "disabled",
+    "expired",
+    "complete",
+    "completed",
+}
+
+# Only these states qualify for renewal-failure grace.
+RENEWAL_PROBLEM_STATES = {
+    "past_due",
+    "payment_failed",
+    "unpaid",
+}
+
+
+def parse_firestore_datetime(value: Any) -> Optional[datetime]:
+    """Convert supported Firestore, Python, Unix, and ISO timestamps to UTC."""
     if value is None:
         return None
-        
+
     if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value
-    
-    if hasattr(value, 'to_datetime'):
-        dt = value.to_datetime()
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
-        return dt
-    
+        return (
+            value.replace(tzinfo=timezone.utc)
+            if value.tzinfo is None
+            else value.astimezone(timezone.utc)
+        )
+
+    if hasattr(value, "to_datetime"):
+        try:
+            result = value.to_datetime()
+            return (
+                result.replace(tzinfo=timezone.utc)
+                if result.tzinfo is None
+                else result.astimezone(timezone.utc)
+            )
+        except Exception:
+            logger.warning("Could not convert Firestore datetime")
+            return None
+
     if isinstance(value, dict) and "_seconds" in value:
-        return datetime.fromtimestamp(value["_seconds"], tz=timezone.utc)
-    
+        try:
+            return datetime.fromtimestamp(
+                float(value["_seconds"]),
+                tz=timezone.utc,
+            )
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+
     if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, tz=timezone.utc)
-    
+        try:
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+
     if isinstance(value, str):
         try:
-            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
-            if dt.tzinfo is None:
-                return dt.replace(tzinfo=timezone.utc)
-            return dt
-        except:
-            pass
-    
-    logger.warning(f"Could not parse datetime value: {value} (type: {type(value)})")
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return (
+                parsed.replace(tzinfo=timezone.utc)
+                if parsed.tzinfo is None
+                else parsed.astimezone(timezone.utc)
+            )
+        except ValueError:
+            logger.warning("Could not parse subscription datetime string")
+            return None
+
+    logger.warning(
+        "Unsupported subscription datetime type: %s",
+        type(value).__name__,
+    )
     return None
 
 
-def is_trial_active(user: User) -> bool:
-    """Check if user's trial is still active"""
-    trial_end = getattr(user, "trial_end_date", None)
-    
-    if trial_end is None:
-        return False
-    
-    trial_end_dt = parse_firestore_datetime(trial_end)
-    if trial_end_dt is None:
-        return False
-    
-    now = datetime.now(timezone.utc)
-    is_active = trial_end_dt > now
-    
-    if is_active:
-        days_left = (trial_end_dt - now).days
-        logger.info(f"User {user.id} trial ACTIVE - {days_left} days remaining")
-    else:
-        days_expired = (now - trial_end_dt).days
-        logger.info(f"User {user.id} trial EXPIRED - {days_expired} days ago")
-    
-    return is_active
+def _subscription_state(user: Any) -> str:
+    """Return a normalized subscription state."""
+    value = getattr(user, "subscription_status", None) or "inactive"
+    return str(value).strip().lower().replace("-", "_").replace(" ", "_")
 
 
-def get_subscription_status(user: User) -> dict:
-    """
-    Detailed check of subscription status including Grace Period logic.
-    Returns: {"is_active": bool, "in_grace_period": bool, "days_left_in_grace": int}
-    """
-    subscription_end = getattr(user, "subscription_end", None)
-    if subscription_end is None:
-        return {"is_active": False, "in_grace_period": False, "days_left_in_grace": 0}
-
-    sub_end_dt = parse_firestore_datetime(subscription_end)
-    if sub_end_dt is None:
-        return {"is_active": False, "in_grace_period": False, "days_left_in_grace": 0}
-
-    now = datetime.now(timezone.utc)
-    
-    # 1. Standard Active Check (adding 24h buffer for timezone safety)
-    if (sub_end_dt + timedelta(hours=24)) > now:
-        return {"is_active": True, "in_grace_period": False, "days_left_in_grace": 0}
-
-    # 2. Grace Period Check
-    grace_end_dt = sub_end_dt + timedelta(days=SUBSCRIPTION_GRACE_DAYS)
-    if grace_end_dt > now:
-        days_left = (grace_end_dt - now).days
-        return {"is_active": True, "in_grace_period": True, "days_left_in_grace": days_left}
-
-    return {"is_active": False, "in_grace_period": False, "days_left_in_grace": 0}
+def _has_voluntary_cancellation(user: Any, state: str) -> bool:
+    """Determine whether renewal has been voluntarily stopped."""
+    return (
+        state in VOLUNTARY_CANCELLATION_STATES
+        or bool(getattr(user, "cancel_at_period_end", False))
+    )
 
 
-
-def has_active_subscription(user: User) -> bool:
-    """
-    Check if user has an active paid subscription or is within the 7-day grace period.
-    """
-    sub_status = get_subscription_status(user)
-    
-    # log the specific status for debugging
-    if sub_status["in_grace_period"]:
-        logger.info(f"⚠️ User {user.id} in GRACE PERIOD: {sub_status['days_left_in_grace']} days remaining.")
-    
-    return sub_status["is_active"]
-
-def can_access_silver_features(user: User) -> bool:
-    """
-    Comprehensive access check for Silver-tier features.
-    Hierarchy: Presell > Paid Subscription (inc. Grace) > Active Trial > Manual Override
-    """
-    now = datetime.now(timezone.utc)
-
-    # Priority 1: Check Presell Status
-    if user.plan == "presell":
-        presell_end = parse_firestore_datetime(getattr(user, "presell_end_date", None))
-        if presell_end and presell_end > now:
-            return True
-
-    # Priority 2: Check Paid Subscription (Using the updated logic that includes grace period)
-    if has_active_subscription(user):
-        return True
-    
-    # Priority 3: Check for 14-day trial window
-    if is_trial_active(user):
-        return True
-    
-    # Priority 4: Check manual overrides
-    plan = (user.plan or "free").lower()
-    if plan in ["silver", "gold", "opal"] and getattr(user, "subscription_id", None):
-        return True
-    
+def is_trial_active(_user: Any) -> bool:
+    """Compatibility function: trials never grant paid access."""
     return False
 
 
-async def require_silver(user: Optional[User] = Depends(get_current_user)) -> User:
+def get_subscription_status(user: Any) -> dict:
     """
-    Ensures access only for Silver/Gold/Opal subscribers or active trial.
-    Raises 403 error with upgrade message if access denied.
+    Evaluate subscription access using the paid-through date.
+
+    Voluntary cancellation preserves access until the paid period ends.
+    Failed renewals may receive seven days of grace.
+    Trials and expired subscriptions do not grant access.
     """
-    # 1️⃣ Check authentication
+    raw_end = getattr(user, "subscription_end", None)
+
+    if raw_end is None:
+        raw_end = getattr(user, "next_billing_date", None)
+
+    end = parse_firestore_datetime(raw_end)
+    state = _subscription_state(user)
+    now = datetime.now(timezone.utc)
+
+    result = {
+        "is_active": False,
+        "in_grace_period": False,
+        "days_left_in_grace": 0,
+        "end": end,
+    }
+
+    if end is None:
+        return result
+
+    # A paid period remains valid even if renewal has been cancelled,
+    # disabled, or marked expired prematurely by a provider event.
+    # Explicit revocation, refund, chargeback, or suspension overrides this.
+    if state in {"revoked", "refunded", "chargeback", "suspended"}:
+        return result
+
+    if end > now:
+        result["is_active"] = True
+        return result
+
+    # Cancellation never receives renewal-failure grace.
+    if _has_voluntary_cancellation(user, state):
+        return result
+
+    # Grace applies only when a renewal problem has actually been recorded.
+    if state not in RENEWAL_PROBLEM_STATES:
+        return result
+
+    grace_end = end + timedelta(days=SUBSCRIPTION_GRACE_DAYS)
+
+    if grace_end > now:
+        result["is_active"] = True
+        result["in_grace_period"] = True
+        result["days_left_in_grace"] = max(
+            0,
+            (grace_end - now).days,
+        )
+
+    return result
+
+
+def has_active_subscription(user: Any) -> bool:
+    """Return whether the user's paid plan currently grants access."""
+    plan = str(getattr(user, "plan", None) or "free").strip().lower()
+
+    if plan not in PAID_PLANS:
+        return False
+
+    return get_subscription_status(user)["is_active"]
+
+
+def can_access_silver_features(user: Any) -> bool:
+    """
+    Check the server-side entitlement.
+
+    manual_silver_override must be server-managed and must never be writable
+    through registration, profile updates, or other public user endpoints.
+    """
+    if getattr(user, "manual_silver_override", False):
+        return True
+
+    return has_active_subscription(user)
+
+
+def _build_user(data: dict, user_id: Optional[str] = None) -> User:
+    """Build a User model while retaining operational subscription fields."""
+    payload = dict(data)
+
+    # Firestore documents do not necessarily contain their own document ID.
+    if not payload.get("_id") and user_id:
+        payload["_id"] = user_id
+
+    current = User(**payload)
+
+    # Keep operational fields available for entitlement checks, including
+    # fields not yet declared in the User model.
+    for field in (
+        "subscription_end",
+        "subscription_status",
+        "next_billing_date",
+        "cancel_at_period_end",
+        "manual_silver_override",
+    ):
+        if field not in data:
+            continue
+
+        try:
+            setattr(current, field, data[field])
+        except (AttributeError, TypeError, ValueError):
+            # Evaluate the raw Firestore fields separately if the model
+            # does not permit assignment of undeclared attributes.
+            pass
+
+    return current
+
+
+def _entitlement_view(user: User, data: dict) -> Any:
+    """
+    Provide entitlement checks with the raw operational fields.
+
+    This avoids losing subscription status fields when the Pydantic model
+    ignores fields that have not yet been added to User.
+    """
+    from types import SimpleNamespace
+
+    values = dict(data)
+    values.setdefault("id", getattr(user, "id", None))
+
+    # Use validated model values for the plan, but preserve raw operational
+    # values from Firestore for subscription and cancellation decisions.
+    values["plan"] = getattr(user, "plan", None) or "free"
+
+    return SimpleNamespace(**values)
+
+
+async def require_silver(
+    user: Optional[User] = Depends(get_current_user),
+) -> User:
+    """FastAPI dependency for routes that require paid entitlement."""
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -154,98 +276,66 @@ async def require_silver(user: Optional[User] = Depends(get_current_user)) -> Us
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 2️⃣ Fetch fresh user data from Firestore
-    user_ref = db.collection("users").document(user.id)
-    user_doc = user_ref.get()
-    
-    if not user_doc.exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+    snapshot = db.collection("users").document(user.id).get()
 
-    # 3️⃣ Create User object with fresh data
-    user_data = user_doc.to_dict()
-    
-    # Add subscription_end to User model if not present
-    if "subscription_end" in user_data and not hasattr(User, "subscription_end"):
-        user_data_with_sub = {**user_data}
-    else:
-        user_data_with_sub = user_data
-    
-    current_user = User(**user_data_with_sub)
-    
-    # Manually add subscription_end if it exists
-    if "subscription_end" in user_data:
-        setattr(current_user, "subscription_end", user_data["subscription_end"])
+    if not snapshot.exists:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # 4️⃣ Check access with detailed logging
-    logger.info(f"🔍 Checking Silver access for user {current_user.id}")
-    logger.info(f"   Plan: {current_user.plan}")
-    logger.info(f"   Subscription ID: {current_user.subscription_id}")
-    logger.info(f"   Subscription End: {getattr(current_user, 'subscription_end', 'N/A')}")
-    logger.info(f"   Trial End: {current_user.trial_end_date}")
-    
-    has_access = can_access_silver_features(current_user)
-    
-    if has_access:
-        logger.info(f"✅ User {current_user.id} granted Silver access")
-        return current_user
+    data = snapshot.to_dict() or {}
+    current = _build_user(data, user_id=user.id)
+    entitlement_user = _entitlement_view(current, data)
 
-    # 5️⃣ Access denied - raise 403 with upgrade message
-    logger.warning(f"❌ User {current_user.id} denied Silver access")
-    
+    if can_access_silver_features(entitlement_user):
+        return current
+
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail={
             "error": "subscription_required",
-            "message": "Your exclusive access has ended. Upgrade to Payla Silver to continue using this feature.",
+            "message": "Payla Silver is required to use this feature.",
             "upgrade_to": "silver",
-            "cta": "Upgrade now to unlock premium features",
+            "cta": "Upgrade to Payla Silver",
             "upgrade_url": "/subscription",
-            "trial_expired": not is_trial_active(current_user),
-            "subscription_expired": not has_active_subscription(current_user),
-            "current_plan": current_user.plan
-        }
+            "current_plan": getattr(current, "plan", "free") or "free",
+        },
     )
 
 
-async def check_subscription_optional(user: Optional[User] = Depends(get_current_user)) -> dict:
-    """
-    Optional subscription check - returns status without blocking access
-    Useful for showing upgrade prompts without denying access
-    """
+async def check_subscription_optional(
+    user: Optional[User] = Depends(get_current_user),
+) -> dict:
+    """Return entitlement information without blocking a page."""
     if user is None:
-        return {"has_access": False, "reason": "not_authenticated"}
-    
-    user_ref = db.collection("users").document(user.id)
-    user_doc = user_ref.get()
-    
-    if not user_doc.exists:
-        return {"has_access": False, "reason": "user_not_found"}
-    
-    user_data = user_doc.to_dict()
-    current_user = User(**user_data)
-    
-    # Add subscription_end if present
-    if "subscription_end" in user_data:
-        setattr(current_user, "subscription_end", user_data["subscription_end"])
-    
-    has_access = can_access_silver_features(current_user)
-    
-    if has_access:
         return {
-            "has_access": True,
-            "plan": current_user.plan,
-            "trial_active": is_trial_active(current_user),
-            "subscription_active": has_active_subscription(current_user)
+            "has_access": False,
+            "reason": "not_authenticated",
+            "trial_active": False,
         }
-    
+
+    snapshot = db.collection("users").document(user.id).get()
+
+    if not snapshot.exists:
+        return {
+            "has_access": False,
+            "reason": "user_not_found",
+            "trial_active": False,
+        }
+
+    data = snapshot.to_dict() or {}
+    current = _build_user(data, user_id=user.id)
+    entitlement_user = _entitlement_view(current, data)
+
+    subscription_state = get_subscription_status(entitlement_user)
+    subscription_active = has_active_subscription(entitlement_user)
+    access = can_access_silver_features(entitlement_user)
+
     return {
-        "has_access": False,
-        "reason": "no_active_subscription",
-        "plan": current_user.plan,
-        "should_upgrade": True,
-        "trial_expired": not is_trial_active(current_user),
-        "subscription_expired": not has_active_subscription(current_user)
+        "has_access": access,
+        "reason": None if access else "no_active_subscription",
+        "plan": getattr(current, "plan", "free") or "free",
+        "trial_active": False,
+        "subscription_active": subscription_active,
+        "in_grace_period": subscription_state["in_grace_period"],
+        "days_left_in_grace": subscription_state["days_left_in_grace"],
+        "should_upgrade": not access,
     }

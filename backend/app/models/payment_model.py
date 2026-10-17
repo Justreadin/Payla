@@ -1,39 +1,46 @@
-# models/payment.py
+
+from datetime import datetime, timezone
+from typing import Optional, Literal, Dict, Any
+
 from pydantic import BaseModel, Field
-from typing import Optional, Literal
-from datetime import datetime
 
 
 class Payment(BaseModel):
-    """One payment (invoice or personal link)."""
+    """Recorded payment for an invoice or public Paylink."""
+
     id: str = Field(..., alias="_id")
     user_id: str
+    invoice_id: Optional[str] = None
+    paylink_id: Optional[str] = None
 
-    # Link to source
-    invoice_id: Optional[str] = None   # if from an invoice
-    paylink_id: Optional[str] = None   # if from @username link
-
+    # Paystack transaction reference
     paystack_reference: str
+
+    # Gross amount charged to the customer
     amount: float
+
+    # Amount allocated to the merchant after applicable fees
+    user_share: Optional[float] = None
+
     currency: Literal["NGN", "USD", "GBP", "EUR"] = "NGN"
-
     status: Literal["pending", "success", "failed", "refunded"] = "pending"
-    channel: Optional[str] = None      # card, bank, ussd, mobile_money
 
-    # Client info (only phone for reminders)
+    channel: Optional[str] = None
     client_phone: Optional[str] = None
-
-    # Who pays Paystack fee
     fee_payer: Literal["client", "receiver"] = "client"
 
-    # Timestamps
     paid_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
-    # Raw Paystack webhook (debug)
-    raw_event: Optional[dict] = None
+    raw_event: Optional[Dict[str, Any]] = None
 
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True,
+        "extra": "ignore",
+    }

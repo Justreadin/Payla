@@ -1,24 +1,32 @@
 // Payla Dashboard - Core Luxury Fintech Experience
 // Core dashboard functionality: invoices, stats, auth, and basic data management
 import { API_BASE } from './config.js';
-import { authFetch, showUpgradeToast, showUpgradeModal } from './upgrade-handler.js';
+import { authFetch, showUpgradeRequired } from './upgrade-handler.js';
+import {
+  trackDashboardPageView,
+  trackDashboardSession,
+  trackDashboardHeartbeat,
+  trackDashboardEngagement
+} from "./dashboard_analytics.js";
+
 class PaylaDashboard {
     constructor() {
         if (window.paylaInstance) {
-            console.warn('⚠️ Prevented double instantiation of Dashboard');
+            console.warn('Prevented double instantiation of Dashboard');
             return window.paylaInstance;
         }
         window.paylaInstance = this;
         this.API_BASE = API_BASE;
         this.refreshInterval = null;
         this.isRefreshing = false;
-        this.isSubmitting = false;
         this.init();
     }
 
     init() {
-        if (this.initialized) return; 
+        if (this.initialized) return;
         this.initialized = true;
+        this.trackRetention();
+
         // Core DOM Elements
         this.avatarBtn = document.getElementById('avatar-btn');
         this.dropdown = document.getElementById('dropdown');
@@ -26,10 +34,6 @@ class PaylaDashboard {
         this.invoiceCards = document.getElementById('invoiceCards');
         this.viewMoreBtn = document.getElementById('viewMoreBtn');
         this.viewMoreSection = document.getElementById('viewMoreSection');
-        this.fab = document.getElementById('fab');
-        this.quickInvoiceModal = document.getElementById('quick-invoice-modal');
-        this.modalClose = document.getElementById('modal-close');
-        this.quickInvoiceForm = document.getElementById('quick-invoice-form');
         this.allInvoicesModal = document.getElementById('all-invoices-modal');
         this.allInvoicesClose = document.getElementById('all-invoices-close');
         this.invoicesGrid = document.getElementById('invoicesGrid');
@@ -38,43 +42,86 @@ class PaylaDashboard {
         this.invoiceDetailContent = document.getElementById('invoiceDetailContent');
         this.toast = document.getElementById('toast');
         this.toastMessage = document.getElementById('toast-message');
-
+        this.subscriptionBanner = document.getElementById('subscriptionBanner');
         // Core State
         this.activeFilter = null;
         this.dropdownOpen = false;
         this.maxVisibleCards = 4;
         this.allInvoices = [];
         this.dashboardData = null;
+        this.entitlement = { has_silver: false, plan: 'free' };
 
         // Core Event Listeners
         this.setupCoreEventListeners();
         this.initDashboard();
-        
-        // Start auto-refresh every 30 seconds
+
         this.startAutoRefresh(30000);
+    }
+
+    trackRetention() {
+        if (!this.pageViewTracked) {
+            trackDashboardPageView();
+            this.pageViewTracked = true;
+        }
+
+        this.sessionId = generateSessionId();
+        this.sessionStartTime = Date.now();
+        trackDashboardSession();
+
+        this.startHeartbeat();
+        this.setupEngagementTracking();
+    }
+
+    setupEngagementTracking() {
+        window.addEventListener('beforeunload', () => {
+            if (this.sessionStartTime) {
+                const duration = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+                trackDashboardEngagement(duration);
+            }
+            if (this.heartbeatInterval) {
+                clearInterval(this.heartbeatInterval);
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (this.heartbeatInterval) {
+                    clearInterval(this.heartbeatInterval);
+                    this.heartbeatInterval = null;
+                }
+            } else {
+                if (!this.heartbeatInterval && this.sessionId) {
+                    this.startHeartbeat();
+                }
+            }
+        });
+    }
+
+    startHeartbeat() {
+        let activeTime = 0;
+        this.heartbeatInterval = setInterval(() => {
+            activeTime += 30;
+            trackDashboardHeartbeat(this.sessionId, activeTime);
+        }, 30000);
     }
 
     startAutoRefresh(ms) {
         if (this.refreshInterval) clearInterval(this.refreshInterval);
         this.refreshInterval = setInterval(() => {
             this.refreshDashboard();
-        }, ms)   
+        }, ms);
     }
 
     async refreshDashboard() {
         if (this.isRefreshing) return;
-        
         try {
             this.isRefreshing = true;
-            // Fetch fresh data
             await this.loadDashboardData();
-            
-            // Re-render UI components with new data
             this.updateStats();
             this.renderInvoiceCards();
             this.updateFilterCounts();
-            
-            console.log('🔄 Dashboard auto-refreshed at:', new Date().toLocaleTimeString());
+            this.updateSubscriptionLink();
+            this.renderSubscriptionBanner();
         } catch (error) {
             console.error('Auto-refresh failed:', error);
         } finally {
@@ -82,63 +129,59 @@ class PaylaDashboard {
         }
     }
 
-    // Optional: Stop refreshing when the user leaves the tab to save resources
     setupResponsiveBehavior() {
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 clearInterval(this.refreshInterval);
             } else {
                 this.startAutoRefresh(30000);
-                this.refreshDashboard(); // Refresh immediately when coming back
+                this.refreshDashboard();
             }
         });
+
+        window.addEventListener('resize', () => {
+            this.adjustLayoutForMobile();
+        });
+
+        this.adjustLayoutForMobile();
     }
 
     async checkAccess() {
-        const res = await authFetch(`${BACKEND_URL}/api/onboarding/me`);
+        const res = await authFetch(`${this.API_BASE}/api/onboarding/me`);
         if (!res) return;
 
         const user = await res.json();
 
-        // 1. If onboarding isn't even done, send them back to onboarding
         if (!user.onboarding_complete) {
             window.location.href = '/onboarding';
             return;
         }
 
-        // 2. Logic to check if trial/subscription is expired
         const now = new Date();
-        const trialEnd = user.trial_end_date ? new Date(user.trial_end_date) : null;
         const subEnd = user.subscription_end ? new Date(user.subscription_end) : null;
         const presellEnd = user.presell_end_date ? new Date(user.presell_end_date) : null;
 
-        // Is there any active access?
-        const hasAccess = 
-            (presellEnd && presellEnd > now) || 
-            (user.subscription_id && subEnd > now) || 
-            (trialEnd && trialEnd > now);
+        const hasAccess =
+            (presellEnd && presellEnd > now) ||
+            (user.subscription_id && subEnd > now);
 
         if (!hasAccess) {
-            // Redirect to billing with a 'reason' parameter
             window.location.href = '/subscription?reason=expired';
         }
     }
 
     setupCoreEventListeners() {
-        // Avatar dropdown
         this.avatarBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggleDropdown();
         });
 
-        // Close dropdown when clicking outside
         document.addEventListener('click', () => {
             if (this.dropdownOpen) {
                 this.closeDropdown();
             }
         });
 
-        // Filter buttons
         this.filterBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const filter = btn.getAttribute('data-filter');
@@ -146,19 +189,8 @@ class PaylaDashboard {
             });
         });
 
-        // View More button
         this.viewMoreBtn.addEventListener('click', () => {
             this.openAllInvoicesModal();
-        });
-
-        // FAB - Quick Invoice
-        this.fab.addEventListener('click', () => {
-            this.openQuickInvoice();
-        });
-
-        // Modal close buttons
-        this.modalClose.addEventListener('click', () => {
-            this.closeQuickInvoice();
         });
 
         this.allInvoicesClose.addEventListener('click', () => {
@@ -169,21 +201,50 @@ class PaylaDashboard {
             this.closeInvoiceDetailModal();
         });
 
-        // Quick invoice form
-        this.quickInvoiceForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.submitQuickInvoice();
-        });
-
-        // Close modals when clicking outside
         this.setupModalCloseListeners();
-
-        // Card actions delegation
         this.setupCardActions();
+        this.setupDetailActions();
+        this.setupSilverGate();
+    }
+
+    /**
+     * Soft gate for the "New Invoice" link in the section header.
+     * The link is an <a href="/invoice">, so we intercept the click,
+     * check entitlement, and either let it through or show the modal.
+     */
+    setupSilverGate() {
+        document.addEventListener('click', (event) => {
+            const link = event.target.closest('.section-action');
+            if (!link) return;
+
+            if (this.entitlement?.has_silver) return;
+
+            event.preventDefault();
+            showUpgradeRequired({
+                feature: 'invoices',
+                source: 'soft_gate',
+                silverHistory: this.entitlement?.silver_history
+            });
+        });
+    }
+
+    /**
+     * Wrap a Silver-only action. Runs the action if entitled,
+     * shows the upgrade modal if not. All Silver actions route
+     * through this so the pattern stays consistent.
+     */
+    requireSilver(feature, actionFn) {
+        if (this.entitlement?.has_silver) {
+            return actionFn();
+        }
+        showUpgradeRequired({
+            feature,
+            source: 'soft_gate',
+            silverHistory: this.entitlement?.silver_history
+        });
     }
 
     setupModalCloseListeners() {
-        // Close modals when clicking on overlay
         document.querySelectorAll('.modal-overlay').forEach(overlay => {
             overlay.addEventListener('click', (e) => {
                 if (e.target === overlay) {
@@ -193,10 +254,8 @@ class PaylaDashboard {
             });
         });
 
-        // Close modals with Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                this.closeQuickInvoice();
                 this.closeAllInvoicesModal();
                 this.closeInvoiceDetailModal();
             }
@@ -225,11 +284,30 @@ class PaylaDashboard {
                 case 'Remind':
                     this.remindClient(card);
                     break;
-                case 'Resend':
-                    this.resendInvoice(card);
-                    break;
                 case 'Delete Invoice':
                     await this.deleteInvoice(card, invoiceId);
+                    break;
+            }
+        });
+    }
+
+    setupDetailActions() {
+        this.invoiceDetailContent.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            const invoiceId = btn.getAttribute('data-invoice-id');
+            const action = btn.getAttribute('data-action');
+
+            switch (action) {
+                case 'edit':
+                    this.editInvoice(invoiceId);
+                    break;
+                case 'copy':
+                    this.copyInvoiceLink(invoiceId);
+                    break;
+                case 'download':
+                    this.downloadInvoice(invoiceId);
                     break;
             }
         });
@@ -249,11 +327,8 @@ class PaylaDashboard {
 
             if (!response.ok) throw new Error(`Failed to delete invoice: ${response.status}`);
 
-            // Remove card from DOM
             card.remove();
-            this.showToast('Invoice deleted successfully ♡');
-
-            // Update local state
+            this.showToast('Invoice deleted successfully');
             this.allInvoices = this.allInvoices.filter(inv => inv.id !== invoiceId);
             this.updateFilterCounts();
         } catch (error) {
@@ -262,13 +337,14 @@ class PaylaDashboard {
         }
     }
 
-
     async initDashboard() {
         try {
             await this.loadDashboardData();
             this.renderInvoiceCards();
             this.updateStats();
             this.updateFilterCounts();
+            this.updateSubscriptionLink();
+            this.renderSubscriptionBanner();
             this.setupResponsiveBehavior();
         } catch (error) {
             console.error('Failed to initialize dashboard:', error);
@@ -298,17 +374,16 @@ class PaylaDashboard {
 
             this.dashboardData = await response.json();
 
-            console.log('📊 Dashboard Data Loaded:', this.dashboardData);
-            console.log('📈 Stats:', this.dashboardData.stats);
-            console.log('📋 Invoices:', this.dashboardData.invoices.length);
+            // Entitlement flag drives every soft gate on the page.
+            this.entitlement = this.dashboardData.entitlement || {
+                has_silver: false,
+                plan: 'free'
+            };
 
-            // Map invoices with proper ID handling
             this.allInvoices = this.dashboardData.invoices.map(inv => {
                 let cleanId = inv._id || inv.id;
                 let rawLink = inv.link || inv.invoice_url || `/i/${cleanId}`;
-                
-                // FIX: If the link is doubled (e.g., https://payla.nghttps://payla.ng...)
-                // we split it and take the last valid occurrence.
+
                 if (rawLink.includes('https://payla.nghttps://payla.ng')) {
                     rawLink = rawLink.replace('https://payla.nghttps://payla.ng', 'https://payla.ng');
                 }
@@ -319,31 +394,162 @@ class PaylaDashboard {
                     link: rawLink
                 };
             });
-
-            // Debug: Log invoice statuses
-            const statusBreakdown = this.allInvoices.reduce((acc, inv) => {
-                acc[inv.status] = (acc[inv.status] || 0) + 1;
-                return acc;
-            }, {});
-            
-            console.log('📊 Invoice Status Breakdown:', statusBreakdown);
-
-            // Debug: Log overdue invoices
-            const overdueInvoices = this.allInvoices.filter(inv => inv.status === 'overdue');
-            console.log('⏰ Overdue Invoices:', overdueInvoices.length, overdueInvoices);
-
         } catch (error) {
             if (error.message === 'Upgrade Required') {
-                // Already handled by authFetch - user saw modal
                 return;
             }
             console.error('Error loading dashboard data:', error);
             throw error;
         }
     }
+
     getAuthToken() {
-        // This should be implemented based on your auth system
         return localStorage.getItem('idToken') || '';
+    }
+
+    updateSubscriptionLink() {
+        const label = document.getElementById('subscription-label');
+        if (!label) return;
+
+        const hasSilver = this.entitlement?.has_silver;
+        label.textContent = hasSilver ? 'Subscription' : 'Upgrade to Silver';
+    }
+
+        /**
+     * Render the renewal banner. States mirror the backend's
+     * `silver_history` values. Only lapsed, in-grace, and cancelled
+     * states produce a banner; active and never-subscribed stay silent.
+     */
+    renderSubscriptionBanner() {
+        const banner = this.subscriptionBanner;
+        if (!banner) return;
+
+        const entitlement = this.entitlement || {};
+        const history = entitlement.silver_history || 'never';
+
+        // Non-banner states.
+        if (history === 'active' || history === 'never') {
+            banner.hidden = true;
+            banner.innerHTML = '';
+            return;
+        }
+
+        // Dismissal is per-session for non-urgent states.
+        if (history !== 'in_grace') {
+            const dismissed = sessionStorage.getItem(
+                `payla_banner_dismissed_${history}`
+            );
+            if (dismissed === '1') {
+                banner.hidden = true;
+                return;
+            }
+        }
+
+        const copy = this.bannerCopyFor(history, entitlement);
+        if (!copy) {
+            banner.hidden = true;
+            return;
+        }
+
+        banner.className = `subscription-banner subscription-banner--${copy.tone}`;
+        banner.hidden = false;
+        banner.innerHTML = `
+            <div class="subscription-banner__icon">
+                <i class="fas ${copy.icon}" aria-hidden="true"></i>
+            </div>
+            <div class="subscription-banner__body">
+                <p class="subscription-banner__title">${copy.title}</p>
+                <p class="subscription-banner__message">${copy.message}</p>
+            </div>
+            <div class="subscription-banner__actions">
+                <a href="/subscription" class="subscription-banner__cta">
+                    ${copy.cta}
+                </a>
+                ${history !== 'in_grace' ? `
+                <button type="button"
+                        class="subscription-banner__dismiss"
+                        data-banner-dismiss="${history}"
+                        aria-label="Dismiss">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>` : ''}
+            </div>
+        `;
+
+        // Wire dismissal.
+        const dismissBtn = banner.querySelector('[data-banner-dismiss]');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', () => {
+                sessionStorage.setItem(
+                    `payla_banner_dismissed_${history}`,
+                    '1'
+                );
+                banner.hidden = true;
+            });
+        }
+    }
+
+    bannerCopyFor(history, entitlement) {
+        const endDate = this.formatBannerDate(entitlement.subscription_end);
+
+        if (history === 'in_grace') {
+            const days = Number(entitlement.days_left_in_grace || 0);
+            return {
+                tone: 'urgent',
+                icon: 'fa-triangle-exclamation',
+                title: 'Your Silver renewal needs attention',
+                message: days > 0
+                    ? `Access continues for ${days} more ${days === 1 ? 'day' : 'days'}. Update billing to keep your Silver features.`
+                    : 'Update billing to keep your Silver features.',
+                cta: 'Update billing'
+            };
+        }
+
+        if (history === 'cancelled') {
+            return {
+                tone: 'info',
+                icon: 'fa-circle-info',
+                title: 'Your Silver renewals are off',
+                message: endDate
+                    ? `Silver continues until ${endDate}. Renew to keep access.`
+                    : 'Silver continues through the paid period.',
+                cta: 'Review Silver'
+            };
+        }
+
+        if (history === 'expired') {
+            return {
+                tone: 'neutral',
+                icon: 'fa-clock-rotate-left',
+                title: 'Your Silver subscription has ended',
+                message: endDate
+                    ? `Silver ended ${endDate}. Renew to bring back invoices, receipts, reminders, and analytics.`
+                    : 'Renew to bring back invoices, receipts, reminders, and analytics.',
+                cta: 'Renew Silver'
+            };
+        }
+
+        return null;
+    }
+
+    formatBannerDate(value) {
+        if (!value) return null;
+
+        let date;
+        if (typeof value === 'number') {
+            date = new Date(value * 1000);
+        } else if (typeof value === 'object' && value.seconds) {
+            date = new Date(value.seconds * 1000);
+        } else {
+            date = new Date(value);
+        }
+
+        if (Number.isNaN(date.getTime())) return null;
+
+        return date.toLocaleDateString('en-NG', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
     }
 
     updateStats() {
@@ -351,49 +557,96 @@ class PaylaDashboard {
 
         const stats = this.dashboardData.stats;
 
-        // Update Total Earned with "First Payment Pending" message
+        // Collected
         const totalEarnedEl = document.getElementById('total-earned');
         if (stats.has_earnings) {
             totalEarnedEl.textContent = `₦${stats.total_earned?.toLocaleString() || '0'}`;
-            totalEarnedEl.style.fontSize = ''; // Reset font size
+            totalEarnedEl.style.fontSize = '';
         } else {
             totalEarnedEl.textContent = 'First Payment Pending';
-            totalEarnedEl.style.fontSize = '1.1rem'; // Smaller font for longer text
+            totalEarnedEl.style.fontSize = '1.1rem';
         }
 
-        // Update Pending Amount
-        document.getElementById('pending-amount').textContent = `₦${stats.pending_amount?.toLocaleString() || '0'}`;
-        
-        // Update Total Invoices
-        document.getElementById('total-invoices').textContent = stats.total_invoices || '0';
-        
-        // Update Overdue Count with Amount and Count
+        // Breakdown sub-line — All time prefix
+        const breakdownEl = document.getElementById('collected-breakdown');
+        if (breakdownEl) {
+            const invoiceRev = Number(stats.invoice_revenue || 0);
+            const paylinkRev = Number(stats.paylink_revenue || 0);
+
+            if (invoiceRev > 0 || paylinkRev > 0) {
+                const fmt = (n) => `₦${n.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
+                breakdownEl.textContent =
+                    `All time · ${fmt(invoiceRev)} invoices · ${fmt(paylinkRev)} link`;
+                breakdownEl.style.display = '';
+            } else {
+                breakdownEl.textContent = '';
+                breakdownEl.style.display = 'none';
+            }
+        }
+
+        // Outstanding
+        document.getElementById('pending-amount').textContent =
+            `₦${stats.pending_amount?.toLocaleString() || '0'}`;
+
         const overdueCountEl = document.getElementById('overdue-count');
         if (stats.overdue_count > 0) {
-            overdueCountEl.textContent = `₦${stats.overdue_amount?.toLocaleString() || '0'} (${stats.overdue_count}) Overdue`;
-            overdueCountEl.style.color = '#ff4757'; // Red color for overdue
+            overdueCountEl.textContent =
+                `₦${stats.overdue_amount?.toLocaleString() || '0'} (${stats.overdue_count}) Overdue`;
+            overdueCountEl.style.color = '#ff4757';
         } else {
             overdueCountEl.textContent = '0 Overdue';
-            overdueCountEl.style.color = ''; // Reset color
+            overdueCountEl.style.color = '';
         }
-        
-        // Update Growth Trend
-        document.getElementById('growth-trend').innerHTML = `<i class="fas fa-arrow-up"></i> ${stats.growth_trend || '0%'} from last month`;
+
+        // Invoices Sent
+        document.getElementById('total-invoices').textContent = stats.total_invoices || '0';
+
+        // Settlement strip
+        this.updateSettlement(stats);
+    }
+
+    updateSettlement(stats) {
+        const strip = document.getElementById('settlement-strip');
+        const textEl = document.getElementById('settlement-text');
+
+        if (!strip || !textEl) return;
+
+        if (!stats.is_subaccount_linked || !stats.has_earnings || !stats.next_settlement_estimate) {
+            strip.hidden = true;
+            return;
+        }
+
+        let formatted = stats.next_settlement_estimate;
+
+        try {
+            const d = new Date(stats.next_settlement_estimate + 'T00:00:00Z');
+            if (!Number.isNaN(d.getTime())) {
+                formatted = d.toLocaleDateString('en-NG', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    timeZone: 'UTC'
+                });
+            }
+        } catch {
+            // fall through to raw value
+        }
+
+        textEl.textContent = `Next settlement: ${formatted} · T+1, weekdays only`;
+        strip.hidden = false;
     }
 
     renderInvoiceCards() {
-        // Apply filter if active
         let displayInvoices = this.allInvoices;
-        
+
         if (this.activeFilter) {
             displayInvoices = this.allInvoices.filter(inv => inv.status === this.activeFilter);
         }
-        
+
         const visibleInvoices = displayInvoices.slice(0, this.maxVisibleCards);
         this.invoiceCards.innerHTML = '';
 
         if (visibleInvoices.length === 0) {
-            // Check if we have invoices but they're filtered out
             if (this.allInvoices.length > 0 && this.activeFilter) {
                 this.invoiceCards.innerHTML = `
                     <div class="empty-state">
@@ -420,7 +673,6 @@ class PaylaDashboard {
             this.invoiceCards.appendChild(card);
         });
 
-        // Show/hide view more button based on filtered invoices
         if (displayInvoices.length > this.maxVisibleCards) {
             this.viewMoreSection.classList.remove('hidden');
         } else {
@@ -484,16 +736,6 @@ class PaylaDashboard {
         return formatter.format(amount || 0);
     }
 
-    getClientInitials(clientName) {
-        if (!clientName) return 'NC';
-        return clientName
-            .split(' ')
-            .map(word => word.charAt(0))
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
-    }
-
     getCardActions(status, invoiceId) {
         const deleteButton = `
             <button class="action-btn delete" title="Delete Invoice" data-id="${invoiceId}">
@@ -535,11 +777,7 @@ class PaylaDashboard {
                 </button>
                 ${deleteButton}
             `,
-
             failed: `
-                <button class="action-btn" title="Resend" data-id="${invoiceId}">
-                    <i class="fas fa-redo"></i>
-                </button>
                 <button class="action-btn" title="View Invoice" data-id="${invoiceId}">
                     <i class="fas fa-eye"></i>
                 </button>
@@ -561,23 +799,16 @@ class PaylaDashboard {
             failed: this.allInvoices.filter(inv => inv.status === 'failed').length
         };
 
-        console.log('Filter counts:', counts); // Debug log
-
         this.filterBtns.forEach(btn => {
             const filter = btn.getAttribute('data-filter');
             const countElement = btn.querySelector('.filter-count');
             if (countElement) {
                 countElement.textContent = counts[filter] || '0';
-                
-                // Highlight filters with items
-                if (counts[filter] > 0) {
-                    countElement.style.opacity = '1';
-                } else {
-                    countElement.style.opacity = '0.5';
-                }
+                countElement.style.opacity = counts[filter] > 0 ? '1' : '0.5';
             }
         });
-}
+    }
+
     toggleDropdown() {
         if (this.dropdownOpen) {
             this.closeDropdown();
@@ -601,82 +832,37 @@ class PaylaDashboard {
     toggleFilter(filter, button) {
         const span = button.querySelector('span:first-child');
         const isActive = button.classList.contains('active');
-        
+
         if (isActive) {
-            // Deactivate filter
             button.classList.remove('active');
             span.textContent = `Show ${this.capitalizeFirst(filter)}`;
             this.activeFilter = null;
         } else {
-            // Deactivate all other filters
             this.filterBtns.forEach(btn => {
                 btn.classList.remove('active');
                 const btnSpan = btn.querySelector('span:first-child');
                 const btnFilter = btn.getAttribute('data-filter');
                 btnSpan.textContent = `Show ${this.capitalizeFirst(btnFilter)}`;
             });
-            
-            // Activate this filter
+
             button.classList.add('active');
             span.textContent = `Hide ${this.capitalizeFirst(filter)}`;
             this.activeFilter = filter;
         }
 
-        // Re-render cards with filter
         this.renderInvoiceCards();
 
-        // Animation
         button.style.transform = 'scale(0.95)';
         setTimeout(() => {
             button.style.transform = 'scale(1)';
         }, 150);
-    }
-    filterCards(status) {
-        const allCards = document.querySelectorAll('.invoice-card');
-        
-        allCards.forEach(card => {
-            const cardStatus = card.getAttribute('data-status');
-            
-            if (cardStatus === status) {
-                card.style.display = 'block';
-                card.style.animation = 'cardAppear 0.5s ease-out';
-            } else {
-                card.style.animation = 'fadeOut 0.3s ease-out';
-                setTimeout(() => {
-                    card.style.display = 'none';
-                }, 300);
-            }
-        });
-
-        // Update view more section visibility
-        const visibleCards = Array.from(allCards).filter(card => card.style.display !== 'none');
-        if (visibleCards.length > 0) {
-            this.viewMoreSection.classList.remove('hidden');
-        } else {
-            this.viewMoreSection.classList.add('hidden');
-        }
-    }
-
-    showAllCards() {
-        const allCards = document.querySelectorAll('.invoice-card');
-        
-        allCards.forEach(card => {
-            card.style.display = 'block';
-            card.style.animation = 'cardAppear 0.5s ease-out';
-        });
-
-        if (this.allInvoices.length > this.maxVisibleCards) {
-            this.viewMoreSection.classList.remove('hidden');
-        } else {
-            this.viewMoreSection.classList.add('hidden');
-        }
     }
 
     openAllInvoicesModal() {
         this.renderAllInvoicesGrid();
         this.allInvoicesModal.classList.add('open');
         document.body.style.overflow = 'hidden';
-        
+
         this.viewMoreBtn.style.transform = 'scale(0.95)';
         setTimeout(() => {
             this.viewMoreBtn.style.transform = 'scale(1)';
@@ -735,6 +921,7 @@ class PaylaDashboard {
         };
 
         const config = statusConfig[invoice.status] || statusConfig.pending;
+
         const dueDate = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',
@@ -747,15 +934,35 @@ class PaylaDashboard {
             day: 'numeric'
         }) : 'Unknown';
 
+        const paidAt = invoice.paid_date ? new Date(invoice.paid_date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        }) : null;
+
+        const invoiceNumber = `INV-${String(invoice.id || '').replace(/^inv_/, '').toUpperCase()}`;
+
+        const paymentRow = invoice.status === 'paid' && paidAt ? `
+            <div class="info-group info-group--payment">
+                <div class="info-label">Payment</div>
+                <div class="info-value">Paid on ${paidAt} · via Paystack</div>
+            </div>
+        ` : '';
+
+        const dueDateNote = invoice.status === 'paid' ? '' : this.getDueDateNote(invoice);
+
         this.invoiceDetailContent.innerHTML = `
             <div class="invoice-detail-header">
-                <div>
-                    <h2 class="invoice-detail-title">${invoice.description || 'No description'}</h2>
-                    <div class="invoice-detail-amount">${this.formatCurrency(invoice.amount, invoice.currency)}</div>
-                </div>
-                <div class="invoice-detail-status ${config.class}">
-                    <i class="${this.getStatusIcon(invoice.status)}"></i>
-                    ${config.label}
+                <div class="invoice-detail-id">${invoiceNumber}</div>
+                <div class="invoice-detail-header-row">
+                    <div>
+                        <h2 class="invoice-detail-title">${invoice.description || 'No description'}</h2>
+                        <div class="invoice-detail-amount">${this.formatCurrency(invoice.amount, invoice.currency)}</div>
+                    </div>
+                    <div class="invoice-detail-status ${config.class}">
+                        <i class="${this.getStatusIcon(invoice.status)}"></i>
+                        ${config.label}
+                    </div>
                 </div>
             </div>
 
@@ -764,29 +971,21 @@ class PaylaDashboard {
                     <div class="info-label">Client Information</div>
                     ${invoice.client_phone ? `<div class="info-note">Phone: ${invoice.client_phone}</div>` : ''}
                     ${invoice.client_email ? `<div class="info-note">Email: ${invoice.client_email}</div>` : ''}
+                    ${!invoice.client_phone && !invoice.client_email ? `<div class="info-note">No client contact on file</div>` : ''}
                 </div>
 
                 <div class="info-group">
                     <div class="info-label">Due Date</div>
                     <div class="info-value">${dueDate}</div>
-                    <div class="info-note">${this.getDueDateNote(invoice)}</div>
+                    ${dueDateNote ? `<div class="info-note">${dueDateNote}</div>` : ''}
                 </div>
+
+                ${paymentRow}
 
                 <div class="info-group">
                     <div class="info-label">Created Date</div>
                     <div class="info-value">${createdAt}</div>
                 </div>
-
-                ${invoice.paid_date ? `
-                <div class="info-group">
-                    <div class="info-label">Paid Date</div>
-                    <div class="info-value">${new Date(invoice.paid_date).toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                    })}</div>
-                </div>
-                ` : ''}
             </div>
 
             ${invoice.notes ? `
@@ -815,7 +1014,6 @@ class PaylaDashboard {
 
     getDueDateNote(invoice) {
         if (invoice.status === 'draft') return 'This invoice has not been sent to the client yet.';
-        if (invoice.status === 'paid') return 'Payment completed successfully.';
         if (invoice.status === 'overdue') return 'This invoice is past due. Consider sending a reminder.';
         if (invoice.status === 'failed') return 'Payment failed. You may want to resend this invoice.';
         return 'Awaiting payment from client.';
@@ -824,40 +1022,22 @@ class PaylaDashboard {
     getDetailActions(invoice) {
         if (invoice.status === 'draft') {
             return `
-                <button class="btn-primary" onclick="dashboard.editInvoice('${invoice.id}')">
+                <button class="btn-primary" data-action="edit" data-invoice-id="${invoice.id}">
                     <i class="fas fa-edit"></i>
                     Edit Draft
-                </button>
-                <button class="btn-secondary" onclick="dashboard.sendInvoice('${invoice.id}')">
-                    <i class="fas fa-paper-plane"></i>
-                    Send Now
                 </button>
             `;
         }
 
         if (invoice.status === 'paid') {
             return `
-                <button class="btn-secondary" onclick="dashboard.copyInvoiceLink('${invoice.id}')">
+                <button class="btn-secondary" data-action="copy" data-invoice-id="${invoice.id}">
                     <i class="fas fa-copy"></i>
                     Copy Link
                 </button>
-                <button class="btn-primary" onclick="dashboard.downloadInvoice('${invoice.id}')">
+                <button class="btn-primary" data-action="download" data-invoice-id="${invoice.id}">
                     <i class="fas fa-download"></i>
                     Download receipt
-                </button>
-            `;
-        }
-
-        if (invoice.status === 'overdue') {
-            return `
-            `;
-        }
-
-        if (invoice.status === 'failed') {
-            return `
-                <button class="btn-secondary" onclick="dashboard.resendInvoice('${invoice.id}')">
-                    <i class="fas fa-redo"></i>
-                    Resend Invoice
                 </button>
             `;
         }
@@ -865,224 +1045,6 @@ class PaylaDashboard {
         return '';
     }
 
-    openQuickInvoice() {
-        this.quickInvoiceModal.classList.add('open');
-        document.body.style.overflow = 'hidden';
-        this.fab.style.transform = 'scale(0.9)';
-        setTimeout(() => {
-            this.fab.style.transform = 'scale(1)';
-        }, 150);
-    }
-
-    closeQuickInvoice() {
-        this.quickInvoiceModal.classList.remove('open');
-        document.body.style.overflow = 'auto';
-    }
-
-    async submitQuickInvoice() {
-        const description = document.getElementById('invoice-description').value;
-        const amount = parseFloat(document.getElementById('invoice-amount').value);
-        const currency = document.getElementById('invoice-currency').value;
-        const dueDate = document.getElementById('due-date').value; // Changed from clientPhone
-
-        const amountValue = parseFloat(document.getElementById('invoice-amount').value);
-            if (isNaN(amountValue) || amountValue <= 0) {
-                this.showToast('Amount must be a valid number', true);
-                return;
-            }
-
-        if (!description.trim() || !dueDate.trim()) {
-            this.showToast('Please fill in all required fields', true);
-            return;
-        }
-        if (this.isSubmitting) return;
-
-        this.showLoadingState();
-
-        try {
-            this.isSubmitting = true; // Set flag
-            const submitBtn = this.quickInvoiceForm.querySelector('button[type="submit"]');
-            if (submitBtn) submitBtn.disabled = true; // Disable button UI
-
-            this.showLoadingState();
-            const response = await fetch(`${this.API_BASE}/dashboard/quick-invoice`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.getAuthToken()}`
-                },
-                body: JSON.stringify({ 
-                    description, 
-                    amount, 
-                    currency, 
-                    due_date: dueDate, // Changed from client_phone
-                })
-            });
-
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-            const result = await response.json();
-
-            this.hideLoadingState();
-            this.closeQuickInvoice();
-
-            // Show success toast
-            this.showToast('Invoice sent successfully ♡');
-
-            if (result.invoice_url) {
-                this.showInvoiceLinkModal(result.invoice_url, result.invoice_id);
-            }
-
-            this.quickInvoiceForm.reset();
-
-            // Reload dashboard data
-            await this.loadDashboardData();
-            this.renderInvoiceCards();
-            this.updateStats();
-            this.updateFilterCounts();
-
-        } catch (error) {
-            if (error.message === 'Upgrade Required') {
-                // Modal already shown, just clean up UI
-                this.hideLoadingState();
-                this.closeQuickInvoice();
-                return;
-            }
-            console.error('Error creating quick invoice:', error);
-            this.hideLoadingState();
-            this.showToast('Failed to send invoice. Please try again.', true);
-        } finally {
-            this.isSubmitting = false; // Reset flag
-            const submitBtn = this.quickInvoiceForm.querySelector('button[type="submit"]');
-            if (submitBtn) submitBtn.disabled = false; // Re-enable button
-            this.hideLoadingState();
-        }
-    }
-
-    showInvoiceLinkModal(invoiceUrl, invoiceId) {
-        let modal = document.getElementById('invoice-link-modal');
-
-        // 1. IMPROVED SANITIZER: Handles both double protocol and double domain
-        let fullUrl = invoiceUrl;
-        
-        // Fix "https://https://"
-        if (fullUrl.includes('https://https://')) {
-            fullUrl = fullUrl.replace('https://https://', 'https://');
-        }
-        
-        // Fix "https://payla.nghttps://payla.ng"
-        if (fullUrl.includes('payla.nghttps://')) {
-            fullUrl = fullUrl.replace('https://payla.nghttps://', 'https://');
-        }
-
-        // 2. Formatting for display (payla.ng/i/...)
-        // This removes the protocol entirely for the UI view
-        const displayUrl = fullUrl.replace(/^https?:\/\//, '');
-
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'invoice-link-modal';
-            modal.className = 'modal-overlay';
-            modal.innerHTML = `
-                <div class="modal compact-modal">
-                    <button class="modal-close" id="invoice-link-close">
-                        <i class="fas fa-times"></i>
-                    </button>
-                    <h2 class="modal-title">Invoice Created</h2>
-                    <p class="modal-subtitle">Share this link with your client</p>
-                    
-                    <div class="link-container" style="margin: 20px 0;">
-                        <div class="link-display" title="Click to preview invoice">
-                            <i class="fas fa-link"></i>
-                            <span class="link" id="invoice-link-url" style="cursor: pointer;"></span>
-                        </div>
-                        <button class="copy-link-btn" id="copy-invoice-link-btn">
-                            <i class="fas fa-copy"></i>
-                            Copy Link
-                        </button>
-                    </div>
-                    
-                    <div class="modal-actions" style="display: flex; gap: 10px; justify-content: center;">
-                        <button class="btn-primary" id="share-whatsapp-btn" style="display: flex; align-items: center; gap: 8px;">
-                            Share on WhatsApp
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // --- Event Listeners (Initialized once) ---
-
-            // Close button
-            modal.querySelector('#invoice-link-close').addEventListener('click', () => {
-                modal.classList.remove('open');
-                document.body.style.overflow = 'auto';
-            });
-
-            // Copy full URL (with https)
-            modal.querySelector('#copy-invoice-link-btn').addEventListener('click', () => {
-                // Always copy the FULL URL (with https) so the link is clickable for the client
-                const linkToCopy = modal.querySelector('#invoice-link-url').dataset.fullUrl;
-                navigator.clipboard.writeText(linkToCopy).then(() => {
-                    this.showToast('Invoice link copied!');
-                });
-            });
-
-            // Share WhatsApp (with https)
-            modal.querySelector('#share-whatsapp-btn').addEventListener('click', () => {
-                const linkToShare = modal.querySelector('#invoice-link-url').dataset.fullUrl;
-                const message = `Hello! Here's your invoice: ${linkToShare}`;
-                window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-            });
-
-            // Close on overlay click
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    modal.classList.remove('open');
-                    document.body.style.overflow = 'auto';
-                }
-            });
-
-            // Close on Escape
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && modal.classList.contains('open')) {
-                    modal.classList.remove('open');
-                    document.body.style.overflow = 'auto';
-                }
-            });
-        }
-
-        const linkEl = modal.querySelector('#invoice-link-url');
-        if (linkEl) {
-            linkEl.textContent = displayUrl; // Shows: payla.ng/i/favour...
-            linkEl.dataset.fullUrl = fullUrl; // Stores: https://payla.ng/i/favour...
-            
-            linkEl.onclick = () => {
-                window.open(fullUrl, '_blank', 'noopener');
-            };
-        }
-
-        // Show modal
-        modal.classList.add('open');
-        document.body.style.overflow = 'hidden';
-    }
-
-
-    showLoadingState() {
-        const submitBtn = this.quickInvoiceForm.querySelector('.submit-btn');
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>Sending...';
-        submitBtn.disabled = true;
-        submitBtn.classList.add('loading');
-    }
-
-    hideLoadingState() {
-        const submitBtn = this.quickInvoiceForm.querySelector('.submit-btn');
-        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i>Send Invoice Now<div class="btn-glow"></div>';
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('loading');
-    }
-
-    // Card action handlers
     editDraft(card) {
         const invoiceId = card.getAttribute('data-id');
         this.openInvoiceDetailModal(invoiceId);
@@ -1098,17 +1060,14 @@ class PaylaDashboard {
         const invoice = this.allInvoices.find(inv => inv.id === invoiceId);
 
         if (invoice && invoice.invoice_url) {
-            // --- THE FIX START ---
             let cleanUrl = invoice.invoice_url;
-            
-            // Check if the URL contains the domain twice and fix it
+
             if (cleanUrl.includes('payla.nghttps://payla.ng')) {
                 cleanUrl = cleanUrl.replace('https://payla.nghttps://payla.ng', 'https://payla.ng');
             }
-            // --- THE FIX END ---
 
             navigator.clipboard.writeText(cleanUrl).then(() => {
-                this.showToast('Invoice link copied ♡');
+                this.showToast('Invoice link copied');
             });
         } else {
             this.showToast('No invoice link available', true);
@@ -1126,23 +1085,18 @@ class PaylaDashboard {
 
     remindClient(card) {
         const invoiceId = typeof card === 'string' ? card : card.getAttribute('data-id');
-        this.showToast('Reminder sent ♡');
-        
-        const btn = typeof card === 'string' ? 
-            document.querySelector(`[data-id="${invoiceId}"] [title="Remind"]`) : 
+        this.showToast('Reminder sent');
+
+        const btn = typeof card === 'string' ?
+            document.querySelector(`[data-id="${invoiceId}"] [title="Remind"]`) :
             card.querySelector('[title="Remind"]');
-        
+
         if (btn) {
             btn.classList.add('success');
             setTimeout(() => {
                 btn.classList.remove('success');
             }, 1000);
         }
-    }
-
-    resendInvoice(card) {
-        const invoiceId = typeof card === 'string' ? card : card.getAttribute('data-id');
-        this.showToast('Invoice resent ♡');
     }
 
     capitalizeFirst(string) {
@@ -1152,15 +1106,13 @@ class PaylaDashboard {
     showToast(message, isError = false, duration = 3000) {
         this.toastMessage.textContent = message;
         this.toast.className = 'toast';
-        
-        // Handle type-specific styling
+
         if (isError) {
             this.toast.classList.add('error');
         } else if (typeof isError === 'string') {
-            // Allow passing 'warning' or 'success' as second parameter
             this.toast.classList.add(isError);
         }
-        
+
         this.toast.classList.add('show');
 
         setTimeout(() => {
@@ -1168,75 +1120,53 @@ class PaylaDashboard {
         }, duration);
     }
 
-    setupResponsiveBehavior() {
-        window.addEventListener('resize', () => {
-            this.adjustLayoutForMobile();
-        });
-        
-        this.adjustLayoutForMobile();
-    }
-
     adjustLayoutForMobile() {
         const isMobile = window.innerWidth <= 768;
-        
-        if (isMobile) {
-            document.body.style.overflowX = 'hidden';
-        } else {
-            document.body.style.overflowX = 'auto';
-        }
+        document.body.style.overflowX = isMobile ? 'hidden' : 'auto';
     }
 
-    // Additional methods for detail modal actions
+    // Detail modal actions
     editInvoice(invoiceId) {
         window.location.href = `/invoice?edit=${invoiceId}`;
     }
 
-    sendInvoice(invoiceId) {
-        this.showToast('Invoice sent successfully ♡');
-        this.closeInvoiceDetailModal();
-    }
-
     downloadInvoice(invoiceId) {
-        const url = `${window.location.origin}/api/receipt/invoice/${invoiceId}.pdf`;
-        window.open(url, '_blank');
-        this.showToast('Invoice PDF downloaded ♡');
+        this.requireSilver('receipts', () => {
+            const invoice = this.allInvoices.find(inv => inv.id === invoiceId);
+
+            if (!invoice) {
+                this.showToast('Invoice not found', true);
+                return;
+            }
+
+            const paymentReference =
+                invoice.transaction_reference ||
+                invoice.paystack_reference;
+
+            if (!paymentReference) {
+                this.showToast('Payment reference unavailable', true);
+                return;
+            }
+
+            const url =
+                `${this.API_BASE}/receipt/invoice/${encodeURIComponent(invoiceId)}.pdf` +
+                `?token=${encodeURIComponent(paymentReference)}`;
+
+            window.open(url, '_blank', 'noopener');
+            this.showToast('Receipt downloading');
+        });
     }
 }
 
-// Initialize dashboard when DOM is loaded
+function generateSessionId() {
+    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
 let dashboard;
+
 document.addEventListener('DOMContentLoaded', () => {
     dashboard = new PaylaDashboard();
+    window.dashboard = dashboard;
 });
 
-// Global functions for HTML onclick handlers
-function editInvoice(invoiceId) {
-    if (dashboard) dashboard.editInvoice(invoiceId);
-}
-
-function sendInvoice(invoiceId) {
-    if (dashboard) dashboard.sendInvoice(invoiceId);
-}
-
-function copyInvoiceLink(invoiceId) {
-    if (dashboard) dashboard.copyInvoiceLink(invoiceId);
-}
-
-function downloadInvoice(invoiceId) {
-    if (dashboard) dashboard.downloadInvoice(invoiceId);
-}
-
-function remindClient(invoiceId) {
-    if (dashboard) dashboard.remindClient(invoiceId);
-}
-
-function resendInvoice(invoiceId) {
-    if (dashboard) dashboard.resendInvoice(invoiceId);
-}
-
-function viewInvoice(invoiceId) {
-    if (dashboard) dashboard.viewInvoice(invoiceId);
-}
-
-export {PaylaDashboard, dashboard };
-window.dashboard = dashboard;
+export { PaylaDashboard }

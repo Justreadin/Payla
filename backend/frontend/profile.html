@@ -1,153 +1,351 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile & Branding - Payla</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/upgrade.css">
-    <link rel="stylesheet" href="css/profile.css">
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
-    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-    <script>
-    !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
-    },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
-    a=t.getElementsByTagName(n)[0],a.parentNode.insertBefore(u,a))}(window,document,'script');
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A0A0A" />
+
+  <title>Profile &amp; Branding — Payla</title>
+  <meta name="description" content="Manage your Payla profile, branding, paylink, and invoice preferences." />
+
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Cormorant+Garamond:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    media="print"
+    onload="this.media='all'"
+  />
+
+  <link rel="stylesheet" href="css/profile.css?v=3" />
+  <link rel="stylesheet" href="css/upgrade.css?v=1" />
+
+  <script>
+    !function(e,t,n,s,u,a){
+      e.twq||(s=e.twq=function(){
+        s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
+      },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,
+      u.src='https://static.ads-twitter.com/uwt.js',
+      a=t.getElementsByTagName(n)[0],
+      a.parentNode.insertBefore(u,a))
+    }(window,document,'script');
+
     twq('config','r4oqa');
-    </script>
-    <script>
-        const es = new EventSource("/reload");
-        es.onmessage = () => {
-            console.log("🔄 Frontend updated — reloading...");
-            location.reload();
-        };
-    </script>
+  </script>
+
+  <script>
+    const es = new EventSource("/reload");
+
+    es.onmessage = () => {
+      console.log("Frontend updated — reloading...");
+      location.reload();
+    };
+  </script>
 </head>
+
 <body>
-    <!-- Topbar -->
-    <div class="glitter"></div>
 
-    <div class="topbar glass">
-        <div class="topbar-left">
-            <a href="/dashboard" class="back-arrow premium-arrow">
-                <i class="fas fa-arrow-left"></i>
+  <!-- ============================================================
+       TOPBAR
+  ============================================================ -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <a href="/dashboard" class="premium-arrow" aria-label="Back to dashboard">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      </a>
+      <a href="/dashboard" class="logo" aria-label="Payla dashboard">PAYLA</a>
+    </div>
+    <div class="page-title">Branding</div>
+  </header>
+
+  <!-- ============================================================
+       MAIN
+  ============================================================ -->
+  <main class="main-content">
+
+    <section class="profile-card" aria-labelledby="profile-title">
+
+      <!-- Header -->
+      <div class="card-header">
+        <div>
+          <p class="eyebrow">Business profile</p>
+          <h2 id="profile-title" class="card-title">Your identity on Payla</h2>
+        </div>
+      </div>
+
+      <!-- Logo upload -->
+      <div class="logo-upload">
+        <div class="logo-preview" id="logoPreview">
+          <span id="logoInitials"></span>
+        </div>
+
+        <div class="logo-upload__meta">
+          <label for="logoUpload" class="btn btn--outline btn--sm">
+            <i class="fas fa-camera" aria-hidden="true"></i>
+            Change logo
+          </label>
+          <input type="file" id="logoUpload" accept="image/*" hidden />
+          <p class="logo-upload__hint">PNG, JPG, WebP or SVG · Max 2MB</p>
+        </div>
+      </div>
+
+      <!-- Bank confirmation status -->
+      <section class="bank-confirmation" id="bankConfirmation" hidden aria-labelledby="bankConfirmTitle">
+        <header class="bank-confirmation__head">
+          <div class="bank-confirmation__head-left">
+            <p class="bank-confirmation__eyebrow">Identity check</p>
+            <h3 id="bankConfirmTitle" class="bank-confirmation__title">Bank confirmation</h3>
+          </div>
+          <span class="bank-confirmation__status" id="bankConfirmStatus" data-status="pending">
+            <span class="bank-confirmation__status-dot" aria-hidden="true"></span>
+            <span class="bank-confirmation__status-label">Checking</span>
+          </span>
+        </header>
+
+        <div class="bank-confirmation__grid">
+          <div class="bank-confirmation__row">
+            <span class="bank-confirmation__row-label">Your name on Payla</span>
+            <span class="bank-confirmation__row-value" id="enteredName">—</span>
+          </div>
+          <div class="bank-confirmation__row">
+            <span class="bank-confirmation__row-label">Bank account name</span>
+            <span class="bank-confirmation__row-value" id="bankName">—</span>
+          </div>
+        </div>
+
+        <p class="bank-confirmation__message" id="bankConfirmMessage">
+          We're checking your details.
+        </p>
+
+      </section>
+
+      <!-- Form -->
+      <form class="profile-form" id="profileForm" novalidate>
+
+        <!-- Full name -->
+        <div class="form-group">
+          <label for="fullName" class="required">Full name</label>
+          <input
+            type="text"
+            placeholder="Enter your full name"
+            required
+            id="fullName"
+            autocomplete="name"
+          />
+        </div>
+
+        <!-- Business name -->
+        <div class="form-group">
+          <label for="businessName" class="required">Business name</label>
+          <input
+            type="text"
+            maxlength="30"
+            placeholder="Enter your business name"
+            required
+            id="businessName"
+            autocomplete="organization"
+          />
+          <small id="businessNameCount" class="char-count">30 characters left</small>
+        </div>
+
+        <!-- Tagline -->
+        <div class="form-group">
+          <label for="businessTagline">Business tagline</label>
+          <input
+            type="text"
+            maxlength="45"
+            placeholder="Premium web design &amp; development"
+            id="businessTagline"
+          />
+          <small id="taglineCount" class="char-count">45 characters left</small>
+        </div>
+
+        <!-- WhatsApp -->
+        <div class="form-group">
+          <label for="whatsappNumber" class="required">WhatsApp number</label>
+          <input
+            type="tel"
+            placeholder="08012345678"
+            required
+            id="whatsappNumber"
+            autocomplete="tel"
+          />
+        </div>
+
+        <!-- Email (read-only) -->
+        <div class="form-group">
+          <label for="email">Email</label>
+          <div class="input-with-tag">
+            <input
+              type="email"
+              value="username@payla.ng"
+              readonly
+              id="email"
+            />
+            <span class="verified-tag">
+              <i class="fas fa-check-circle" aria-hidden="true"></i>
+              Verified
+            </span>
+          </div>
+        </div>
+
+                <!-- Paylink -->
+        <div class="paylink-section">
+          <div class="paylink-section__head">
+            <p class="eyebrow">Your Paylink</p>
+            <p class="paylink-section__note">One change per year</p>
+          </div>
+
+          <div class="paylink-input">
+            <span class="paylink-input__prefix" id="paylinkPrefix">payla.ng/</span>
+            <input
+              type="text"
+              placeholder="username"
+              required
+              minlength="3"
+              maxlength="20"
+              id="username"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+          </div>
+
+          <p class="paylink-input__hint">
+            Only letters, numbers, dashes and underscores (3-20 characters)
+          </p>
+
+          <button type="button" class="btn btn--outline btn--sm" id="copyPaylink">
+            <i class="fas fa-copy" aria-hidden="true"></i>
+            Copy link
+          </button>
+
+          <p id="usernameHint" class="paylink-input__feedback" aria-live="polite"></p>
+
+          <!-- Domain selector — Silver only -->
+          <div class="domain-selector" id="domainSelector" hidden>
+            <p class="domain-selector__title">Your Payla domain</p>
+            <p class="domain-selector__subtitle">
+              Choose which link is your primary address. The other link
+              redirects to it, so nothing breaks.
+            </p>
+
+            <div class="domain-selector__options" role="radiogroup" aria-label="Preferred domain">
+              <label class="domain-option" data-domain="ng">
+                <input
+                  type="radio"
+                  name="preferred_domain"
+                  value="ng"
+                  id="domainNg"
+                  checked
+                />
+                <span class="domain-option__marker" aria-hidden="true"></span>
+                <span class="domain-option__body">
+                  <span class="domain-option__label">payla.ng</span>
+                  <span class="domain-option__handle" id="handleNg">/@yourusername</span>
+                </span>
+              </label>
+
+              <label class="domain-option" data-domain="vip">
+                <input
+                  type="radio"
+                  name="preferred_domain"
+                  value="vip"
+                  id="domainVip"
+                />
+                <span class="domain-option__marker" aria-hidden="true"></span>
+                <span class="domain-option__body">
+                  <span class="domain-option__label">payla.vip</span>
+                  <span class="domain-option__handle" id="handleVip">/@yourusername</span>
+                </span>
+                <span class="domain-option__badge">Silver</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Upsell for Free users -->
+          <div class="domain-upsell" id="domainUpsell" hidden>
+            <p class="domain-upsell__title">
+              <i class="fas fa-gem" aria-hidden="true"></i>
+              Want a payla.vip link?
+            </p>
+            <p class="domain-upsell__body">
+              Silver users can use their own payla.vip address, alongside
+              their payla.ng link.
+            </p>
+            <a href="/subscription" class="btn btn--outline btn--sm">
+              See Silver
             </a>
-            <a href="dashboard" class="logo">
-                <div>PAYLA</div>
-            </a>
+          </div>
         </div>
-        <div class="page-title">Branding</div>
-    </div>
 
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Profile Card -->
-        <div class="profile-card glass">
-            <div class="card-header">
-                <h2>Business Profile</h2>
-                <span class="badge verified" id="verifiedBadge">Verified</span>
-            </div>
-
-            <!-- Logo Upload -->
-            <div class="logo-upload">
-                <div class="logo-preview" id="logoPreview">
-                    <span id="logoInitials"></span>
-                </div>
-                <input type="file" id="logoUpload" accept="image/*">
-                <label for="logoUpload" class="btn-secondary">
-                    <i class="fas fa-camera"></i> Change Logo
-                </label>
-                <p class="hint">PNG, JPG, SVG • Max 2MB</p>
-            </div>
-
-            <!-- Profile Form -->
-            <form class="profile-form" id="profileForm">
-                <div class="form-group">
-                    <label class="required">Full Name</label>
-                    <input type="text" placeholder="Enter your full name" required id="fullName">
-                </div>
-
-                <div class="form-group">
-                    <label class="required">Business Name</label>
-                    <input type="text" maxlength="30" placeholder="Enter your business name" required id="businessName">
-                    <small id="businessNameCount" class="char-count">30 characters left</small>
-                </div>
-
-                <div class="form-group">
-                    <label>Business Tagline</label>
-                    <input type="text" maxlength="45" placeholder="Premium web design & development" id="businessTagline">
-                    <p class="hint">Brief description of your services</p>
-                    <small id="taglineCount" class="char-count">45 characters left</small>
-                </div>
-
-                <div class="form-group">
-                    <label class="required">WhatsApp Number</label>
-                    <input type="tel" placeholder="" required id="whatsappNumber">
-                </div>
-
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" value="username@payla.ng" readonly id="email">
-                    <div class="verified-tag">
-                        <i class="fas fa-check-circle"></i>
-                        Verified
-                    </div>
-                </div>
-
-                <!-- Username & Paylink -->
-                <div class="paylink-section">
-                    <label class="required">Paylink (one change per year)</label>
-                    <div class="paylink-input">
-                        <span>payla.ng/</span>
-                        <input type="text" placeholder="username" required id="username">
-                    </div>
-                    <p class="hint">Only letters, numbers, dashes and underscores (3-20 characters)</p>
-                    <button type="button" class="btn-secondary" id="copyPaylink">
-                        <i class="fas fa-copy"></i> Copy Link
-                    </button>
-                    <div id="usernameHint" class="hint" style="margin-top:8px;"></div>
-                </div>
-
-                <!-- Plan Card -->
-                <div class="plan-card">
-                    <div class="plan-glow"></div>
-                    <h3>Plan: <strong></strong></h3>
-                    <p></p> <!-- description goes here -->
-                    <div class="plan-badge">
-                        <i class="fas fa-gem"></i>
-                        <span></span> <!-- badge text goes here -->
-                    </div>
-                </div>
-            </form>
+        <!-- Plan -->
+        <div class="plan-card">
+          <div class="plan-card__glow" aria-hidden="true"></div>
+          <div class="plan-card__body">
+            <p class="plan-card__eyebrow">Your plan</p>
+            <h3 class="plan-card__title">Plan: <strong></strong></h3>
+            <p class="plan-card__desc"></p>
+          </div>
+          <div class="plan-badge">
+            <i class="fas fa-gem" aria-hidden="true"></i>
+            <span></span>
+          </div>
         </div>
-    <!-- FAB Save Button -->
-    <button class="fab" id="saveFab">
-        <i class="fas fa-check"></i>
-    </button>
 
-    <!-- Toast -->
-    <div class="toast" id="toast">
-        <i class="fas fa-check"></i>
-        <span id="toastMessage">Changes saved!</span>
-    </div>
+        <!-- Invoice fee preference -->
+        <div class="form-group invoice-fee-preference">
+          <label for="defaultInvoiceFeePayer">Invoice payment fees</label>
 
-    <!-- Upgrade Modal (small) -->
-    <div id="upgradeModal" class="modal" style="display:none;">
-        <div class="modal-inner">
-            <h3>Upgrade required</h3>
-            <p id="upgradeMessage"></p>
-            <div class="modal-actions">
-                <a href="/subscription" class="btn-primary">Upgrade Now</a>
-                <button id="dismissUpgrade" class="btn-secondary">Dismiss</button>
-            </div>
+          <select id="defaultInvoiceFeePayer" name="default_invoice_fee_payer">
+            <option value="merchant">I cover the payment fees</option>
+            <option value="client">My client covers the payment fees</option>
+          </select>
+
+          <p class="hint">
+            This is the default for new invoices. You can choose a different
+            fee preference for an individual invoice. The final payment amount
+            is determined by Payla's backend payment calculation.
+          </p>
         </div>
-    </div>
 
-    <script type="module" src="/js/profile.js"></script>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- ============================================================
+       SAVE FAB
+  ============================================================ -->
+  <button
+    type="button"
+    class="fab"
+    id="saveFab"
+    aria-label="Save profile changes"
+  >
+    <i class="fas fa-check" aria-hidden="true"></i>
+    <span>Save changes</span>
+  </button>
+
+  <!-- ============================================================
+       TOAST
+  ============================================================ -->
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <i class="fas fa-check" aria-hidden="true"></i>
+    <span id="toastMessage">Changes saved!</span>
+  </div>
+
+  <script type="module" src="/js/profile.js?v=3"></script>
 </body>
 </html>

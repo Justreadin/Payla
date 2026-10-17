@@ -1,43 +1,64 @@
 import { BACKEND_BASE } from './config.js';
-import { authFetch, showUpgradeToast, showUpgradeModal } from './upgrade-handler.js';
-// ── Backend URL ──
+import { showUpgradeRequired } from './upgrade-handler.js';
+
 const BACKEND_URL = BACKEND_BASE;
 
 // ── DOM Elements ──
+
 const fullNameInput = document.getElementById('fullName');
 const businessNameInput = document.getElementById('businessName');
 const whatsappNumberInput = document.getElementById('whatsappNumber');
 const emailInput = document.getElementById('email');
 const usernameInput = document.getElementById('username');
 const taglineInput = document.getElementById('businessTagline');
+
 const logoUploadInput = document.getElementById('logoUpload');
 const logoPreview = document.getElementById('logoPreview');
 const logoInitials = document.getElementById('logoInitials');
-const previewLogo = document.getElementById('previewLogo');
-const previewLogoInitials = document.getElementById('previewLogoInitials');
-const previewName = document.getElementById('previewName');
-const previewHandle = document.getElementById('previewHandle');
-const previewEmail = document.getElementById('previewEmail');
-const previewWhatsapp = document.getElementById('previewWhatsapp');
-const previewPowered = document.getElementById('previewPowered');
-const previewTagline = document.getElementById('previewTagline');
-const previewPlanName = document.getElementById('previewPlanName');
-const previewSecuredBy = document.querySelector('.secured-by');
+
 const saveFab = document.getElementById('saveFab');
 const profileForm = document.getElementById('profileForm');
 const copyPaylinkBtn = document.getElementById('copyPaylink');
+
 const toast = document.getElementById('toast');
 const toastMessage = document.getElementById('toastMessage');
 const planCard = document.querySelector('.plan-card');
-const verifiedBadge = document.getElementById('verifiedBadge');
+
 const usernameHint = document.getElementById('usernameHint');
 
+const defaultInvoiceFeePayerInput =
+    document.getElementById('defaultInvoiceFeePayer');
+
+const businessNameCount = document.getElementById('businessNameCount');
+const taglineCount = document.getElementById('taglineCount');
+const domainSelector = document.getElementById('domainSelector');
+const domainUpsell = document.getElementById('domainUpsell');
+const domainNg = document.getElementById('domainNg');
+const domainVip = document.getElementById('domainVip');
+const paylinkPrefix = document.getElementById('paylinkPrefix');
+const handleNg = document.getElementById('handleNg');
+const handleVip = document.getElementById('handleVip');
+
+// ── State ──
+
 let hasChanges = false;
+let isSaving = false;
 let currentUserPlan = 'free';
+let hasSilverAccess = false;
 let originalUsername = null;
 let lastUsernameChange = null;
+let originalInitials = 'P';
+let originalLogoUrl = null;
+let usernameCheckToken = 0;
+let currentPreferredDomain = 'ng';
+let canUseVip = false;
 
 // ── Helpers ──
+
+function getToken() {
+    return localStorage.getItem('idToken');
+}
+
 function showToast(message, type = 'info') {
     let text = message;
 
@@ -45,474 +66,931 @@ function showToast(message, type = 'info') {
         text =
             message.message ||
             message.detail?.message ||
+            message.detail ||
             JSON.stringify(message);
     }
 
     toastMessage.textContent = String(text);
+    toast.classList.remove('show', 'info', 'success', 'warning', 'error');
     toast.classList.add('show', type);
 
-    setTimeout(() => toast.classList.remove('show', type), 4000);
-
-    console.log('[TOAST]', text);
+    window.setTimeout(() => {
+        toast.classList.remove('show', type);
+    }, 4000);
 }
 
-function formatPhoneNumber(phone) {
-    if (!phone) return '';
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 11 && cleaned.startsWith('0')) return '+234 ' + cleaned.slice(1).replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
-    if (cleaned.length === 13 && cleaned.startsWith('234')) return '+234 ' + cleaned.slice(3).replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
-    if (cleaned.length === 10) return '+234 ' + cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
-    return phone;
+function setHasChanges(changed = true) {
+    hasChanges = changed;
+
+    if (saveFab) {
+        saveFab.classList.toggle('visible', hasChanges);
+    }
 }
 
-function checkUpgradeRequired(response, data) {
-    if (
-        response.status === 403 &&
-        data?.detail?.code?.startsWith('require_')
-    ) {
-        const { message, required_plan } = data.detail;
+function getErrorMessage(data, fallback) {
+    if (typeof data?.detail === 'string') {
+        return data.detail;
+    }
 
-        showToast(message || 'This feature requires a paid plan', 'warning');
+    if (typeof data?.detail?.message === 'string') {
+        return data.detail.message;
+    }
 
-        // 🔥 THIS is the missing part
-        showUpgradeModal(required_plan || 'silver');
+    if (typeof data?.message === 'string') {
+        return data.message;
+    }
 
-        console.warn('[UPGRADE_REQUIRED]', data.detail);
-        return true;
+    return fallback;
+}
+
+function handleAuthenticationError() {
+    showToast('Unauthorized. Please log in again.', 'error');
+    window.location.href = '/entry';
+}
+
+/**
+ * Detect a subscription-required 403 and route it through the
+ * upgrade handler. Returns true if the response was handled.
+ */
+function checkUpgradeRequired(response, data, feature) {
+    if (response.status === 403) {
+        const detail = data?.detail;
+
+        if (
+            typeof detail === 'object' &&
+            detail !== null &&
+            detail.error === 'subscription_required'
+        ) {
+            showUpgradeRequired({ feature: feature || null, source: 'server' });
+            return true;
+        }
     }
 
     if (response.status === 401) {
-        showToast('Unauthorized — please log in again', 'error');
-        window.location.href = '/entry';
+        handleAuthenticationError();
         return true;
     }
 
     return false;
 }
 
+async function readResponse(response) {
+    try {
+        return await response.json();
+    } catch {
+        return {};
+    }
+}
 
-// Character limit counters
-const businessNameLimit = 30;
-const taglineLimit = 45;
+function formatPhoneNumber(phone) {
+    if (!phone) return '';
 
-const businessNameCount = document.getElementById('businessNameCount');
-const taglineCount = document.getElementById('taglineCount');
+    const cleaned = phone.replace(/\D/g, '');
 
-// ---- Business Name Limit ----
-businessNameInput.addEventListener('input', () => {
-    let val = businessNameInput.value;
-
-    if (val.length > businessNameLimit) {
-        businessNameInput.value = val.substring(0, businessNameLimit);
-        val = businessNameInput.value;
+    if (cleaned.length === 11 && cleaned.startsWith('0')) {
+        return '+234 ' + cleaned.slice(1).replace(
+            /(\d{3})(\d{3})(\d{4})/,
+            '$1 $2 $3'
+        );
     }
 
-    const remaining = businessNameLimit - val.length;
-    businessNameCount.textContent = `${remaining} characters left`;
-});
-
-// ---- Tagline Limit ----
-taglineInput.addEventListener('input', () => {
-    let val = taglineInput.value;
-
-    if (val.length > taglineLimit) {
-        taglineInput.value = val.substring(0, taglineLimit);
-        val = taglineInput.value;
+    if (cleaned.length === 13 && cleaned.startsWith('234')) {
+        return '+234 ' + cleaned.slice(3).replace(
+            /(\d{3})(\d{3})(\d{4})/,
+            '$1 $2 $3'
+        );
     }
 
-    const remaining = taglineLimit - val.length;
-    taglineCount.textContent = `${remaining} characters left`;
-});
+    if (cleaned.length === 10) {
+        return '+234 ' + cleaned.replace(
+            /(\d{3})(\d{3})(\d{4})/,
+            '$1 $2 $3'
+        );
+    }
+
+    return phone;
+}
+
+function getInitials(name) {
+    const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+
+    if (!words.length) return 'P';
+
+    return words
+        .slice(0, 2)
+        .map(word => word.charAt(0).toUpperCase())
+        .join('');
+}
+
+function updateCharacterCounter(input, counter, limit) {
+    if (!input || !counter) return;
+
+    counter.textContent = `${Math.max(0, limit - input.value.length)} characters left`;
+}
 
 function canChangeUsername() {
     if (!lastUsernameChange) return true;
-    const oneYearInMs = 365 * 24 * 60 * 60 * 1000;
-    const now = new Date();
-    return (now - lastUsernameChange) > oneYearInMs;
+
+    const changedAt = new Date(lastUsernameChange).getTime();
+
+    if (Number.isNaN(changedAt)) return true;
+
+    return Date.now() - changedAt >= 365 * 24 * 60 * 60 * 1000;
 }
+
+/**
+ * The plan card reflects the user's entitlement, not their raw
+ * plan string. An expired Silver user has plan === "silver" but
+ * has_silver === false, and the card should read as Free.
+ */
+function updatePlanCard() {
+    if (!planCard) return;
+
+    const planInfo = {
+        silver: {
+            desc: 'Active • Premium features enabled',
+            badge: 'SILVER'
+        },
+        gold: {
+            desc: 'Active • Extra features unlocked',
+            badge: 'GOLD'
+        },
+        opal: {
+            desc: 'Active • All features unlocked',
+            badge: 'OPAL'
+        },
+        free: {
+            desc: 'Free • Upgrade for premium features',
+            badge: 'FREE'
+        }
+    };
+
+    // The displayed plan follows entitlement, not the raw string.
+    const displayPlan = hasSilverAccess
+        ? (currentUserPlan === 'free' ? 'silver' : currentUserPlan)
+        : 'free';
+
+    const plan = planInfo[displayPlan] || planInfo.free;
+    const formattedPlan =
+        displayPlan.charAt(0).toUpperCase() +
+        displayPlan.slice(1);
+
+    planCard.className = `plan-card ${displayPlan}`;
+
+    const heading = planCard.querySelector('strong');
+    const description = planCard.querySelector('p');
+    const badge = planCard.querySelector('.plan-badge span');
+
+    if (heading) heading.textContent = `Payla ${formattedPlan}`;
+    if (description) description.textContent = plan.desc;
+    if (badge) badge.textContent = plan.badge;
+
+}
+
+function updateLogoPreview(url) {
+    if (!logoPreview) return;
+
+    if (url) {
+        const fullUrl = url.startsWith('http') || url.startsWith('data:') || url.startsWith('/')
+            ? url
+            : `${BACKEND_URL}${url}`;
+
+        logoPreview.style.backgroundImage = `url("${fullUrl}")`;
+        logoPreview.classList.remove('initials-medallion');
+        logoPreview.innerHTML = '';
+    } else {
+        logoPreview.style.backgroundImage = '';
+        logoPreview.classList.add('initials-medallion');
+
+        const text = document.createElement('span');
+        text.className = 'initials-medallion__text';
+        text.textContent = originalInitials;
+
+        logoPreview.innerHTML = '';
+        logoPreview.appendChild(text);
+    }
+
+    logoPreview.style.filter = 'none';
+}
+
+// ── Bank Confirmation Card ──
+
+const BANK_STATUS_CONFIG = {
+    matched: {
+        label: 'Confirmed',
+        message:
+            'Your Payla name matches the name on your bank account. ' +
+            'Your paylink shows the verified stamp.',
+        tone: 'success',
+    },
+    mismatch: {
+        label: 'Action needed',
+        message:
+            'The name on your bank account doesn\u2019t match the name on ' +
+            'your Payla profile. Contact support so we can help you ' +
+            'confirm the account.',
+        tone: 'warn',
+    },
+    pending: {
+        label: 'In progress',
+        message:
+            'We\u2019re confirming your bank account. This usually ' +
+            'completes within a few minutes.',
+        tone: 'info',
+    },
+    failed: {
+        label: 'Temporarily unavailable',
+        message:
+            'We couldn\u2019t reach the bank to confirm your account. ' +
+            'We\u2019ll try again automatically \u2014 you don\u2019t need ' +
+            'to do anything.',
+        tone: 'error',
+    },
+};
+
+async function loadBankConfirmation() {
+    const card = document.getElementById('bankConfirmation');
+    if (!card) return;
+
+    const statusEl = document.getElementById('bankConfirmStatus');
+    const statusLabel = statusEl?.querySelector('.bank-confirmation__status-label');
+    const enteredNameEl = document.getElementById('enteredName');
+    const bankNameEl = document.getElementById('bankName');
+    const messageEl = document.getElementById('bankConfirmMessage');
+    const actionsEl = document.getElementById('bankConfirmActions');
+
+    const token = getToken();
+    if (!token) return;
+
+    try {
+        const response = await fetch(
+            `${BACKEND_URL}/api/profile/bank-confirmation`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            }
+        );
+
+        if (response.status === 401) {
+            handleAuthenticationError();
+            return;
+        }
+
+        if (!response.ok) return;
+
+        const data = await readResponse(response);
+        const status = data.status || 'pending';
+        const config = BANK_STATUS_CONFIG[status] || BANK_STATUS_CONFIG.pending;
+
+        if (enteredNameEl) {
+            enteredNameEl.textContent = data.entered_full_name || '—';
+        }
+
+        if (bankNameEl) {
+            bankNameEl.textContent = data.bank_confirmed_name || '—';
+        }
+
+        if (statusEl && statusLabel) {
+            statusEl.dataset.status = config.tone;
+            statusLabel.textContent = config.label;
+        }
+
+        if (messageEl) {
+            messageEl.textContent = config.message;
+        }
+
+        if (actionsEl) {
+            actionsEl.hidden = status !== 'mismatch';
+        }
+
+        card.hidden = false;
+    } catch (error) {
+        console.warn('Could not load bank confirmation:', error);
+    }
+}
+
+// ── Character Counters ──
+
+businessNameInput?.addEventListener('input', () => {
+    if (businessNameInput.value.length > 30) {
+        businessNameInput.value = businessNameInput.value.slice(0, 30);
+    }
+
+    updateCharacterCounter(businessNameInput, businessNameCount, 30);
+    setHasChanges();
+});
+
+taglineInput?.addEventListener('input', () => {
+    if (taglineInput.value.length > 45) {
+        taglineInput.value = taglineInput.value.slice(0, 45);
+    }
+
+    updateCharacterCounter(taglineInput, taglineCount, 45);
+    setHasChanges();
+});
+
+function renderDomainSelector() {
+    if (!domainSelector || !domainUpsell) return;
+
+    const username = usernameInput?.value.trim() || 'yourusername';
+    const handle = `/@${username}`;
+
+    if (handleNg) handleNg.textContent = handle;
+    if (handleVip) handleVip.textContent = handle;
+
+    // Only Silver users can change the domain.
+    if (canUseVip) {
+        domainSelector.hidden = false;
+        domainUpsell.hidden = true;
+    } else {
+        domainSelector.hidden = true;
+        domainUpsell.hidden = false;
+    }
+
+    if (domainNg) {
+        domainNg.checked = currentPreferredDomain === 'ng';
+    }
+    if (domainVip) {
+        domainVip.checked = currentPreferredDomain === 'vip';
+    }
+
+    if (paylinkPrefix) {
+        paylinkPrefix.textContent =
+            currentPreferredDomain === 'vip' ? 'payla.vip/' : 'payla.ng/';
+    }
+}
+
+function setPreferredDomain(domain) {
+    if (domain !== 'ng' && domain !== 'vip') return;
+    if (domain === currentPreferredDomain) return;
+
+    currentPreferredDomain = domain;
+    renderDomainSelector();
+    setHasChanges();
+}
+
+domainNg?.addEventListener('change', () => {
+    if (domainNg.checked) setPreferredDomain('ng');
+});
+
+domainVip?.addEventListener('change', () => {
+    if (domainVip.checked) setPreferredDomain('vip');
+});
+
+usernameInput?.addEventListener('input', () => {
+    renderDomainSelector();
+});
 
 // ── Load Profile ──
+
 async function loadProfile() {
-    const token = localStorage.getItem('idToken');
-    if (!token) return showToast('User not authenticated', 'error');
+    const token = getToken();
+
+    if (!token) {
+        showToast('User not authenticated.', 'error');
+        return;
+    }
 
     try {
-        const res = await fetch(`${BACKEND_URL}/api/profile/`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const response = await fetch(`${BACKEND_URL}/api/profile/`, {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
         });
 
-        if (res.status === 401) {
-            showToast('Unauthorized — please log in again', 'error');
-            return window.location.href = '/entry'; // redirect on 401
+        const data = await readResponse(response);
+
+        if (response.status === 401) {
+            handleAuthenticationError();
+            return;
         }
 
-        const data = await res.json();
+        if (!response.ok) {
+            showToast(getErrorMessage(data, 'Failed to load profile.'), 'error');
+            return;
+        }
 
-        // Populate fields
+        // Populate profile fields.
         fullNameInput.value = data.full_name || '';
         businessNameInput.value = data.business_name || '';
-        // backend stores phone as phone_number
         whatsappNumberInput.value = data.phone_number || '';
         usernameInput.value = data.username || '';
-        originalUsername = data.username || null;
         emailInput.value = data.email || '';
         taglineInput.value = data.tagline || '';
+
+        originalUsername = (data.username || '').toLowerCase();
         currentUserPlan = (data.plan || 'free').toLowerCase();
-        lastUsernameChange = data.last_username_change ? new Date(data.last_username_change) : null;
-        // Logo
-        if (logoPreview && data.logo_url) {
-            const fullUrl = data.logo_url.startsWith('http') ? data.logo_url : `${BACKEND_URL}${data.logo_url}`;
-            logoPreview.style.backgroundImage = `url(${fullUrl})`;
-            logoInitials.style.display = 'none';
-        }else {
-            // ensure gradient shows
-            logoPreview.style.backgroundImage = ''; // allow CSS gradient
-            logoInitials.style.display = 'flex';
+
+        // Entitlement flag from the backend — this is what the plan
+        // card should trust, not the raw plan string.
+        hasSilverAccess = Boolean(data.entitlement?.has_silver);
+
+        canUseVip = Boolean(data.entitlement?.can_use_vip);
+        currentPreferredDomain = data.preferred_domain === 'vip' ? 'vip' : 'ng';
+
+        renderDomainSelector();
+
+        lastUsernameChange = data.last_username_change
+            ? new Date(data.last_username_change)
+            : null;
+
+        originalInitials = getInitials(
+            data.business_name || data.full_name
+        );
+
+        originalLogoUrl = data.logo_url || null;
+        updateLogoPreview(originalLogoUrl);
+
+        const savedFeePayer = data.default_invoice_fee_payer;
+
+        if (defaultInvoiceFeePayerInput) {
+            defaultInvoiceFeePayerInput.value =
+                savedFeePayer === 'client' ? 'client' : 'merchant';
         }
 
-        // Update plan card
-        const PLAN_INFO = {
-            silver: { desc: 'Active • Premium features enabled', badge: 'SILVER' },
-            gold: { desc: 'Active • Extra features unlocked', badge: 'GOLD' },
-            opal: { desc: 'Active • All features unlocked', badge: 'OPAL' },
-            free: { desc: 'Free • Upgrade for premium features', badge: 'FREE' }
-        };
+        updatePlanCard();
 
-        planCard.className = `plan-card ${currentUserPlan}`;
-        planCard.querySelector('strong').textContent = `Payla ${currentUserPlan.charAt(0).toUpperCase() + currentUserPlan.slice(1)}`;
-        planCard.querySelector('p').textContent = (PLAN_INFO[currentUserPlan] || PLAN_INFO.free).desc;
-        const planBadge = planCard.querySelector('.plan-badge span');
-        if (planBadge) planBadge.textContent = (PLAN_INFO[currentUserPlan] || PLAN_INFO.free).badge;
+        updateCharacterCounter(businessNameInput, businessNameCount, 30);
+        updateCharacterCounter(taglineInput, taglineCount, 45);
 
-        if (previewPlanName) {
-            previewPlanName.textContent = `Payla ${currentUserPlan.charAt(0).toUpperCase() + currentUserPlan.slice(1)}`;
-        }
-
-        // Verified badge logic: show verified only for paid plans/trial
-        if (['silver', 'gold', 'opal'].includes(currentUserPlan)) {
-            verifiedBadge.textContent = 'Verified';
-            verifiedBadge.classList.add('on');
-        } else {
-            verifiedBadge.textContent = 'Unverified';
-            verifiedBadge.classList.remove('on');
-        }
-
-        ;
-    } catch (err) {
-        console.error(err);
-        showToast('Failed to load profile', 'error');
+        setHasChanges(false);
+    } catch (error) {
+        console.error('Failed to load profile:', error);
+        showToast('Failed to load profile.', 'error');
     }
 }
 
-// ── Check username availability (calls /paylinks/check-username) ──
-let usernameCheckToken = null;
-async function checkUsernameAvailability(username) {
-    usernameHint.textContent = '';
-    if (!username) return;
+// ── Username Availability ──
 
-    const usernameRegex = /^[a-z0-9_-]{3,20}$/;
-    if (!usernameRegex.test(username)) {
-        usernameHint.textContent = 'Invalid username format — use 3-20 letters/numbers/_/-';
-        usernameHint.style.color = '#ef4444';
-        return { available: false, message: 'Invalid format' };
+async function checkUsernameAvailability(username) {
+    if (!usernameHint) return { available: false, message: 'Username field unavailable.' };
+
+    usernameHint.textContent = '';
+
+    if (!username) {
+        return { available: false, message: 'Enter a username.' };
     }
 
-    try {
-        const res = await fetch(`${BACKEND_URL}/api/paylinks/check-username`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ username })
-        });
-        const data = await res.json();
+    const normalizedUsername = username.trim().toLowerCase();
+    const usernameRegex = /^[a-z0-9_-]{3,20}$/;
 
-        if (res.status >= 400) {
-            usernameHint.textContent = data.message || data.detail || 'Not available';
+    if (!usernameRegex.test(normalizedUsername)) {
+        usernameHint.textContent =
+            'Invalid format. Use 3–20 letters, numbers, dashes, or underscores.';
+        usernameHint.style.color = '#ef4444';
+
+        return { available: false, message: 'Invalid username format.' };
+    }
+
+    const checkToken = ++usernameCheckToken;
+
+    try {
+        const response = await fetch(
+            `${BACKEND_URL}/api/paylinks/check-username`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: normalizedUsername
+                })
+            }
+        );
+
+        const data = await readResponse(response);
+
+        if (checkToken !== usernameCheckToken) {
+            return { available: false, message: 'A newer check is running.' };
+        }
+
+        if (!response.ok) {
+            const message = getErrorMessage(
+                data,
+                'Username availability check failed.'
+            );
+
+            usernameHint.textContent = message;
             usernameHint.style.color = '#ef4444';
-            showToast(data.message || data.detail || 'Username check failed', 'error');
-            return { available: false, message: data.message || data.detail || 'Unavailable' };
+
+            return { available: false, message };
         }
 
         if (data.available) {
-            usernameHint.textContent = data.message;
+            usernameHint.textContent = data.message || 'Username is available.';
             usernameHint.style.color = '#16a34a';
+
             return { available: true, message: data.message };
-        } else {
-            usernameHint.textContent = data.message || 'Unavailable';
-            usernameHint.style.color = '#ef4444';
-            return { available: false, message: data.message || 'Unavailable' };
         }
-    } catch (err) {
-        console.error('Username check failed', err);
-        showToast('Failed to check username', 'error');
-        return { available: false, message: 'Check failed' };
+
+        const message = data.message || 'Username is unavailable.';
+
+        usernameHint.textContent = message;
+        usernameHint.style.color = '#ef4444';
+
+        return { available: false, message };
+    } catch (error) {
+        console.error('Username availability check failed:', error);
+
+        return {
+            available: false,
+            message: 'Could not check username availability.'
+        };
     }
 }
 
 // ── Save Profile ──
-// ── Save Profile ──
+
 async function saveProfile() {
-    const token = localStorage.getItem('idToken');
-    if (!token) return showToast('User not authenticated', 'error');
+    if (isSaving) return;
 
-    const newUsername = usernameInput.value.trim().toLowerCase();
-    const isUsernameChanging = originalUsername !== newUsername;
-    let usernameChangedSuccess = false;
+    const token = getToken();
 
-    // --- Part A: Handle Username Change (with Gatekeeper) ---
-    if (isUsernameChanging) {
-        // 1. LOCAL GATEKEEPER: Check 1-year cooldown before calling API
-        if (!canChangeUsername()) {
-            showToast('Username is locked for 1 year. Other profile changes will be saved.', 'warning');
-            // We skip Part A entirely, but continue to Part B so other fields save.
-        } else {
-            // 2. Availability Check
-            const check = await checkUsernameAvailability(newUsername);
-            if (!check.available) {
-                showToast(check.message || 'Username unavailable', 'error');
-                return; // Stop the entire save process if username is taken
-            }
-
-            // 3. Call Paylink API (Required for backend logic/Paystack page)
-            try {
-                const resPaylink = await fetch(`${BACKEND_URL}/api/paylinks/`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        username: newUsername,
-                        display_name: businessNameInput.value,
-                        description: taglineInput.value,
-                        currency: "NGN"
-                    })
-                });
-                const paylinkData = await resPaylink.json();
-
-                if (checkUpgradeRequired(resPaylink, paylinkData)) return;
-
-                if (resPaylink.status >= 400) {
-                    showToast(paylinkData.detail || 'Failed to update paylink', 'error');
-                    return;
-                }
-                usernameChangedSuccess = true;
-            } catch (err) {
-                console.error(err);
-                showToast('Failed to save paylink', 'error');
-                return;
-            }
-        }
+    if (!token) {
+        showToast('User not authenticated.', 'error');
+        return;
     }
 
-    // --- Part B: Handle Profile Update (Syncing data to main User record) ---
-    // If username changed successfully, we use newUsername. 
-    // If cooldown was active or call failed, we revert to originalUsername for the profile record.
-    const payload = {
-        full_name: fullNameInput.value,
-        business_name: businessNameInput.value,
-        username: usernameChangedSuccess ? newUsername : originalUsername,
-        phone_number: whatsappNumberInput.value,
-        tagline: taglineInput?.value || ""
-    };
+    const newUsername = usernameInput.value.trim().toLowerCase();
+    const usernameRegex = /^[a-z0-9_-]{3,20}$/;
+
+    if (!usernameRegex.test(newUsername)) {
+        showToast(
+            'Username must contain 3–20 letters, numbers, dashes, or underscores.',
+            'error'
+        );
+        return;
+    }
+
+    if (!fullNameInput.value.trim()) {
+        showToast('Please enter your full name.', 'error');
+        return;
+    }
+
+    if (!businessNameInput.value.trim()) {
+        showToast('Please enter your business name.', 'error');
+        return;
+    }
+
+    const phoneDigits = whatsappNumberInput.value.replace(/\D/g, '');
+
+    if (phoneDigits.length < 10) {
+        showToast('Please enter a valid WhatsApp number.', 'error');
+        whatsappNumberInput.focus();
+        return;
+    }
+
+    isSaving = true;
+
+    if (saveFab) {
+        saveFab.disabled = true;
+    }
 
     try {
-        const res = await fetch(`${BACKEND_URL}/api/profile/update`, {
+        let usernameChangedSuccess = false;
+        const isUsernameChanging = newUsername !== (originalUsername || '');
+
+        if (isUsernameChanging) {
+            if (!canChangeUsername()) {
+                showToast(
+                    'Your username is locked for one year. Other profile changes will still be saved.',
+                    'warning'
+                );
+            } else {
+                const check = await checkUsernameAvailability(newUsername);
+
+                if (!check.available) {
+                    showToast(check.message, 'error');
+                    return;
+                }
+
+                const paylinkResponse = await fetch(
+                    `${BACKEND_URL}/api/paylinks/`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            username: newUsername,
+                            display_name: businessNameInput.value.trim(),
+                            description: taglineInput.value.trim(),
+                            currency: 'NGN',
+                            preferred_domain: canUseVip
+                                ? currentPreferredDomain
+                                : undefined
+                        })
+                    }
+                );
+
+                const paylinkData = await readResponse(paylinkResponse);
+
+                if (checkUpgradeRequired(paylinkResponse, paylinkData, 'invoices')) {
+                    return;
+                }
+
+                if (!paylinkResponse.ok) {
+                    showToast(
+                        getErrorMessage(paylinkData, 'Failed to update Paylink.'),
+                        'error'
+                    );
+                    return;
+                }
+
+                usernameChangedSuccess = true;
+            }
+        }
+
+        const usernameToSave = usernameChangedSuccess
+            ? newUsername
+            : (originalUsername || '');
+
+        const payload = {
+            full_name: fullNameInput.value.trim(),
+            business_name: businessNameInput.value.trim(),
+            username: usernameToSave,
+            phone_number: whatsappNumberInput.value.trim(),
+            tagline: taglineInput.value.trim(),
+            default_invoice_fee_payer:
+                defaultInvoiceFeePayerInput?.value === 'client'
+                    ? 'client'
+                    : 'merchant'
+        };
+
+        if (canUseVip) {
+            payload.preferred_domain = currentPreferredDomain;
+        }
+
+        const response = await fetch(`${BACKEND_URL}/api/profile/update`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                Authorization: `Bearer ${token}`
             },
             body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
+        const data = await readResponse(response);
 
-        if (checkUpgradeRequired(res, data)) return;
-        
-        // Final catch for profile update errors
-        if (res.status >= 400) {
-            showToast(data.detail || 'Failed to save profile', 'error');
+        if (checkUpgradeRequired(response, data)) {
             return;
         }
 
-        // --- Part C: FINAL SUCCESS ---
-        showToast('Profile updated successfully', 'success');
-        
-        // Sync local state ONLY if the change actually happened
+        if (!response.ok) {
+            showToast(
+                getErrorMessage(data, 'Failed to save profile.'),
+                'error'
+            );
+            return;
+        }
+
         if (usernameChangedSuccess) {
             originalUsername = newUsername;
-            lastUsernameChange = new Date(); 
+            lastUsernameChange = new Date();
         }
-        
-        hasChanges = false;
-        saveFab.classList.remove('visible');
-    } catch (err) {
-        console.error(err);
-        showToast('Failed to save profile', 'error');
+
+        originalInitials = getInitials(
+            businessNameInput.value || fullNameInput.value
+        );
+
+        showToast('Profile updated successfully.', 'success');
+        setHasChanges(false);
+
+        loadBankConfirmation();
+
+        if (data.preferred_domain) {
+            currentPreferredDomain =
+                data.preferred_domain === 'vip' ? 'vip' : 'ng';
+            renderDomainSelector();
+        }
+    } catch (error) {
+        console.error('Failed to save profile:', error);
+        showToast('Failed to save profile. Please try again.', 'error');
+    } finally {
+        isSaving = false;
+
+        if (saveFab) {
+            saveFab.disabled = false;
+        }
     }
 }
+
 // ── Upload Logo ──
-logoUploadInput.addEventListener('change', async function(e) {
-    const file = e.target.files[0];
+
+function resetLogoUI() {
+    updateLogoPreview(originalLogoUrl);
+}
+
+logoUploadInput?.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+
     if (!file) return;
 
-    // 1. Validation
-    if (file.size > 2 * 1024 * 1024) return showToast('File too large! Max 2MB', 'error');
+    if (file.size > 2 * 1024 * 1024) {
+        showToast('File too large. Maximum size is 2MB.', 'error');
+        logoUploadInput.value = '';
+        return;
+    }
 
-    // 2. Immediate "Elite" Loading State
-    // We show a local preview immediately so the user isn't staring at a blank screen
+    const allowedTypes = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'image/svg+xml'
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+        showToast('Please select a PNG, JPG, WebP, or SVG image.', 'error');
+        logoUploadInput.value = '';
+        return;
+    }
+
+    const token = getToken();
+
+    if (!token) {
+        showToast('User not authenticated.', 'error');
+        return;
+    }
+
     const reader = new FileReader();
-    reader.onload = (event) => {
-        logoPreview.style.backgroundImage = `url(${event.target.result})`;
-        logoPreview.style.filter = 'blur(4px) brightness(0.7)'; // "Processing" look
-        logoInitials.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
-        logoInitials.style.display = 'flex';
-        logoInitials.style.color = 'var(--rose-gold)';
+
+    reader.onload = resultEvent => {
+        if (!logoPreview) return;
+
+        logoPreview.style.backgroundImage = `url("${resultEvent.target.result}")`;
+        logoPreview.style.filter = 'blur(4px) brightness(0.7)';
+        logoPreview.classList.add('initials-medallion');
+        logoPreview.innerHTML = '<span class="initials-medallion__spinner"><i class="fas fa-circle-notch fa-spin"></i></span>';
     };
+
     reader.readAsDataURL(file);
 
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = localStorage.getItem('idToken');
-    if (!token) return showToast('User not authenticated', 'error');
-
     try {
-        const res = await fetch(`${BACKEND_URL}/api/profile/upload-logo`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData
-        });
+        const response = await fetch(
+            `${BACKEND_URL}/api/profile/upload-logo`,
+            {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`
+                },
+                body: formData
+            }
+        );
 
-        const data = await res.json();
+        const data = await readResponse(response);
 
-        if (checkUpgradeRequired(res, data)) {
-            resetLogoUI(); // Helper to clear loading if upgrade needed
-            return;
-        }
-
-        if (res.status >= 400) {
-            showToast(data.detail || data.message || 'Upload failed', 'error');
+        if (checkUpgradeRequired(response, data, 'branding')) {
             resetLogoUI();
             return;
         }
 
-        if (data.logo_url) {
-            const fullUrl = data.logo_url.startsWith('http') ? data.logo_url : `${BACKEND_URL}${data.logo_url}`;
-            
-            // 3. Smooth Transition to Final Cloud Image
-            const img = new Image();
-            img.onload = () => {
-                logoPreview.style.backgroundImage = `url(${fullUrl})`;
-                logoPreview.style.filter = 'none'; // Clear the blur
-                logoInitials.style.display = 'none';
-                showToast('Logo updated on the cloud', 'success');
-            };
-            img.src = fullUrl;
-        } else {
+        if (!response.ok) {
+            showToast(
+                getErrorMessage(data, 'Logo upload failed.'),
+                'error'
+            );
             resetLogoUI();
+            return;
         }
-    } catch (err) {
-        console.error(err);
-        showToast('Failed to upload logo', 'error');
+
+        if (!data.logo_url) {
+            showToast('Upload completed without a logo URL.', 'error');
+            resetLogoUI();
+            return;
+        }
+
+        originalLogoUrl = data.logo_url;
+        updateLogoPreview(originalLogoUrl);
+
+        showToast('Logo updated successfully.', 'success');
+    } catch (error) {
+        console.error('Logo upload failed:', error);
+        showToast('Failed to upload logo.', 'error');
         resetLogoUI();
+    } finally {
+        logoUploadInput.value = '';
     }
 });
 
-// Helper to reset UI state on failure/cancel
-function resetLogoUI() {
-    logoPreview.style.filter = 'none';
-    // Logic to restore initials or previous state if needed
-    if (!logoPreview.style.backgroundImage || logoPreview.style.backgroundImage === 'none') {
-        logoInitials.style.display = 'flex';
-        logoInitials.innerHTML = originalInitials || 'P'; // Use a stored value or default
-    } else {
-        logoInitials.style.display = 'none';
-    }
-}
+// ── Dirty State / Change Tracking ──
 
-[fullNameInput, businessNameInput, whatsappNumberInput, taglineInput].forEach(input => {
-    input.addEventListener('input', () => {
-        hasChanges = true;
-        saveFab.classList.add('visible');
-    });
+[
+    fullNameInput,
+    businessNameInput,
+    whatsappNumberInput,
+    taglineInput
+].forEach(input => {
+    input?.addEventListener('input', () => setHasChanges());
 });
 
-
-// username blur triggers availability check
-usernameInput.addEventListener('blur', function() {
-    const val = this.value.trim().toLowerCase();
-    checkUsernameAvailability(val);
+defaultInvoiceFeePayerInput?.addEventListener('change', () => {
+    setHasChanges();
 });
 
-// save
-saveFab.addEventListener('click', saveProfile);
+// ── Username Validation ──
 
-copyPaylinkBtn.addEventListener('click', () => {
-    const paylink = `payla.ng/${usernameInput.value || 'username'}`;
-    navigator.clipboard.writeText(paylink).then(() => showToast('Paylink copied to clipboard!', 'success'));
-});
-
-// ── Validation ──
-usernameInput.addEventListener('input', function() {
-    const val = this.value.trim().toLowerCase();
+usernameInput?.addEventListener('input', function () {
+    const value = this.value.trim().toLowerCase();
     const usernameRegex = /^[a-z0-9_-]{3,20}$/;
-    
+
     usernameHint.textContent = '';
     this.style.borderColor = '';
 
-    const isChanging = val !== originalUsername;
-
-    // Rule: Format Validation
-    if (!usernameRegex.test(val)) {
-        this.style.borderColor = '#ef4444'; 
-        usernameHint.textContent = 'Use 3-20 letters, numbers, dashes, or underscores.';
+    if (!usernameRegex.test(value)) {
+        this.style.borderColor = '#ef4444';
+        usernameHint.textContent =
+            'Use 3–20 letters, numbers, dashes, or underscores.';
         usernameHint.style.color = '#ef4444';
-        saveFab.classList.remove('visible'); // Block saving invalid format
+
+        setHasChanges();
         return;
     }
 
-    // Rule: Once-per-year Cooldown
-    if (isChanging && lastUsernameChange) {
-        const oneYearInMs = 365 * 24 * 60 * 60 * 1000;
-        const now = new Date();
-        const timeSinceChange = now - new Date(lastUsernameChange);
+    if (value !== (originalUsername || '') && !canChangeUsername()) {
+        const nextChange = lastUsernameChange
+            ? new Date(lastUsernameChange).getTime() + 365 * 24 * 60 * 60 * 1000
+            : Date.now();
 
-        if (timeSinceChange < oneYearInMs) {
-            const daysLeft = Math.ceil((oneYearInMs - timeSinceChange) / (1000 * 60 * 60 * 24));
-            this.style.borderColor = '#f59e0b'; // Amber
-            usernameHint.textContent = `Username locked. Available in ${daysLeft} days.`;
-            usernameHint.style.color = '#f59e0b';
-            saveFab.classList.remove('visible'); // Block saving during cooldown
-            return;
-        }
+        const daysLeft = Math.max(
+            1,
+            Math.ceil((nextChange - Date.now()) / (24 * 60 * 60 * 1000))
+        );
+
+        this.style.borderColor = '#f59e0b';
+        usernameHint.textContent =
+            `Username locked. Available in ${daysLeft} days.`;
+        usernameHint.style.color = '#f59e0b';
     }
 
-    // Rule: If it's valid and different from original, allow saving
-    if (isChanging) {
-        hasChanges = true; // Mark that we have a valid change
-        saveFab.classList.add('visible');
-    } else {
-        // If they typed back to their original name, and no other fields changed, hide fab
-        // Note: This logic assumes no other fields are dirty. 
-        // For a simpler life, you can just keep hasChanges as true.
-    }
+    setHasChanges();
 });
 
-whatsappNumberInput.addEventListener('blur', function() {
+usernameInput?.addEventListener('blur', async function () {
+    const value = this.value.trim().toLowerCase();
+
+    if (!value || value === (originalUsername || '')) {
+        usernameHint.textContent = '';
+        return;
+    }
+
+    await checkUsernameAvailability(value);
+});
+
+// ── Phone Validation ──
+
+whatsappNumberInput?.addEventListener('blur', function () {
     const phone = this.value.replace(/\D/g, '');
+
     if (phone.length < 10) {
-        showToast('Please enter a valid phone number', 'error');
+        showToast('Please enter a valid WhatsApp number.', 'error');
         this.style.borderColor = '#ef4444';
-    } else {
-        this.style.borderColor = '';
-        this.value = formatPhoneNumber(this.value);
+        return;
+    }
+
+    this.style.borderColor = '';
+    this.value = formatPhoneNumber(this.value);
+});
+
+// ── Buttons ──
+
+saveFab?.addEventListener('click', saveProfile);
+
+copyPaylinkBtn?.addEventListener('click', async () => {
+    const username = usernameInput.value.trim();
+
+    if (!username) {
+        showToast('Enter a username first.', 'warning');
+        return;
+    }
+
+    const base = currentPreferredDomain === 'vip'
+        ? 'https://payla.vip'
+        : 'https://payla.ng';
+
+    const paylink = `${base}/@${username}`;
+
+    try {
+        await navigator.clipboard.writeText(paylink);
+        showToast('Paylink copied to clipboard!', 'success');
+    } catch (error) {
+        console.error('Could not copy Paylink:', error);
+        showToast('Could not copy the Paylink. Please copy it manually.', 'error');
     }
 });
 
+profileForm?.addEventListener('submit', event => {
+    event.preventDefault();
+});
 
-// Prevent default form submission
-profileForm.addEventListener('submit', e => e.preventDefault());
+// ── Initialize ──
 
-// ── Initialize
-document.addEventListener('DOMContentLoaded', loadProfile);
+document.addEventListener('DOMContentLoaded', () => {
+    loadProfile();
+    loadBankConfirmation();
+});

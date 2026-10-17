@@ -1,971 +1,1625 @@
-/* paylink.css - ULTRA LUXURY BLACK CARD */
-/* Apple × Chanel aesthetic - Floating Titanium Card in Infinite Void */
+/* ============================================================
+   PAYLA — PUBLIC PAYLINK PAGE
+   A physical card: content-sized, engraved, restrained.
+   ============================================================ */
 
+
+/* ============================================================
+   01. TOKENS
+   ============================================================ */
 :root {
-  /* Luxury Color Palette from onboarding.css */
   --obsidian: #0A0A0A;
   --obsidian-secondary: #0F0F0F;
+  --obsidian-card-top: #0F0F11;
+  --obsidian-card-mid: #09090B;
+  --obsidian-card-bottom: #050506;
+  --obsidian-edge: #040405;
+
   --rose-gold: #E8B4B8;
+  --rose-gold-deep: #D89FA4;
   --rose-glow: rgba(232, 180, 184, 0.12);
+  --rose-wash: rgba(232, 180, 184, 0.05);
+  --rose-hairline: rgba(232, 180, 184, 0.15);
+
+  --platinum: #E5E5E5;
+  --platinum-muted: #A8A8A8;
+  --platinum-soft: #C8C8C8;
+
+  --verified-green: #4ADE80;
+  --verified-green-soft: rgba(74, 222, 128, 0.1);
+  --verified-green-border: rgba(74, 222, 128, 0.22);
+
+  --error-red: #FF5C6C;
+
   --text-primary: #FDFDFD;
   --text-secondary: #B8B8B8;
-  --glass-bg: rgba(15, 15, 15, 0.6);
-  --glass-border: rgba(232, 180, 184, 0.15);
-  --platinum: #E5E5E5;
-  --silver: #C0C0C0;
-  --chrome: #D8D8D8;
-  --midnight-void: #000000;
-  --pearl-white: #FDFDFD;
-  --emerald-green: #2ECC71;
-  
-  /* Typography */
-  --font-cormorant: 'Cormorant Garamond', serif;
-  --font-playfair: 'Playfair Display', serif;
-  --font-inter: 'Inter', sans-serif;
-  --font-lora: 'Lora', serif;
-  --font-mono: 'Courier New', monospace;
-  --font-heading: 'Playfair Display', Georgia, serif;
-  --font-accent: 'Inter', var(--font-body);
+  --text-tertiary: #7A7A7A;
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-cormorant: 'Cormorant Garamond', Georgia, serif;
+  --font-lora: 'Lora', Georgia, serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-script: 'Great Vibes', cursive;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 999px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 180ms;
+  --duration-base: 320ms;
+  --duration-slow: 600ms;
+
+  --card-width: 400px;
+  --card-radius: 14px;
+  --card-padding: clamp(1.1rem, 4.5vw, 1.4rem);
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: var(--font-inter);
+
+/* ============================================================
+   02. RESET + BASE
+   ============================================================ */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-    background: var(--midnight-void);
-    color: var(--text-primary);
-    line-height: 1.5;
-    font-weight: 400;
-    overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    perspective: 1000px;
+  background: var(--obsidian);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 3vw, 2rem);
+  position: relative;
 }
 
-/* Animated Glitter Background - Subtle luxury */
-.glitter {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: 
-        radial-gradient(circle at 20% 30%, rgba(232, 180, 184, 0.03) 0%, transparent 50%),
-        radial-gradient(circle at 80% 70%, rgba(232, 180, 184, 0.02) 0%, transparent 50%),
-        radial-gradient(circle at 40% 80%, rgba(232, 180, 184, 0.03) 0%, transparent 50%),
-        var(--midnight-void);
-    pointer-events: none;
-    z-index: -1;
-    animation: float 20s ease-in-out infinite;
+img, svg { display: block; max-width: 100%; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
-@keyframes float {
-    0%, 100% { transform: translateY(0px) rotate(0deg); }
-    50% { transform: translateY(-20px) rotate(1deg); }
+a { color: inherit; text-decoration: none; }
+
+::selection {
+  background: var(--rose-gold);
+  color: var(--obsidian);
 }
 
-/* Glassmorphism effect */
-.glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--rose-gold);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
-/* LOADING STATE - Luxury Signature Loading */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(232, 180, 184, 0.25);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(232, 180, 184, 0.4); }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(232, 180, 184, 0.3) transparent;
+}
+
+
+/* ============================================================
+   03. AMBIENT BACKGROUND
+   ============================================================ */
+.payla-ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(232, 180, 184, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(232, 180, 184, 0.04) 0%, transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(232, 180, 184, 0.05) 0%, transparent 55%);
+  animation: ambientDrift 24s ease-in-out infinite;
+}
+
+@keyframes ambientDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+  50%      { transform: translate3d(-2%, 1%, 0) scale(1.04); opacity: 0.85; }
+}
+
+
+/* ============================================================
+   04. LOADING STATE
+   ============================================================ */
 .loading-state {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: var(--midnight-void);
-    z-index: 1000;
-    text-align: center;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--obsidian);
+  z-index: 1000;
+  text-align: center;
+  padding: var(--space-6);
 }
 
 .loading-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 320px;
 }
 
 .loading-logo {
-    font-family: var(--font-playfair);
-    font-weight: 900;
-    font-size: 36px;
-    color: var(--rose-gold);
-    letter-spacing: -0.5px;
-    opacity: 0.8;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  color: var(--rose-gold);
+  opacity: 0.85;
+  margin-bottom: var(--space-2);
 }
 
 .loading-signature {
-    font-family: 'Great Vibes', 'Playfair Display', cursive;
-    font-weight: 400;
-    font-size: 35px;
-    color: var(--platinum);
-    text-align: center;
-    letter-spacing: 2px;
-    text-shadow: 
-        0 0 20px rgba(232, 180, 184, 0.3),
-        0 0 40px rgba(232, 180, 184, 0.1);
-    animation: signatureGlow 3s ease-in-out infinite;
+  font-family: var(--font-script);
+  font-size: clamp(2rem, 8vw, 2.75rem);
+  color: var(--platinum);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 24px rgba(232, 180, 184, 0.35),
+    0 0 48px rgba(232, 180, 184, 0.15);
+  animation: signatureGlow 3s ease-in-out infinite;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 @keyframes signatureGlow {
-    0%, 100% { 
-        text-shadow: 
-            0 0 20px rgba(232, 180, 184, 0.3),
-            0 0 40px rgba(232, 180, 184, 0.1);
-    }
-    50% { 
-        text-shadow: 
-            0 0 30px rgba(232, 180, 184, 0.5),
-            0 0 60px rgba(232, 180, 184, 0.2);
-    }
+  0%, 100% {
+    text-shadow:
+      0 0 24px rgba(232, 180, 184, 0.3),
+      0 0 48px rgba(232, 180, 184, 0.1);
+  }
+  50% {
+    text-shadow:
+      0 0 32px rgba(232, 180, 184, 0.5),
+      0 0 64px rgba(232, 180, 184, 0.2);
+  }
 }
 
 .loading-subtext {
-    font-family: var(--font-lora);
-    font-size: 14px;
-    color: var(--platinum);
-    text-align: center;
-    font-style: italic;
-    letter-spacing: 1px;
-    opacity: 0.7;
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
 }
 
-/* Error State */
+
+/* ============================================================
+   05. ERROR STATE
+   ============================================================ */
 .error-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    width: 100%;
-    max-width: 400px;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 400px;
 }
 
 .error-content {
-    text-align: center;
-    padding: 40px;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 20px;
-    backdrop-filter: blur(20px);
+  text-align: center;
+  padding: clamp(2rem, 6vw, 3rem);
+  background: rgba(15, 15, 15, 0.6);
+  border: 1px solid var(--rose-hairline);
+  border-radius: var(--radius-2xl);
+  backdrop-filter: saturate(150%) blur(14px);
+  -webkit-backdrop-filter: saturate(150%) blur(14px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 60px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.error-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 25%;
+  right: 25%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
+  opacity: 0.5;
 }
 
 .error-icon {
-    font-size: 48px;
-    color: var(--rose-gold);
-    margin-bottom: 20px;
-    opacity: 0.8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--rose-wash);
+  border: 1px solid var(--rose-hairline);
+  color: var(--rose-gold);
+  font-size: 20px;
+  margin-bottom: var(--space-5);
 }
 
-.error-content h2 {
-    font-family: var(--font-cormorant);
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 10px;
+.error-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+  line-height: 1.3;
 }
 
-.error-content p {
-    font-family: var(--font-inter);
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-bottom: 20px;
-    line-height: 1.4;
+.error-description {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-6);
 }
 
-/* PAYLA BLACK CARD CONTAINER */
+.error-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 12px 22px;
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: transform var(--duration-base) var(--ease-out);
+  box-shadow: 0 8px 24px rgba(232, 180, 184, 0.25);
+}
+
+.error-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(232, 180, 184, 0.35);
+}
+
+.hidden { display: none !important; }
+
+
+/* ============================================================
+   06. THE CARD — compact, physical, content-sized
+   ============================================================ */
 .paylink-content {
-    width: 100%;
-    max-width: 340px;
-    height: 560px; /* Taller than wide - card proportion */
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--card-width);
+  display: flex;
+  justify-content: center;
 }
 
 .paylink-container {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    transform-style: preserve-3d;
+  width: 100%;
+  position: relative;
 }
 
-/* THE BLACK CARD - Floating Titanium Rectangle */
-.paylink-preview-card {
-    width: 100%;
-    height: 100%;
-    background: var(--midnight-void)
-        url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="micro" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0L0 10" stroke="rgba(232,180,184,0.03)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23micro)"/></svg>');
-    border-radius: 24px;
-    position: relative;
-    overflow: hidden;
-    border: 1px solid rgba(232, 180, 184, 0.1);
-    box-shadow: 
-        0 0 0 1px rgba(255, 255, 255, 0.02),
-        0 40px 100px rgba(0, 0, 0, 0.8),
-        0 0 60px rgba(232, 180, 184, 0.1);
-    
-    /* Floating Breathing Animation */
-    animation: cardFloat 4s ease-in-out infinite;
-    transform: perspective(1000px) rotateX(5deg);
-    
-    /* Subtle texture for premium tactile feel */
-    background-blend-mode: overlay;
+.paylink-card {
+  position: relative;
+  width: 100%;
+  padding: var(--card-padding);
+  background: linear-gradient(180deg,
+    var(--obsidian-card-top) 0%,
+    var(--obsidian-card-mid) 55%,
+    var(--obsidian-card-bottom) 100%);
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  box-shadow:
+    0 1px 0 rgba(232, 180, 184, 0.1) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.9) inset,
+    0 1px 0 rgba(232, 180, 184, 0.05),
+    0 3px 0 -1px #060608,
+    0 5px 0 -2px var(--obsidian-edge),
+    0 16px 32px rgba(0, 0, 0, 0.7),
+    0 32px 64px rgba(0, 0, 0, 0.4),
+    0 0 48px rgba(232, 180, 184, 0.08);
+
+  animation: cardFloat 7s ease-in-out infinite;
+  isolation: isolate;
+}
+
+@keyframes cardFloat {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -3px, 0); }
+}
+
+.paylink-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(232, 180, 184, 0.03) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, rgba(232, 180, 184, 0.024) 0.5px, transparent 0.5px);
+  background-size: 12px 12px, 12px 12px;
+  mask-image: radial-gradient(ellipse at 50% 45%, black 25%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 45%, black 25%, transparent 85%);
+  z-index: 0;
+  opacity: 0.9;
+}
+
+.paylink-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
+  opacity: 0.7;
+  z-index: 3;
+}
+
+.paylink-card__glow {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 130%;
+  height: 130%;
+  background: radial-gradient(circle,
+    rgba(232, 180, 184, 0.14) 0%,
+    rgba(232, 180, 184, 0.04) 30%,
+    transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.paylink-card__reflection {
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232, 180, 184, 0.5), transparent);
+  opacity: 0.4;
+  z-index: 3;
+}
+
+.paylink-card > *:not(.paylink-card__glow):not(.paylink-card__reflection) {
+  position: relative;
+  z-index: 1;
 }
 
 
-/* Edge Highlights - Laser Engraved Rose Gold */
-.paylink-preview-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, 
-        transparent, 
-        var(--rose-gold), 
-        transparent);
-    z-index: 2;
-    opacity: 0.6;
+/* ============================================================
+   07. HEADER — logo left, seal right
+   ============================================================ */
+.paylink-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 60px;
+  margin-bottom: var(--space-1);
 }
 
-.paylink-preview-card::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, 
-        transparent, 
-        var(--rose-gold), 
-        transparent);
-    z-index: 2;
-    opacity: 0.3;
+.paylink-card__logo {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  padding: 2px;
+  background: conic-gradient(from 0deg,
+    rgba(232, 180, 184, 0.9),
+    rgba(216, 159, 164, 0.5),
+    rgba(232, 180, 184, 0.9));
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 0 1px rgba(232, 180, 184, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 6px 18px rgba(232, 180, 184, 0.14);
+}
+/* Initials mode overrides the conic ring with a flat obsidian medallion. */
+.paylink-card__logo.initials-medallion {
+  --medallion-size: 56px;
+  padding: 0;
+  background: #0A0A0A;
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 180, 184, 0.28),
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
-/* Radial Glow Effect */
-.silver-glow-effect {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 150%;
-    height: 150%;
-    background: radial-gradient(circle, 
-        rgba(232, 180, 184, 0.12) 0%, 
-        transparent 70%);
-    pointer-events: none;
-    z-index: 1;
-    opacity: 0.5;
+
+/* ============================================================
+   08. BRAND
+   ============================================================ */
+.paylink-card__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  min-width: 0;
 }
 
-.silver-stripe {
-    display: none; /* Hidden for black card design */
+.paylink-card__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.125rem, 4.5vw, 1.35rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--platinum);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-/* 3D Silver Badge - Top Right */
-.silver-plan-badge {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background: linear-gradient(135deg, var(--midnight-void));
-    color: var(--emerald-green);
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    z-index: 10;
-    text-transform: uppercase;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    animation: badgePulse 4s ease-in-out infinite;
+.paylink-card__tagline {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--rose-gold);
+  letter-spacing: 0.01em;
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-/* Platinum Logo Ring - Visible from UI */
-.preview-header {
-    display: flex;
-    justify-content: center;
-    padding: 40px 0 20px;
-    position: relative;
-    z-index: 2;
+
+/* ============================================================
+   09. CONTACT ACTIONS
+   ============================================================ */
+.paylink-card__actions {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: var(--space-2) !important;
+  margin-top: 0 !important;
+  width: 100%;
 }
 
-.preview-logo {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    padding: 6px;
-    background: conic-gradient(from 0deg, var(--platinum), var(--chrome), var(--platinum));
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid rgba(232, 180, 184, 0.3);
-    box-shadow: 
-        0 0 20px rgba(232, 180, 184, 0.2),
-        inset 0 0 20px rgba(232, 180, 184, 0.1);
+a.paylink-card__action,
+.paylink-card__action {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 9px 12px !important;
+  background: rgba(232, 180, 184, 0.05) !important;
+  border: 1px solid rgba(232, 180, 184, 0.14) !important;
+  border-radius: 8px !important;
+  color: var(--platinum) !important;
+  font-family: var(--font-body) !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  text-decoration: none !important;
+  text-transform: none !important;
+  cursor: pointer !important;
+  line-height: 1.2 !important;
+  min-height: 36px;
+  box-sizing: border-box;
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.4) inset;
 }
 
-.preview-logo span {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--rose-gold), #f7c8c8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    font-weight: 900;
-    color: var(--obsidian);
-    border: 2px solid var(--pearl-white);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+a.paylink-card__action:hover,
+.paylink-card__action:hover {
+  background: rgba(232, 180, 184, 0.1) !important;
+  border-color: rgba(232, 180, 184, 0.3) !important;
+  transform: translateY(-1px);
+  text-decoration: none !important;
 }
 
-@keyframes rotate {
-    to { transform: rotate(360deg); }
+a.paylink-card__action i,
+.paylink-card__action i {
+  color: var(--rose-gold) !important;
+  font-size: 11px !important;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
-.logo-glow {
-    position: absolute;
-    top: -5px;
-    left: -5px;
-    right: -5px;
-    bottom: -5px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(227,227,227,0.2), transparent 70%);
-    animation: logoPulse 3s ease-in-out infinite;
-    pointer-events: none;
-    z-index: -1;
+a.paylink-card__action span,
+.paylink-card__action span {
+  white-space: nowrap;
+  color: inherit;
 }
 
-@keyframes logoPulse {
-    0%, 100% { opacity: 0.2; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(1.05); }
+
+/* ============================================================
+   10. TRANSFER BUTTON + TRUST CUE
+   ============================================================ */
+.paylink-card__cta {
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-/* Brand Section - Platinum Engraved Text */
-.preview-brand {
-    text-align: center;
-    padding: 0 20px;
-    position: relative;
-    z-index: 2;
-    margin: 5px 0 20px;
+.paylink-card__transfer {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 11px 16px;
+  background: linear-gradient(180deg,
+    rgba(20, 20, 22, 0.95) 0%,
+    rgba(10, 10, 12, 0.98) 100%);
+  border: 1px solid rgba(232, 180, 184, 0.35);
+  border-radius: 10px;
+  color: var(--platinum);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.6) inset,
+    0 3px 0 -1px #030304,
+    0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
-.preview-name {
-    font-family: var(--font-heading);
-    font-size: 28px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    color: var(--platinum);
-    letter-spacing: -0.5px;
-    text-shadow: 
-        0 1px 3px rgba(0, 0, 0, 0.5),
-        0 0 20px rgba(229, 229, 229, 0.1);
-    /* Engraved effect */
-    background: linear-gradient(135deg, 
-        rgba(229, 229, 229, 0.9) 0%, 
-        rgba(229, 229, 229, 0.7) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+.paylink-card__transfer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(105deg,
+    transparent 35%,
+    rgba(232, 180, 184, 0.12) 50%,
+    transparent 65%);
+  transition: left 700ms var(--ease-out);
+  pointer-events: none;
 }
 
-.preview-tagline {
-    font-size: 14px;
-    color: var(--rose-gold);
-    font-weight: 500;
-    margin-bottom: 12px;
-    line-height: 1.4;
-    font-style: italic;
-    letter-spacing: 0.5px;
-    opacity: 0.9;
+.paylink-card__transfer:hover {
+  transform: translateY(-1px);
+  border-color: var(--rose-gold);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.6) inset,
+    0 4px 0 -2px #030304,
+    0 10px 24px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(232, 180, 184, 0.12);
 }
 
-.preview-handle {
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--platinum);
-    letter-spacing: 0.3px;
-    opacity: 0.8;
-    font-family: var(--font-mono);
+.paylink-card__transfer:hover::before {
+  left: 100%;
 }
 
-/* Contact Cards - Platinum Text */
-.contact-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin: 20px 0;
-    position: relative;
-    z-index: 2;
-    padding: 0 20px;
+.paylink-card__transfer:active {
+  transform: translateY(0);
 }
 
-.contact-card {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    font-size: 13px;
-    color: var(--platinum);
-    transition: all 0.3s ease;
-    padding: 10px;
-    background: rgba(232, 180, 184, 0.05);
-    border-radius: 10px;
-    border: 1px solid rgba(232, 180, 184, 0.1);
+.paylink-card__transfer i {
+  font-size: 11px;
+  color: var(--rose-gold);
 }
 
-.contact-card i {
-    color: var(--rose-gold);
-    font-size: 14px;
-    opacity: 0.8;
+.paylink-card__trust-cue {
+  font-family: var(--font-body);
+  font-style: normal;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  text-align: center;
+  letter-spacing: 0.005em;
+  padding: 0 var(--space-2);
 }
 
-.contact-value {
-    font-weight: 500;
-    color: var(--platinum);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    letter-spacing: 0.3px;
+.paylink-card__trust-cue span {
+  color: var(--rose-gold);
+  font-weight: 600;
 }
 
-.contact-header, .contact-glow {
-    display: none;
+/* Trust label — plain-text meaning of the stamp, sits under the tagline */
+.paylink-card__trust-label {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--verified-green);
+  margin-top: 5px;
 }
 
-/* CTA Section - Deep Black Button with Platinum Borders */
-.cta-section {
-    padding: 0 20px;
-    position: relative;
-    z-index: 2;
-    margin-top: 20px;
+.paylink-card__trust-label.is-visible {
+  display: inline-flex;
 }
 
-.send-money-btn.primary {
-    width: 100%;
-    padding: 18px;
-    background: var(--obsidian);
-    border: 1px solid var(--platinum);
-    border-radius: 14px;
-    color: var(--platinum);
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 
-        0 8px 24px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    font-family: var(--font-accent);
-    letter-spacing: 0.5px;
+.paylink-card__trust-label i {
+  font-size: 10px;
+  line-height: 1;
 }
 
-.send-money-btn.primary::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, 
-        transparent, 
-        rgba(232, 180, 184, 0.1), 
-        transparent);
-    transition: 0.6s;
-    pointer-events: none;
+/* Tenure variant — muted grey, no check */
+.paylink-card__trust-label--tenure {
+  color: var(--text-tertiary);
+  font-weight: 500;
 }
 
-.send-money-btn.primary:hover::before {
-    left: 100%;
+.paylink-card__trust-label--tenure i {
+  color: var(--text-tertiary);
 }
 
-.send-money-btn.primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 
-        0 12px 32px rgba(0, 0, 0, 0.6),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    border-color: var(--rose-gold);
+
+/* ============================================================
+   11. FOOTER
+   ============================================================ */
+.paylink-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  margin-top: 0;
+  border-top: 1px solid rgba(232, 180, 184, 0.08);
+  min-height: 22px;
 }
 
-.send-money-btn.primary:active {
-    transform: translateY(0);
+.paylink-card__signature {
+  font-family: var(--font-script);
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--rose-gold);
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(232, 180, 184, 0.2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+  transform: translateY(-1px);
 }
 
-/* Footer */
-.preview-footer {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 20px 20px 0;
-    margin-top: 20px;
-    border-top: 1px solid rgba(232, 180, 184, 0.1);
-    position: relative;
-    z-index: 2;
+.paylink-card__secured {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: color var(--duration-base) var(--ease-out);
 }
 
-.powered-by {
-    font-size: 11px;
-    color: rgba(253,253,253,0.5);
-    text-align: center;
-    font-weight: 300;
-    letter-spacing: 0.3px;
+.paylink-card__secured:hover { color: var(--rose-gold); }
+
+.paylink-card__secured i {
+  color: var(--rose-gold);
+  font-size: 7px;
+  opacity: 0.9;
 }
 
-.powered-by span {
-    color: var(--pearl-white);
-    font-weight: 500;
+
+/* ============================================================
+   12. TRUST MARK — 40px engraved seal + tenure fallback
+   ============================================================ */
+.paylink-card__trust {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  min-height: 44px;
+  max-width: 110px;
 }
 
-.secured-by {
-    font-size: 11px;
-    color: var(--platinum);
-    font-weight: 500;
-    letter-spacing: 0.3px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    justify-content: center;
-    text-decoration: none;
-    opacity: 0.8;
-    transition: opacity 0.3s;
+/* --- STAMP (verified state) --- */
+.payla-stamp {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: stampFadeIn 500ms var(--ease-out) both;
 }
 
-.secured-by:hover {
-    opacity: 1;
+.payla-stamp__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* Subtle engraved depth */
+  filter:
+    drop-shadow(0 1px 0 rgba(232, 180, 184, 0.15))
+    drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.6));
 }
 
-.secured-by i {
-    color: var(--rose-gold);
-    font-size: 10px;
+/* Outer solid ring — the seal edge */
+.payla-stamp__ring-outer {
+  fill: none;
+  stroke: var(--rose-gold);
+  stroke-width: 1.7;
+  opacity: 0.95;
 }
 
-.no-underline {
-    text-decoration: none;
-    color: inherit;
+/* Dashed ring — engraving detail */
+.payla-stamp__ring-dashed {
+  fill: none;
+  stroke: var(--rose-gold);
+  stroke-width: 0.7;
+  opacity: 0.6;
+  stroke-dasharray: 1.2 1.8;
 }
 
-/* MODALS */
+/* Inner solid ring */
+.payla-stamp__ring-inner {
+  fill: none;
+  stroke: var(--rose-gold);
+  stroke-width: 1.4;
+  opacity: 0.8;
+}
+
+/* Arc text — NAME MATCHED */
+.payla-stamp__arc-text {
+  font-family: var(--font-body);
+  font-size: 7.8px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  fill: var(--rose-gold);
+  text-transform: uppercase;
+}
+
+/* Center text — SEALED */
+.payla-stamp__center-text {
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  fill: var(--rose-gold);
+  text-transform: uppercase;
+}
+
+/* Banner rect */
+.payla-stamp__banner-bg {
+  fill: rgba(20, 15, 17, 0.95);
+  stroke: var(--rose-gold);
+  stroke-width: 1;
+}
+
+/* Banner text — SINCE JAN 2025 / NEW ON PAYLA */
+.payla-stamp__banner-text {
+  font-family: var(--font-body);
+  font-size: 6.2px;
+  font-weight: 1000;
+  letter-spacing: 0.9px;
+  fill: var(--rose-gold);
+  text-transform: uppercase;
+}
+
+@keyframes stampFadeIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* --- PLAIN TENURE MARK (unverified / pending) --- */
+.payla-tenure-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
+  animation: stampFadeIn 500ms var(--ease-out) both;
+}
+
+.payla-tenure-mark__line {
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-tertiary);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.payla-tenure-mark__line--strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+
+/* ============================================================
+   13. MODALS
+   ============================================================ */
 .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.95);
-    backdrop-filter: blur(20px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.4s, visibility 0.4s;
-    padding: 20px;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: var(--space-4);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    visibility var(--duration-base) var(--ease-out);
 }
 
 .modal-overlay.open {
-    opacity: 1;
-    visibility: visible;
+  opacity: 1;
+  visibility: visible;
 }
 
 .modal {
-    background: linear-gradient(135deg, 
-        rgba(15, 15, 15, 0.95) 0%, 
-        rgba(10, 10, 10, 0.98) 100%);
-    border: 1px solid rgba(232, 180, 184, 0.1);
-    border-radius: 24px;
-    padding: 32px 28px;
-    max-width: 400px;
-    width: 100%;
-    position: relative;
-    box-shadow: 
-        0 40px 100px rgba(0, 0, 0, 0.8),
-        0 0 60px rgba(232, 180, 184, 0.1);
-    animation: modalFloat 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    transform: perspective(1000px) rotateX(5deg);
+  width: 100%;
+  max-width: 400px;
+  padding: clamp(1.25rem, 4vw, 1.6rem);
+  background: linear-gradient(180deg,
+    var(--obsidian-card-top) 0%,
+    var(--obsidian-card-mid) 100%);
+  border: 1px solid var(--rose-hairline);
+  border-radius: var(--radius-2xl);
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(232, 180, 184, 0.12) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.8) inset,
+    0 4px 0 -1px #050507,
+    0 8px 0 -3px #030304,
+    0 32px 80px rgba(0, 0, 0, 0.8),
+    0 0 60px rgba(232, 180, 184, 0.08);
+  animation: modalPop var(--duration-base) var(--ease-out);
 }
 
-@keyframes modalFloat {
-    from { 
-        transform: perspective(1000px) rotateX(5deg) translateY(40px); 
-        opacity: 0; 
-    }
-    to { 
-        transform: perspective(1000px) rotateX(5deg) translateY(0); 
-        opacity: 1; 
-    }
+.modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
+  opacity: 0.65;
 }
 
-.premium-modal {
-    border-color: var(--rose-gold);
+@keyframes modalPop {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .modal-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background: transparent;
-    border: none;
-    font-size: 18px;
-    color: var(--platinum);
-    cursor: pointer;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: all 0.3s;
-    opacity: 0.7;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--platinum-muted);
+  font-size: 13px;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 .modal-close:hover {
-    opacity: 1;
-    background: rgba(232, 180, 184, 0.1);
-    color: var(--rose-gold);
+  background: var(--rose-wash);
+  color: var(--rose-gold);
+  transform: rotate(90deg);
 }
 
 .modal-header {
-    text-align: center;
-    margin-bottom: 28px;
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+
+.modal-eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rose-gold);
+  margin-bottom: var(--space-2);
 }
 
 .modal-title {
-    font-family: var(--font-cormorant);
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--platinum);
-    margin-bottom: 8px;
-    letter-spacing: -0.5px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
 .modal-subtitle {
-    font-family: var(--font-lora);
-    font-size: 14px;
-    color: var(--platinum);
-    font-weight: 400;
-    opacity: 0.7;
-    font-style: italic;
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
+
+/* ============================================================
+   14. PAYMENT FORM — compressed to fit without scroll
+   ============================================================ */
 .payment-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .form-group label {
-    font-size: 12px;
-    color: var(--platinum);
-    font-weight: 500;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    opacity: 0.8;
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
 }
 
 .payment-form input {
-    background: rgba(30, 30, 30, 0.8);
-    border: 1px solid rgba(232, 180, 184, 0.2);
-    border-radius: 12px;
-    padding: 16px;
-    color: var(--platinum);
-    font-family: var(--font-inter);
-    font-size: 15px;
-    transition: all 0.3s;
-    width: 100%;
+  width: 100%;
+  padding: 11px 14px;
+  background: rgba(20, 20, 22, 0.7);
+  border: 1px solid var(--rose-hairline);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .payment-form input::placeholder {
-    font-family: var(--font-lora);
-    font-style: italic;
-    color: var(--platinum);
-    opacity: 0.5;
+  font-family: var(--font-lora);
+  font-style: italic;
+  color: var(--text-tertiary);
+  opacity: 0.9;
 }
 
 .payment-form input:focus {
-    outline: none;
-    border-color: var(--rose-gold);
-    box-shadow: 0 0 0 2px rgba(232, 180, 184, 0.1);
+  outline: none;
+  border-color: var(--rose-gold);
+  box-shadow: 0 0 0 3px rgba(232, 180, 184, 0.15);
+}
+
+.form-hint {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  line-height: 1.4;
 }
 
 .payment-security {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 16px;
-    background: rgba(232, 180, 184, 0.05);
-    border: 1px solid rgba(232, 180, 184, 0.1);
-    border-radius: 12px;
-    font-size: 12px;
-    color: var(--platinum);
-    opacity: 0.8;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--rose-wash);
+  border: 1px solid rgba(232, 180, 184, 0.1);
+  border-radius: var(--radius-md);
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
 }
 
 .payment-security i {
-    color: var(--rose-gold);
+  color: var(--rose-gold);
+  font-size: 11px;
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 .submit-btn {
-    padding: 18px;
-    background: var(--obsidian);
-    border: 1px solid var(--platinum);
-    border-radius: 14px;
-    color: var(--platinum);
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    letter-spacing: 0.5px;
-    position: relative;
-    overflow: hidden;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 13px 20px;
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  border: none;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 4px 0 -2px rgba(0, 0, 0, 0.4),
+    0 10px 28px rgba(232, 180, 184, 0.25);
+  position: relative;
+  overflow: hidden;
 }
 
-.submit-btn:hover {
-    transform: translateY(-2px);
-    border-color: var(--rose-gold);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.3) inset,
+    0 6px 0 -3px rgba(0, 0, 0, 0.4),
+    0 14px 36px rgba(232, 180, 184, 0.35);
 }
 
 .submit-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none !important;
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
-/* Success Modal */
-.success-icon {
-    font-size: 48px;
-    color: var(--emerald-green);
-    margin-bottom: 20px;
-    animation: successPulse 2s ease-in-out infinite;
+.submit-btn i { font-size: 11px; }
+
+
+/* ============================================================
+   15. BANK-CONFIRMED RECIPIENT — compact, precise
+   ============================================================ */
+.payment-recipient {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 14px 12px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  isolation: isolate;
+
+  /* Deep smoked-rose glass — feels like a physical card surface */
+  background:
+    radial-gradient(ellipse 80% 120% at 25% -10%,
+      rgba(232, 180, 184, 0.12) 0%,
+      transparent 60%),
+    linear-gradient(155deg,
+      #1C1618 0%,
+      #141011 50%,
+      #0D0A0B 100%);
+  border: 1px solid rgba(232, 180, 184, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 8px 20px rgba(0, 0, 0, 0.4),
+    0 0 30px rgba(232, 180, 184, 0.06);
 }
 
-@keyframes successPulse {
-    0%, 100% { 
-        transform: scale(1); 
-        text-shadow: 0 0 20px rgba(46, 204, 113, 0.3);
-    }
-    50% { 
-        transform: scale(1.05); 
-        text-shadow: 0 0 40px rgba(46, 204, 113, 0.5);
-    }
+/* Rose hairline across the top edge */
+.payment-recipient::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--rose-gold) 50%,
+    transparent);
+  opacity: 0.85;
+  z-index: 2;
+}
+
+/* Extremely subtle micro-grid */
+.payment-recipient::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(232, 180, 184, 0.02) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, rgba(232, 180, 184, 0.016) 0.5px, transparent 0.5px);
+  background-size: 9px 9px, 9px 9px;
+  mask-image: radial-gradient(ellipse at 35% 35%, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at 35% 35%, black 30%, transparent 80%);
+  z-index: 0;
+  opacity: 0.85;
+}
+
+.payment-recipient[hidden] {
+  display: none !important;
+}
+
+.payment-recipient > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Small caps eyebrow — compact */
+.payment-recipient__label {
+  font-family: var(--font-body);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rose-gold);
+  opacity: 0.9;
+  line-height: 1.2;
+}
+
+/* The name — hero of the block, tighter */
+.payment-recipient__name {
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  line-height: 1.2;
+  color: var(--text-primary);
+  word-break: break-word;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(232, 180, 184, 0.06);
+}
+
+/* Green proof pill — smaller */
+.payment-recipient__proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--verified-green);
+  padding: 3px 8px 3px 6px;
+  background: rgba(74, 222, 128, 0.06);
+  border: 1px solid rgba(74, 222, 128, 0.15);
+  border-radius: var(--radius-full);
+  width: fit-content;
+  margin-top: 1px;
+  line-height: 1.2;
+}
+
+.payment-recipient__proof i {
+  font-size: 9px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Legacy bank line — unused */
+.payment-recipient__bank {
+  display: none;
+}
+
+
+/* ============================================================
+   16. SUCCESS MODAL
+   ============================================================ */
+.modal--success {
+  max-width: 420px;
+}
+
+.success-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-4);
+  color: var(--obsidian);
+  font-size: 20px;
+  box-shadow:
+    0 0 0 6px rgba(232, 180, 184, 0.08),
+    0 4px 0 -2px rgba(0, 0, 0, 0.4),
+    0 12px 32px rgba(232, 180, 184, 0.3);
+  animation: successPop var(--duration-slow) var(--ease-out);
+}
+
+@keyframes successPop {
+  0%   { transform: scale(0); opacity: 0; }
+  70%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .success-details {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin: 32px 0;
-    padding: 24px;
-    background: rgba(30, 30, 30, 0.8);
-    border-radius: 16px;
-    border: 1px solid rgba(232, 180, 184, 0.1);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-5);
+  background: rgba(20, 20, 22, 0.6);
+  border: 1px solid rgba(232, 180, 184, 0.08);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
 }
 
 .detail-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(232, 180, 184, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(232, 180, 184, 0.06);
 }
 
+.detail-row:first-child { padding-top: 0; }
 .detail-row:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .detail-row span {
-    color: var(--platinum);
-    font-size: 13px;
-    font-weight: 300;
-    opacity: 0.8;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
 }
 
 .detail-row strong {
-    color: var(--platinum);
-    font-size: 14px;
-    font-weight: 500;
-    letter-spacing: 0.3px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+  text-align: right;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .success-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 24px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
 }
 
 .btn {
-    flex: 1;
-    padding: 16px;
-    border-radius: 12px;
-    font-family: var(--font-inter);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border: none;
-    letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 12px 18px;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+  border: 1px solid transparent;
 }
 
-.btn-secondary {
-    background: rgba(232, 180, 184, 0.1);
-    border: 1px solid rgba(232, 180, 184, 0.2);
-    color: var(--platinum);
+.btn--primary {
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 4px 0 -2px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(232, 180, 184, 0.2);
 }
 
-.btn-secondary:hover {
-    background: rgba(232, 180, 184, 0.15);
+.btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.3) inset,
+    0 6px 0 -3px rgba(0, 0, 0, 0.4),
+    0 12px 32px rgba(232, 180, 184, 0.3);
 }
 
-.btn-primary {
-    background: var(--obsidian);
-    border: 1px solid var(--platinum);
-    color: var(--platinum);
+.btn--outline {
+  background: transparent;
+  border-color: var(--rose-hairline);
+  color: var(--text-primary);
 }
 
-.btn-primary:hover {
-    transform: translateY(-2px);
-    border-color: var(--rose-gold);
+.btn--outline:hover {
+  border-color: var(--rose-gold);
+  color: var(--rose-gold);
+  background: var(--rose-wash);
 }
 
-/* UTILITY CLASSES */
-.hidden {
-    display: none !important;
-}
+.btn i { font-size: 11px; }
 
-/* TOAST NOTIFICATIONS */
+
+/* ============================================================
+   17. TOAST
+   ============================================================ */
 .toast {
-    position: fixed;
-    bottom: 32px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: rgba(20, 20, 20, 0.95);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(232, 180, 184, 0.2);
-    border-radius: 12px;
-    padding: 16px 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    opacity: 0;
-    transition: all 0.4s;
-    z-index: 3000;
+  position: fixed;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%) translateY(120%);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 12px 20px;
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  z-index: 3000;
+  opacity: 0;
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
+  max-width: calc(100vw - var(--space-8));
+  pointer-events: none;
+  text-align: center;
 }
 
 .toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
 }
 
-.toast.success {
-    border-left: 3px solid var(--emerald-green);
-}
+.toast i { font-size: 14px; flex-shrink: 0; }
 
 .toast.error {
-    border-left: 3px solid #ff4757;
+  background: linear-gradient(180deg, var(--error-red) 0%, #C43F4D 100%);
+  color: var(--text-primary);
 }
 
-.toast i {
-    font-size: 18px;
-}
 
-.toast.success i {
-    color: var(--emerald-green);
-}
+/* ============================================================
+   18. RESPONSIVE
+   ============================================================ */
 
-.toast.error i {
-    color: #ff4757;
-}
-
-/* RESPONSIVE DESIGN */
 @media (max-width: 480px) {
-    .paylink-content {
-        height: 520px;
-        max-width: 320px;
-    }
-    
-    .paylink-preview-card {
-        border-radius: 20px;
-    }
-    
-    .preview-logo {
-        width: 60px;
-        height: 60px;
-    }
-    
-    .preview-logo span {
-        font-size: 18px;
-    }
-    
-    .preview-name {
-        font-size: 24px;
-    }
-    
-    .preview-tagline {
-        font-size: 13px;
-    }
-    
-    .send-money-btn.primary {
-        padding: 16px;
-        font-size: 15px;
-    }
-    
-    .modal {
-        padding: 28px 24px;
-        width: 95%;
-    }
+  :root {
+    --card-width: 100%;
+    --card-padding: 1.1rem;
+  }
+
+  .paylink-card__name {
+    font-size: 1.125rem;
+  }
+
+  .paylink-card__tagline {
+    font-size: 0.6875rem;
+  }
+
+  .payla-stamp {
+    width: 66px;
+    height: 66px;
+  }
+
+  .paylink-card__trust-cue {
+    font-size: 0.625rem;
+  }
+
+  .paylink-card__signature {
+    font-size: 0.9375rem;
+  }
 }
 
-/* ACCESSIBILITY */
+@media (max-width: 380px) {
+  :root {
+    --card-padding: 1rem;
+  }
+
+  .paylink-card__logo {
+    width: 40px;
+    height: 40px;
+  }
+
+  .paylink-card__logo span {
+    font-size: 1rem;
+  }
+
+  .payla-stamp {
+    width: 65px;
+    height: 65px;
+  }
+
+  .paylink-card__name {
+    font-size: 1.0625rem;
+  }
+
+  .paylink-card__secured {
+    font-size: 0.4375rem;
+  }
+
+  .success-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ============================================================
+   19. PRINT
+   ============================================================ */
+@media print {
+  body {
+    background: white;
+    color: black;
+    padding: 0;
+  }
+
+  .payla-ambient,
+  .paylink-content,
+  .loading-state,
+  .error-state,
+  #paystackModal,
+  .toast,
+  .modal-close,
+  .success-actions {
+    display: none !important;
+  }
+
+  .modal-overlay {
+    position: static;
+    background: white;
+    padding: 0;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  #successModal { display: block !important; }
+
+  .modal {
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: none;
+    color: black;
+    max-width: 100%;
+    padding: 24px;
+  }
+
+  .modal-title,
+  .success-details,
+  .detail-row strong { color: black; }
+
+  .modal-eyebrow,
+  .modal-subtitle,
+  .detail-row span { color: #555; }
+
+  .detail-row { border-bottom: 1px solid #ddd; }
+
+  .success-mark {
+    background: #E8B4B8;
+    color: black;
+  }
+}
+
+
+/* ============================================================
+   20. ACCESSIBILITY
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .paylink-card,
+  .payla-ambient,
+  .loading-signature {
+    animation: none;
+  }
 }
 
-/* Focus styles */
-button:focus-visible, 
-input:focus-visible {
-    outline: 2px solid var(--rose-gold);
-    outline-offset: 2px;
+/* ============================================================
+   INITIALS MEDALLION — fallback avatar for users without a logo
+   Black obsidian circle, rose-gold hairline ring, rose-gold initials.
+   ============================================================ */
+.initials-medallion {
+  --medallion-size: 52px;
+  position: relative;
+  width: var(--medallion-size);
+  height: var(--medallion-size);
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #0A0A0A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 180, 184, 0.28),
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.initials-medallion__text {
+  font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  font-weight: 700;
+  font-size: calc(var(--medallion-size) * 0.36);
+  letter-spacing: 0.03em;
+  color: #E8B4B8;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(232, 180, 184, 0.25);
+  transform: translateY(-1px);
+  user-select: none;
 }

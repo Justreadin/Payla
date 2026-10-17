@@ -1,12 +1,62 @@
-/* Upgrade Modal Styles - Compact Square Design */
+/* ============================================================
+   PAYLA — UPGRADE MODAL + TOAST
+   A considered pause. Calm, feature-specific, restrained.
+   ============================================================ */
+
+/* Fallback tokens for pages that don't load dashboard.css */
+:root {
+  --obsidian: #0A0A0A;
+  --obsidian-card-top: #0F0F11;
+  --obsidian-card-mid: #09090B;
+  --obsidian-card-bottom: #050506;
+  --obsidian-edge: #040405;
+
+  --rose-gold: #E8B4B8;
+  --rose-gold-deep: #D89FA4;
+  --rose-wash: rgba(232, 180, 184, 0.05);
+  --rose-hairline: rgba(232, 180, 184, 0.15);
+  --rose-hairline-strong: rgba(232, 180, 184, 0.28);
+
+  --platinum: #E5E5E5;
+  --text-primary: #FDFDFD;
+  --text-secondary: #B8B8B8;
+  --text-tertiary: #7A7A7A;
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-lora: 'Lora', Georgia, serif;
+
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 999px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 180ms;
+  --duration-base: 320ms;
+}
+
+
+/* ============================================================
+   01. MODAL OVERLAY
+   ============================================================ */
 .upgrade-modal {
+  position: fixed;
+  inset: 0;
   z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.86);
+  backdrop-filter: saturate(140%) blur(14px);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.4s ease, visibility 0.4s ease;
-  background: rgba(0, 0, 0, 0.95);
-  backdrop-filter: blur(20px);
-  perspective: 1000px;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    visibility var(--duration-base) var(--ease-out);
 }
 
 .upgrade-modal.open {
@@ -14,582 +64,433 @@
   visibility: visible;
 }
 
-.upgrade-modal .modal {
-  max-width: 320px;
-  width: 85%;
-  background: 
-    linear-gradient(135deg, 
-      rgba(15, 15, 15, 0.95) 0%, 
-      rgba(10, 10, 10, 0.98) 100%);
-  border: 1px solid rgba(232, 180, 184, 0.1);
-  border-radius: 20px;
-  box-shadow: 
-    0 30px 80px rgba(0, 0, 0, 0.8),
-    0 0 40px rgba(232, 180, 184, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.02);
-  animation: upgradeCardFloat 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  transform: perspective(1000px) rotateX(3deg);
+
+/* ============================================================
+   02. THE CARD
+   ============================================================ */
+.upgrade-card {
   position: relative;
-  overflow: hidden;
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: clamp(1.75rem, 5vw, 2.25rem) clamp(1.25rem, 5vw, 1.75rem) clamp(1.5rem, 4vw, 1.75rem);
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(180deg,
+    var(--obsidian-card-top) 0%,
+    var(--obsidian-card-mid) 55%,
+    var(--obsidian-card-bottom) 100%);
+  border: 1px solid var(--rose-hairline);
+  box-shadow:
+    0 1px 0 rgba(232, 180, 184, 0.1) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.8) inset,
+    0 4px 0 -1px #050507,
+    0 8px 0 -3px var(--obsidian-edge),
+    0 32px 80px rgba(0, 0, 0, 0.85),
+    0 0 60px rgba(232, 180, 184, 0.07);
   text-align: center;
+  isolation: isolate;
+  transform: translateY(12px) scale(0.98);
+  opacity: 0;
+  animation: upgradePop var(--duration-base) var(--ease-out) forwards;
+  animation-play-state: paused;
 }
 
-@keyframes upgradeCardFloat {
-  from { 
-    transform: perspective(1000px) rotateX(3deg) translateY(30px); 
-    opacity: 0; 
+.upgrade-modal.open .upgrade-card {
+  animation-play-state: running;
+}
+
+@keyframes upgradePop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
   }
-  to { 
-    transform: perspective(1000px) rotateX(3deg) translateY(0); 
-    opacity: 1; 
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-/* Edge Highlights */
-.upgrade-modal .modal::before {
+/* Rose hairline across the top edge */
+.upgrade-card::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 12%;
+  right: 12%;
   height: 1px;
-  background: linear-gradient(90deg, 
-    transparent, 
-    var(--rose-gold), 
-    transparent);
-  z-index: 2;
-  opacity: 0.6;
-}
-
-.upgrade-content {
-  padding: 24px 20px;
-  position: relative;
-  z-index: 3;
-}
-
-.upgrade-icon {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 12px;
-  background: linear-gradient(135deg, var(--rose-gold), #f7c8c8);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--obsidian);
-  font-size: 20px;
-  box-shadow: 
-    0 0 30px rgba(232, 180, 184, 0.4),
-    0 0 0 2px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  animation: crownPulse 3s ease-in-out infinite;
-}
-
-@keyframes crownPulse {
-  0%, 100% { 
-    transform: scale(1); 
-    box-shadow: 
-      0 0 30px rgba(232, 180, 184, 0.4),
-      0 0 0 2px rgba(255, 255, 255, 0.1);
-  }
-  50% { 
-    transform: scale(1.05); 
-    box-shadow: 
-      0 0 45px rgba(232, 180, 184, 0.6),
-      0 0 0 2px rgba(255, 255, 255, 0.15);
-  }
-}
-
-.upgrade-title {
-  font-family: var(--font-cormorant);
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 6px;
-  color: var(--platinum);
-  letter-spacing: -0.3px;
-  line-height: 1.2;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-.upgrade-message {
-  font-size: 12px;
-  color: var(--platinum);
-  margin-bottom: 14px;
-  line-height: 1.3;
-  opacity: 0.85;
-  font-weight: 300;
-  letter-spacing: 0.2px;
-}
-
-.upgrade-status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: 12px 0;
-  padding: 10px;
-  background: rgba(30, 30, 30, 0.6);
-  border-radius: 10px;
-  border: 1px solid rgba(232, 180, 184, 0.08);
-}
-
-.upgrade-status .status-badge {
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 9px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  color: var(--platinum);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  min-width: 60px;
-  text-align: center;
-  opacity: 0.75;
-}
-
-.upgrade-status .status-badge.highlighted {
-  background: linear-gradient(135deg, var(--rose-gold), rgba(232, 180, 184, 0.9));
-  color: var(--obsidian);
-  border-color: var(--rose-gold);
-  opacity: 1;
-  box-shadow: 0 4px 16px rgba(232, 180, 184, 0.25);
-}
-
-.upgrade-status i {
-  color: var(--rose-gold);
-  font-size: 10px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
   opacity: 0.7;
-}
-
-.upgrade-subtitle {
-  font-size: 10px;
-  color: var(--platinum);
-  margin-bottom: 12px;
-  opacity: 0.6;
-  font-style: italic;
-  letter-spacing: 0.3px;
-  line-height: 1.2;
-}
-
-.upgrade-benefits {
-  background: rgba(232, 180, 184, 0.04);
-  border-radius: 10px;
-  padding: 12px;
-  margin: 12px 0;
-  border: 1px solid rgba(232, 180, 184, 0.08);
-}
-
-.upgrade-benefits h4 {
-  font-size: 11px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--platinum);
-  letter-spacing: 0.3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.upgrade-benefits h4::before {
-  content: '✨';
-  font-size: 12px;
-}
-
-.upgrade-benefits ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 5px;
-}
-
-.upgrade-benefits li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  font-size: 10px;
-  color: var(--platinum);
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 6px;
-  border: 1px solid rgba(232, 180, 184, 0.05);
-  transition: all 0.3s ease;
-  text-align: left;
-  line-height: 1.2;
-}
-
-.upgrade-benefits li:hover {
-  background: rgba(232, 180, 184, 0.06);
-  border-color: rgba(232, 180, 184, 0.1);
-  transform: translateX(2px);
-}
-
-.upgrade-benefits li i {
-  color: var(--rose-gold);
-  font-size: 9px;
-  min-width: 14px;
-  opacity: 0.9;
-  flex-shrink: 0;
-}
-
-.upgrade-modal .modal-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 14px;
-}
-
-.upgrade-modal .btn-secondary {
-  width: 100%;
-  padding: 10px;
-  background: rgba(232, 180, 184, 0.06);
-  border: 1px solid rgba(232, 180, 184, 0.15);
-  border-radius: 10px;
-  color: var(--platinum);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  letter-spacing: 0.2px;
-  opacity: 0.75;
-}
-
-.upgrade-modal .btn-secondary:hover {
-  opacity: 1;
-  background: rgba(232, 180, 184, 0.1);
-  border-color: rgba(232, 180, 184, 0.25);
-  transform: translateY(-1px);
-}
-
-.upgrade-cta {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: var(--obsidian);
-  border: 1px solid var(--platinum);
-  border-radius: 10px;
-  color: var(--platinum);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 11px;
-  cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  letter-spacing: 0.3px;
-  position: relative;
-  overflow: hidden;
-}
-
-.upgrade-cta::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(232, 180, 184, 0.15), 
-    transparent);
-  transition: 0.6s;
+  z-index: 2;
   pointer-events: none;
 }
 
-.upgrade-cta:hover::before {
-  left: 100%;
-}
 
-.upgrade-cta:hover {
-  transform: translateY(-2px);
-  border-color: var(--rose-gold);
-  box-shadow: 
-    0 8px 24px rgba(232, 180, 184, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-}
-
-.upgrade-cta:active {
-  transform: translateY(0);
-}
-
-.upgrade-cta i {
-  font-size: 12px;
-  color: var(--rose-gold);
-}
-
-/* Radial Glow Effect */
-.upgrade-modal .modal::after {
-  content: '';
+/* ============================================================
+   03. CLOSE BUTTON
+   ============================================================ */
+.upgrade-close {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 120%;
-  height: 120%;
-  background: radial-gradient(circle, 
-    rgba(232, 180, 184, 0.08) 0%, 
-    transparent 70%);
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.3;
-}
-
-.modal-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(232, 180, 184, 0.08);
-  border: 1px solid rgba(232, 180, 184, 0.15);
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
   border-radius: 50%;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--platinum);
-  font-size: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
   z-index: 10;
-  opacity: 0.6;
 }
 
-.modal-close:hover {
-  opacity: 1;
-  background: rgba(232, 180, 184, 0.12);
+.upgrade-close:hover {
+  background: var(--rose-wash);
   color: var(--rose-gold);
   transform: rotate(90deg);
 }
 
-/* Toast Styles - Compact Luxury */
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%) translateY(15px);
-  background: rgba(20, 20, 20, 0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(232, 180, 184, 0.15);
-  border-radius: 10px;
-  padding: 12px 18px;
+.upgrade-close:active {
+  transform: rotate(90deg) scale(0.94);
+}
+
+.upgrade-close:focus-visible {
+  outline: 2px solid var(--rose-gold);
+  outline-offset: 2px;
+}
+
+
+/* ============================================================
+   04. ICON — filled rose-gold medallion
+   ============================================================ */
+.upgrade-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 1.125rem;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  font-size: 1.25rem;
+  box-shadow:
+    0 0 0 6px rgba(232, 180, 184, 0.08),
+    0 0 0 1px rgba(232, 180, 184, 0.35),
+    0 8px 24px rgba(232, 180, 184, 0.22);
+}
+
+.upgrade-icon i {
+  line-height: 1;
+}
+
+
+/* ============================================================
+   05. TITLE + DESCRIPTION
+   ============================================================ */
+.upgrade-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.25rem, 4.5vw, 1.5rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem;
+  padding: 0 1rem;
+}
+
+.upgrade-description {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0 auto 1.25rem;
+  max-width: 320px;
+}
+
+
+/* ============================================================
+   06. BENEFIT LIST
+   ============================================================ */
+.upgrade-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.upgrade-benefits li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: rgba(232, 180, 184, 0.04);
+  border: 1px solid rgba(232, 180, 184, 0.08);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-primary);
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+
+.upgrade-benefits li:hover {
+  background: rgba(232, 180, 184, 0.06);
+  border-color: var(--rose-hairline);
+}
+
+.upgrade-benefits li i {
+  color: var(--rose-gold);
+  font-size: 0.625rem;
+  line-height: 1.5;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.upgrade-benefits li span {
+  flex: 1;
+  min-width: 0;
+}
+
+
+/* ============================================================
+   07. ACTIONS
+   ============================================================ */
+.upgrade-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.upgrade-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 13px 20px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 6px 18px rgba(232, 180, 184, 0.22);
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+.upgrade-primary:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.3) inset,
+    0 10px 26px rgba(232, 180, 184, 0.32);
+}
+
+.upgrade-primary:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.upgrade-primary:focus-visible {
+  outline: 2px solid var(--rose-gold);
+  outline-offset: 3px;
+}
+
+.upgrade-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 11px 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
+}
+
+.upgrade-secondary:hover {
+  color: var(--rose-gold);
+  background: var(--rose-wash);
+}
+
+.upgrade-secondary:focus-visible {
+  outline: 2px solid var(--rose-gold);
+  outline-offset: 3px;
+}
+
+
+/* ============================================================
+   08. TOAST
+   Unifies with the dashboard toast so the product reads
+   as one surface everywhere the upgrade handler is loaded.
+   ============================================================ */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(140%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 12px 20px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 16px 40px rgba(0, 0, 0, 0.55),
+    0 0 40px rgba(232, 180, 184, 0.2);
+  z-index: 12000;
   opacity: 0;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 3000;
-  max-width: 90%;
-  width: auto;
-  min-width: 260px;
-  box-shadow: 
-    0 15px 45px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.02);
+  max-width: calc(100vw - 2rem);
+  pointer-events: none;
+  text-align: center;
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
 }
 
 .toast.show {
-  opacity: 1;
   transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.toast i {
+  color: var(--obsidian);
+  font-size: 0.875rem;
+  flex-shrink: 0;
 }
 
 .toast.warning {
-  border-left: 2px solid var(--rose-gold);
-  background: linear-gradient(135deg, 
-    rgba(20, 20, 20, 0.95) 0%, 
-    rgba(10, 10, 10, 0.98) 100%);
+  background: linear-gradient(180deg, #F0B768 0%, #D89B4A 100%);
+  color: var(--obsidian);
 }
 
-.toast.warning::before {
-  content: '⚠️';
-  font-size: 15px;
+.toast.warning i {
+  color: var(--obsidian);
 }
 
 .toast.error {
-  border-left: 2px solid #ef4444;
-  background: linear-gradient(135deg, 
-    rgba(20, 20, 20, 0.95) 0%, 
-    rgba(10, 10, 10, 0.98) 100%);
+  background: linear-gradient(180deg, #FF5C6C 0%, #C43F4D 100%);
+  color: #FFFFFF;
 }
 
-.toast.error::before {
-  content: '❌';
-  font-size: 15px;
+.toast.error i {
+  color: #FFFFFF;
 }
 
 .toast.success {
-  border-left: 2px solid #2ECC71;
-  background: linear-gradient(135deg, 
-    rgba(20, 20, 20, 0.95) 0%, 
-    rgba(10, 10, 10, 0.98) 100%);
+  background: linear-gradient(180deg, var(--rose-gold) 0%, var(--rose-gold-deep) 100%);
+  color: var(--obsidian);
 }
 
-.toast.success::before {
-  content: '✅';
-  font-size: 15px;
+.toast.success i {
+  color: var(--obsidian);
 }
 
-.toast span,
-.toast #toast-message {
-  color: var(--platinum);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
-  flex: 1;
-}
 
-/* Mobile Optimizations - Keep compact */
-@media (max-width: 600px) {
-  .upgrade-modal .modal {
-    max-width: 300px;
-    width: 88%;
+/* ============================================================
+   09. RESPONSIVE
+   ============================================================ */
+@media (max-width: 480px) {
+  .upgrade-card {
+    padding: 1.5rem 1.125rem 1.25rem;
+    border-radius: var(--radius-xl);
   }
-  
-  .upgrade-content {
-    padding: 20px 18px;
-  }
-  
-  .upgrade-title {
-    font-size: 18px;
-  }
-  
+
   .upgrade-icon {
-    width: 44px;
-    height: 44px;
-    font-size: 18px;
-    margin-bottom: 10px;
+    width: 48px;
+    height: 48px;
+    font-size: 1.0625rem;
+    margin-bottom: 1rem;
   }
-  
-  .upgrade-message {
-    font-size: 11px;
-    margin-bottom: 12px;
-  }
-  
-  .upgrade-status {
-    padding: 8px;
-    gap: 5px;
-    margin: 10px 0;
-  }
-  
-  .upgrade-status .status-badge {
-    min-width: 55px;
-    padding: 4px 8px;
-    font-size: 8px;
-  }
-  
-  .upgrade-subtitle {
-    font-size: 9px;
-    margin-bottom: 10px;
-  }
-  
-  .upgrade-benefits {
-    padding: 10px;
-    margin: 10px 0;
-  }
-  
-  .upgrade-benefits h4 {
-    font-size: 10px;
-    margin-bottom: 6px;
-  }
-  
-  .upgrade-benefits ul {
-    gap: 4px;
-  }
-  
-  .upgrade-benefits li {
-    padding: 4px 6px;
-    font-size: 9px;
-  }
-  
-  .upgrade-benefits li i {
-    font-size: 8px;
-    min-width: 12px;
-  }
-  
-  .upgrade-modal .modal-actions {
-    gap: 5px;
-    margin-top: 12px;
-  }
-  
-  .upgrade-cta,
-  .upgrade-modal .btn-secondary {
-    padding: 9px;
-    font-size: 11px;
-  }
-  
-  .modal-close {
-    width: 24px;
-    height: 24px;
-    font-size: 11px;
-    top: 8px;
-    right: 8px;
-  }
-  
-  .toast {
-    min-width: 240px;
-    max-width: 92%;
-    padding: 10px 16px;
-  }
-}
 
-@media (max-width: 380px) {
-  .upgrade-modal .modal {
-    max-width: 280px;
-    width: 90%;
-  }
-  
-  .upgrade-content {
-    padding: 18px 16px;
-  }
-  
   .upgrade-title {
-    font-size: 17px;
+    font-size: 1.1875rem;
+    padding: 0 0.5rem;
   }
-  
-  .upgrade-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 16px;
+
+  .upgrade-description {
+    font-size: 0.75rem;
+    margin-bottom: 1.125rem;
   }
-  
-  .upgrade-message {
-    font-size: 10px;
-  }
-  
-  .upgrade-status .status-badge {
-    min-width: 50px;
-    padding: 3px 6px;
-    font-size: 7px;
-  }
-  
+
   .upgrade-benefits li {
-    font-size: 8px;
+    font-size: 0.75rem;
+    padding: 0.5rem 0.625rem;
   }
-  
+
+  .upgrade-primary {
+    padding: 12px 18px;
+    font-size: 0.8125rem;
+  }
+
+  .upgrade-secondary {
+    font-size: 0.75rem;
+  }
+
+  .upgrade-close {
+    width: 36px;
+    height: 36px;
+    top: 10px;
+    right: 10px;
+  }
+
   .toast {
-    min-width: 220px;
+    padding: 11px 16px;
+    font-size: 0.75rem;
   }
 }
 
-/* Accessibility */
+
+/* ============================================================
+   10. ACCESSIBILITY
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-  .upgrade-modal .modal,
-  .upgrade-icon,
+  .upgrade-modal,
+  .upgrade-card,
+  .upgrade-close,
+  .upgrade-primary,
+  .upgrade-secondary,
+  .upgrade-benefits li,
   .toast {
     animation: none !important;
-    transition: opacity 0.3s ease !important;
+    transition-duration: 0.01ms !important;
   }
-  
-  .upgrade-benefits li:hover {
+
+  .upgrade-modal.open .upgrade-card {
+    opacity: 1;
     transform: none;
   }
-}
-
-/* Focus styles */
-.upgrade-cta:focus-visible,
-.modal-close:focus-visible,
-.upgrade-modal .btn-secondary:focus-visible {
-  outline: 2px solid var(--rose-gold);
-  outline-offset: 2px;
 }

@@ -1,27 +1,20 @@
-# tasks/check_trials.py
-from datetime import datetime
-from app.core.firebase import db
+
+"""Legacy trial cleanup.
+
+Payla no longer uses expiring trials. This task intentionally does not change
+user plans or grant paid access. It is safe to remove its scheduler entry once
+all callers have been identified.
+"""
+
 import logging
 
 logger = logging.getLogger("payla")
 
-def check_expired_trials():
-    now = datetime.utcnow()
-    expired_users = (
-        db.collection("users")
-        .where("plan", "==", "free-trial")
-        .where("trial_end_date", "<=", now)
-        .stream()
+
+def check_expired_trials() -> int:
+    """Compatibility no-op; permanent Free users are never auto-upgraded."""
+    logger.info(
+        "check_expired_trials skipped: trial expiration is disabled; "
+        "Free remains Free until a verified subscription payment."
     )
-
-    count = 0
-    for user_doc in expired_users:
-        user_id = user_doc.id
-        db.collection("users").document(user_id).update({
-            "plan": "monthly",  # Auto-upgrade to prompt payment
-            "updated_at": now
-        })
-        logger.info(f"Trial expired for user {user_id} → set to monthly")
-        count += 1
-
-    logger.info(f"check_expired_trials: {count} users upgraded")
+    return 0

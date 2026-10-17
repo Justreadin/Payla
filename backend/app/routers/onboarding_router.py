@@ -1,244 +1,324 @@
-# routers/onboarding.py → FINAL
+# routers/onboarding.py
+
+import logging
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
-from typing import Literal
+from google.cloud.firestore_v1.base_query import FieldFilter
+
 from app.core.auth import get_current_user, onboarding_guard
 from app.core.firebase import db
+from app.core.paystack import create_paystack_subaccount
+from app.models.onboarding_model import OnboardingPayload
 from app.models.user_model import User
-from datetime import datetime, timedelta, timezone
 from app.routers.payout_router import resolve_account_name
 from app.services.layla_service import LaylaOnboardingService
-from app.core.paystack import create_paystack_subaccount # Add this
-from google.cloud.firestore_v1.base_query import FieldFilter
+from app.core.constants import USERNAME_PATTERN
+from app.core.payla_urls import paylink_url as _paylink_url
+
+
+logger = logging.getLogger("payla")
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
-class OnboardingPayload(BaseModel):
-    username: str
-    payout_bank: str
-    payout_account_number: str
-    business_name: str = ""
-    plan: Literal["silver", "gold", "opal", "presell", "free"] = "silver"
+
+def normalize_username(value: str) -> str:
+    return value.strip().lower()
+
+
+def validate_username_format(username: str) -> None:
+    if not USERNAME_PATTERN.fullmatch(username):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Username must be 3-20 characters using lowercase "
+                "letters, numbers, hyphens, or underscores"
+            ),
+        )
+
+
+def username_is_valid_for_user(username: str, user_id: str) -> bool:
+    """
+    Check the users and paylinks collections.
+
+    Existing records belonging to this user are allowed.
+    Records belonging to other users are conflicts.
+    """
+    user_docs = (
+        db.collection("users")
+        .where(filter=FieldFilter("username", "==", username))
+        .get()
+    )
+
+    for doc in user_docs:
+        if doc.id != user_id:
+            return False
+
+    paylink_docs = (
+        db.collection("paylinks")
+        .where(filter=FieldFilter("username", "==", username))
+        .get()
+    )
+
+    for doc in paylink_docs:
+        doc_data = doc.to_dict() or {}
+
+        if doc_data.get("user_id") != user_id:
+            return False
+
+    return True
 
 
 @router.get("/me", response_model=User)
-async def get_current_onboarding_user(user: User = Depends(get_current_user)):
+async def get_current_onboarding_user(
+    user: User = Depends(get_current_user),
+):
     """
-    Return user's onboarding info.
-    If user has a presell entry, include the pre-chosen username.
-    """
-    # If user already has a username, return as-is
-    if user.username:
-        return user
+    Return the authenticated user's onboarding information.
 
-    # Otherwise, check presell collection
-    presell_doc = db.collection("presell_emails").document(user.email).get()
-    if presell_doc.exists:
-        presell_data = presell_doc.to_dict()
-        user.username = presell_data.get("username", "")
-    
+    Presell lookup and username assignment have been removed.
+    """
     return user
 
 
 @router.post("/", response_model=User)
 async def complete_onboarding(
     payload: OnboardingPayload,
-    user: User = Depends(onboarding_guard)
+    user: User = Depends(onboarding_guard),
 ):
     if getattr(user, "onboarding_complete", False):
-        raise HTTPException(status_code=400, detail="Onboarding already completed")
+        raise HTTPException(
+            status_code=400,
+            detail="Onboarding already completed",
+        )
 
-    username = payload.username.lower().strip()
+    username = normalize_username(payload.username)
     now = datetime.now(timezone.utc)
 
-    # 1. Validate username format
-    if not username.replace("-", "").replace("_", "").isalnum():
-        raise HTTPException(status_code=400, detail="Username: letters, numbers, -, _ only")
-    if len(username) < 3:
-        raise HTTPException(status_code=400, detail="Username too short")
-    
-    # 2. Check if username is taken by ANOTHER user (not the current user)
-    # Check in users collection (excluding current user)
-    user_docs = db.collection("users") \
-        .where(filter=FieldFilter("username", "==", username)) \
-        .limit(2) \
-        .get()
-    
-    for doc in user_docs:
-        if doc.id != user.id:  # If another user has this username
-            raise HTTPException(status_code=400, detail="Username already taken by another user")
+    # 1. Validate username format.
+    validate_username_format(username)
 
-    # Check in paylinks collection (excluding current user's paylink)
-    paylink_docs = db.collection("paylinks") \
-        .where(filter=FieldFilter("username", "==", username)) \
-        .limit(2) \
-        .get()
-    
-    for doc in paylink_docs:
-        doc_data = doc.to_dict()
-        if doc_data.get("user_id") != user.id:  # If another user's paylink has this username
-            raise HTTPException(status_code=400, detail="Username already taken")
+    # 2. Check username availability on the server.
+    if not username_is_valid_for_user(username, user.id):
+        raise HTTPException(
+            status_code=400,
+            detail="Username already taken",
+        )
 
-    # 3. 🔐 RE-VERIFY payout account
+    # 3. Verify the payout account.
+    # Preserve HTTP errors from resolve_account_name so temporary
+    # provider failures are not misreported as invalid account details.
     try:
         resolved = await resolve_account_name(
             payload.payout_bank,
-            payload.payout_account_number
+            payload.payout_account_number,
         )
+    except HTTPException:
+        raise
     except Exception:
+        logger.exception(
+            "Unexpected payout verification error for user %s",
+            user.id,
+        )
         raise HTTPException(
-            status_code=400,
-            detail="Invalid payout account details"
+            status_code=500,
+            detail=(
+                "Unable to verify your payout account right now. "
+                "Please try again."
+            ),
         )
 
-    # 4. Build Update Data
+    if not isinstance(resolved, dict) or not resolved.get("account_name"):
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "The payout verification provider returned "
+                "an incomplete response."
+            ),
+        )
+
+    account_name = resolved["account_name"]
+
+    # 4. Create the Paystack subaccount.
+    # The helper returns None on failure, so check its result.
+    try:
+        subaccount_code = await create_paystack_subaccount(
+            business_name=account_name,
+            bank_code=payload.payout_bank,
+            account_number=payload.payout_account_number,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "Unexpected Paystack subaccount error for user %s",
+            user.id,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Unable to set up your payout account right now. "
+                "Please try again."
+            ),
+        )
+
+    if not subaccount_code:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Paystack could not set up your payout account. "
+                "Please try again later."
+            ),
+        )
+
+    # 5. Prepare the user update.
+    business_name = (
+        payload.business_name.strip()
+        or user.full_name
+        or account_name
+    ).title()
+
     update_data = {
         "username": username,
         "payout_bank": payload.payout_bank,
         "payout_account_number": payload.payout_account_number,
-        "payout_account_name": resolved["account_name"],
+        "payout_account_name": account_name,
         "payout_bank_name": resolved.get("bank_name", "Unknown Bank"),
         "payout_verified": True,
-        "business_name": (payload.business_name or user.full_name).title(),
+        "business_name": business_name,
         "onboarding_complete": True,
-        "updated_at": now
+        "updated_at": now,
+
+        # Onboarding grants only permanent Free.
+        "plan": "free",
+        "subscription_status": "inactive",
+        "trial_end_date": None,
+        "presell_end_date": None,
+        "subscription_end": None,
+
+        # Required for creator payment routing.
+        "paystack_subaccount_code": subaccount_code,
     }
 
-    # 5. Plan & Subscription Logic Sync
-    if payload.plan == "presell":
-        update_data.update({
-            "plan": "presell",
-            "presell_end_date": now + timedelta(days=365),
-            "trial_end_date": None
-        })
-    elif payload.plan == "free":
-        update_data.update({
-            "plan": "silver", 
-            "trial_end_date": now + timedelta(days=14), 
-            "presell_end_date": None
-        })
-    else:
-        update_data.update({
-            "plan": payload.plan,
-            "trial_end_date": None,
-            "presell_end_date": None
-        })
+    # 6. Update the user document.
+    user_ref = db.collection("users").document(user.id)
+    user_ref.update(update_data)
 
-    # 6. Create Paystack Subaccount
-    subaccount_code = await create_paystack_subaccount(
-        business_name=resolved["account_name"], 
-        bank_code=payload.payout_bank,
-        account_number=payload.payout_account_number
-    )
-    
-    if subaccount_code:
-        update_data["paystack_subaccount_code"] = subaccount_code
+    # 7. Create or update the user's paylink.
+    paylink_ref = db.collection("paylinks").document(user.id)
+    existing_paylink = paylink_ref.get()
+    existing_data = existing_paylink.to_dict() or {}
 
-    # 7. Update user document
-    db.collection("users").document(user.id).update(update_data)
-
-    # 8. Create/Update paylink
-    # First check if paylink already exists
-    existing_paylink = db.collection("paylinks").document(user.id).get()
-    
     paylink_data = {
         "user_id": user.id,
         "username": username,
-        "display_name": update_data["business_name"],
+        "display_name": business_name,
         "paystack_subaccount_code": subaccount_code,
-        "description": "One Link. Instant Payments. Zero Hassle.", 
+        "description": "Your Payment Identity.",
         "currency": "NGN",
         "active": True,
-        "link_url": f"https://payla.ng/@{username}",
-        "total_received": 0.0,
-        "total_transactions": 0,
-        "created_at": now if not existing_paylink.exists else existing_paylink.to_dict().get("created_at", now),
-        "updated_at": now
+        "link_url": paylink_url(username),
+        "preferred_domain": "ng",
+        "total_received": existing_data.get("total_received", 0.0),
+        "total_transactions": existing_data.get("total_transactions", 0),
+        "created_at": (
+            existing_data.get("created_at", now)
+            if existing_paylink.exists
+            else now
+        ),
+        "updated_at": now,
     }
-    
-    if existing_paylink.exists:
-        db.collection("paylinks").document(user.id).update(paylink_data)
-    else:
-        db.collection("paylinks").document(user.id).set(paylink_data)
 
-    # 9. Return fresh user
-    updated_doc = db.collection("users").document(user.id).get()
-    user_data = updated_doc.to_dict()
+    if existing_paylink.exists:
+        paylink_ref.update(paylink_data)
+    else:
+        paylink_ref.set(paylink_data)
+
+    # 8. Retrieve the updated user.
+    updated_doc = user_ref.get()
+
+    if not updated_doc.exists:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve the updated user profile.",
+        )
+
+    user_data = updated_doc.to_dict() or {}
     user_data["_id"] = user.id
-    
+
     fresh_user = User(**user_data)
-    
-    # 10. Background Service
-    layla = LaylaOnboardingService()
-    layla.send_immediate_welcome(fresh_user)
+
+    # 9. Send the welcome message.
+    # A messaging failure must not undo completed onboarding.
+    try:
+        layla = LaylaOnboardingService()
+        layla.send_immediate_welcome(fresh_user)
+    except Exception:
+        logger.exception(
+            "Failed to send onboarding welcome message for user %s",
+            user.id,
+        )
 
     return fresh_user
 
+
 @router.get("/validate-username")
 async def validate_username(
-    username: str = Query(...), 
-    current_user_id: str = Query(None, description="Current user ID to exclude from check")
+    username: str = Query(...),
+    current_user_id: str | None = Query(
+        default=None,
+        description="Optional user ID to exclude from availability checks",
+    ),
 ):
     """
-    Checks if the username is already taken by another user.
-    - If no current_user_id (landing page): strict check - must be completely available
-    - If current_user_id provided (onboarding): exclude this user's own records
-    Returns { "available": true/false }.
+    Preliminary username availability check.
+
+    current_user_id is only a client-supplied exclusion hint, not proof
+    of identity. The authenticated onboarding route performs its own
+    authoritative availability check.
     """
-    username = username.lower().strip()
-    
-    # Validate format
-    if len(username) < 3:
-        return {"available": False, "message": "Username must be at least 3 characters"}
-    
-    if not username.replace("-", "").replace("_", "").isalnum():
-        return {"available": False, "message": "Username can only contain letters, numbers, - and _"}
+    username = normalize_username(username)
 
-    # CASE 1: Landing page check (no user ID)
-    if not current_user_id:
-        # Strict check - must be completely available
-        user_docs = db.collection("users") \
-            .where(filter=FieldFilter("username", "==", username)) \
-            .limit(1) \
-            .get()
-        
-        if user_docs:
-            return {"available": False, "message": "Username already taken"}
-        
-        paylink_docs = db.collection("paylinks") \
-            .where(filter=FieldFilter("username", "==", username)) \
-            .limit(1) \
-            .get()
-        
-        if paylink_docs:
-            return {"available": False, "message": "Username already taken"}
-            
-        return {"available": True, "message": "Username is available"}
-    
-    # CASE 2: Onboarding check (with user ID)
-    else:
-        # Check in users collection (excluding current user)
-        user_docs = db.collection("users") \
-            .where(filter=FieldFilter("username", "==", username)) \
-            .limit(2) \
-            .get()
-        
-        # If any user OTHER than current has this username
-        for doc in user_docs:
-            if doc.id != current_user_id:
-                return {"available": False, "message": "Username already taken by another user"}
+    try:
+        validate_username_format(username)
+    except HTTPException as exc:
+        return {
+            "available": False,
+            "message": exc.detail,
+        }
 
-        # Check in paylinks collection (excluding current user's paylink)
-        paylink_docs = db.collection("paylinks") \
-            .where(filter=FieldFilter("username", "==", username)) \
-            .limit(2) \
-            .get()
-        
-        for doc in paylink_docs:
-            doc_data = doc.to_dict()
-            # If this paylink belongs to someone else
-            if doc_data.get("user_id") != current_user_id:
-                return {"available": False, "message": "Username already taken"}
+    user_docs = (
+        db.collection("users")
+        .where(filter=FieldFilter("username", "==", username))
+        .get()
+    )
 
-        # If we get here, username is available for this user
-        return {"available": True, "message": "Username is available"}
+    for doc in user_docs:
+        if not current_user_id or doc.id != current_user_id:
+            return {
+                "available": False,
+                "message": "Username already taken",
+            }
+
+    paylink_docs = (
+        db.collection("paylinks")
+        .where(filter=FieldFilter("username", "==", username))
+        .get()
+    )
+
+    for doc in paylink_docs:
+        doc_data = doc.to_dict() or {}
+
+        if (
+            not current_user_id
+            or doc_data.get("user_id") != current_user_id
+        ):
+            return {
+                "available": False,
+                "message": "Username already taken",
+            }
+
+    return {
+        "available": True,
+        "message": "Username is available",
+    }
