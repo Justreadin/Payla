@@ -2107,15 +2107,13 @@ body.menu-open {
 }
 
 .pricing__toggle {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   padding: 4px;
   background: var(--glass-bg-soft);
   border: 1px solid var(--glass-border-soft);
   border-radius: var(--radius-full);
   margin: 0 auto var(--space-12);
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
   backdrop-filter: saturate(140%) blur(8px);
   -webkit-backdrop-filter: saturate(140%) blur(8px);
 }
