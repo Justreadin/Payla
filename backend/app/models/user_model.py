@@ -22,6 +22,8 @@ class User(BaseModel):
     tagline: Optional[str] = None
     preferred_domain: Literal["ng", "vip"] = "ng"
     verify_token: Optional[str] = None
+    email_verified_reminder_sent_at: Optional[datetime] = None
+    signup_source: Literal["auth", "founding", None] = None
 
     # Payout and banking
     payout_bank: Optional[str] = None

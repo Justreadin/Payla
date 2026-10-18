@@ -1,6 +1,6 @@
 """
 Transactional Payla emails: verification, password reset, presell reward,
-founding verification.
+founding verification, verification reminders.
 
 All functions call render_email(). None build HTML directly.
 """
@@ -211,8 +211,8 @@ def send_founding_verification_email(email: str, token: str, username: str = Non
                 color="#FDFDFD",
             ),
             paragraph(
-                "This link expires in 24 hours. If you didn&rsquo;t sign up "
-                "for Payla, please ignore this email.",
+                "If you didn&rsquo;t sign up for Payla, please ignore "
+                "this email.",
                 color="#7A7A7A",
                 size="13px",
             ),
@@ -234,5 +234,99 @@ def send_founding_verification_email(email: str, token: str, username: str = Non
     send_email(EmailData(
         to=email,
         subject="Verify your email to activate your Founding Creator access",
+        html_content=html_content,
+    ))
+
+
+# ========================================
+# 5. FOUNDING CLAIM REMINDER
+# ========================================
+
+def send_founding_claim_reminder(email: str, token: str, username: str = None):
+    """
+    Reminder for abandoned founding claims. The user reserved a username
+    and was promised a year of Silver but never verified. Mentions the
+    username and the Silver. No expiry claim, no urgency.
+    """
+    if not username:
+        username = email.split("@")[0]
+
+    verify_url = f"{settings.APP_BASE_URL}api/founding/verify-email?token={token}"
+
+    html_content = render_email(
+        title=f"@{username} is still reserved for you",
+        blocks=[
+            eyebrow("Still yours"),
+            heading(f"@{username} is still reserved."),
+            paragraph(
+                "A few days ago you claimed this username on Payla. "
+                "It&rsquo;s still yours, but it isn&rsquo;t active yet."
+            ),
+            callout(
+                f'<p style="font-family:\'Inter\',sans-serif; font-size:13px; '
+                f'font-weight:600; letter-spacing:0.14em; text-transform:uppercase; '
+                f'color:#B8B8B8; margin:0 0 12px 0;">Your payment identity</p>'
+                f'<p style="margin:0;">{mono(f"payla.ng/@{username}", size="24px")}</p>'
+            ),
+            paragraph(
+                "One click to activate it, and your year of "
+                "complimentary Payla Silver starts."
+            ),
+            button("Activate my username", verify_url),
+            divider(),
+            paragraph(
+                "If you&rsquo;d rather not continue, you can ignore this "
+                "email. Your username will stay reserved.",
+                color="#7A7A7A",
+                size="13px",
+            ),
+            sign_off("Talk soon."),
+        ],
+    )
+
+    send_email(EmailData(
+        to=email,
+        subject=f"@{username} is still reserved for you",
+        html_content=html_content,
+    ))
+
+
+# ========================================
+# 6. ACCOUNT VERIFICATION REMINDER
+# ========================================
+
+def send_account_verification_reminder(email: str, token: str):
+    """
+    Reminder for abandoned auth signups. No username, no Silver.
+    Just: your account is waiting, verify to use it.
+    """
+    verify_url = f"{settings.APP_BASE_URL}api/auth/verify-email?token={token}"
+
+    html_content = render_email(
+        title="Your Payla account is waiting",
+        blocks=[
+            heading("Your account is waiting."),
+            paragraph(
+                "A few days ago you signed up for Payla. "
+                "The account is ready. It just needs a quick confirmation."
+            ),
+            paragraph(
+                "One click to verify your email and continue."
+            ),
+            button("Verify my email", verify_url),
+            divider(),
+            paragraph(
+                "If you didn&rsquo;t sign up for Payla, you can ignore "
+                "this email. The account will not be activated.",
+                color="#7A7A7A",
+                size="13px",
+            ),
+            sign_off("Talk soon."),
+        ],
+    )
+
+    send_email(EmailData(
+        to=email,
+        subject="Your Payla account is waiting",
         html_content=html_content,
     ))

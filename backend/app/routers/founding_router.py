@@ -26,7 +26,7 @@ from app.core.constants import (
 )
 from app.models.user_model import User
 from app.services.email_service import send_founding_verification_email
-from app.core.payla_urls import paylink_url as _paylink_url
+from app.core.payla_urls import paylink_url
 
 logger = logging.getLogger("payla.founding")
 
@@ -142,6 +142,7 @@ async def founding_signup(request: FoundingSignupRequest):
             verify_token=verify_token,
             plan="free",
             trial_end_date=None,
+            signup_source="founding",
             created_at=now,
             updated_at=now,
             onboarding_complete=False,
@@ -216,8 +217,9 @@ async def founding_signup(request: FoundingSignupRequest):
 @router.get("/verify-email")
 async def verify_founding_email(token: str):
     """
-    Verify the founding member's email and grant one year of Silver.
-    Redirects to the frontend entry page in every case.
+    Verify the user's email and activate their paylink. Founding
+    status is not assigned here; that is a Silver subscription
+    concept and is handled in the subscription flow.
     """
     entry_url = f"{settings.FRONTEND_URL}entry"
 
@@ -251,17 +253,10 @@ async def verify_founding_email(token: str):
             return RedirectResponse(url=entry_url, status_code=302)
 
         now = datetime.now(timezone.utc)
-        subscription_end = now + timedelta(days=FOUNDING_TRIAL_DAYS)
 
         db.collection("users").document(user_id).update({
             "email_verified": True,
             "verify_token": None,
-            "plan": "silver",
-            "plan_start_date": now,
-            "subscription_end": subscription_end,
-            "next_billing_date": subscription_end,
-            "founding_member": True,
-            "founding_claimed_at": now,
             "updated_at": now,
         })
 
@@ -273,17 +268,15 @@ async def verify_founding_email(token: str):
         })
 
         logger.info(
-            f"Founding member verified: {email} | "
-            f"one year of Silver granted for @{username}"
+            f"Email verified: {email} | @{username} paylink active"
         )
 
         create_notification(
             user_id=user_id,
-            title="Welcome to Payla Silver",
+            title="Your payment identity is active",
             message=(
-                f"Your email is verified and you now have one year of "
-                f"complimentary Silver. Start using "
-                f"{paylink_url(username)}"
+                f"@{username} is live. Share {paylink_url(username)} "
+                f"with clients to get paid."
             ),
             type="success",
             link="/onboarding",
@@ -331,16 +324,22 @@ async def resend_founding_verification(request: ResendVerificationRequest):
                 "already_verified": True,
             }
 
-        new_token = str(uuid.uuid4())
+        existing_token = user_data.get("verify_token")
 
-        db.collection("users").document(user_id).update({
-            "verify_token": new_token,
-            "updated_at": datetime.now(timezone.utc),
-        })
+        # If the token is missing (data corruption, manual edit),
+        # generate one so the user isn't stuck. Otherwise reuse it
+        # so every email ever sent to this user shares one working
+        # token. The original email and any resends all work.
+        if not existing_token:
+            existing_token = str(uuid.uuid4())
+            db.collection("users").document(user_id).update({
+                "verify_token": existing_token,
+                "updated_at": datetime.now(timezone.utc),
+            })
 
         # Pass username so the resent email shows the correct handle.
         send_founding_verification_email(
-            email, new_token, username=username
+            email, existing_token, username=username
         )
 
         logger.info(f"Resent verification email to {email}")

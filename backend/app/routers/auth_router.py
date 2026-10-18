@@ -129,6 +129,7 @@ async def signup_email(data: SignupRequest):
             trial_end_date=None,
             subscription_end=None,
             next_billing_date=None,
+            signup_source="auth", 
             created_at=now,
             updated_at=now,
         )
@@ -381,17 +382,23 @@ async def resend_verification(data: CheckEmailRequest):
     if user.email_verified:
         return {"message": "Email already verified"}
 
-    verify_token = str(uuid.uuid4())
+        existing_token = user.verify_token
 
-    await firestore_run(
-        db.collection("users").document(user.id).update,
-        {
-            "verify_token": verify_token,
-            "updated_at": datetime.now(timezone.utc),
-        },
-    )
+    # If the token is missing (data corruption, manual edit),
+    # generate one. Otherwise reuse it so every email ever sent
+    # to this user shares one working token. The original email
+    # and any resends all work.
+    if not existing_token:
+        existing_token = str(uuid.uuid4())
+        await firestore_run(
+            db.collection("users").document(user.id).update,
+            {
+                "verify_token": existing_token,
+                "updated_at": datetime.now(timezone.utc),
+            },
+        )
 
-    send_verification_email(email, verify_token)
+    send_verification_email(email, existing_token)
 
     logger.info("Resent verification email to %s", email)
 
