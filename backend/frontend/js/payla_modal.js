@@ -355,7 +355,7 @@ class PaylaClaimModal {
         );
         const data = await res.json();
 
-        if (data.verified && data.founding_member) {
+        if (data.verified) {
           clearInterval(this.verificationPolling);
           this.verificationPolling = null;
 
