@@ -102,18 +102,24 @@ async def retry_bank_confirmation():
         user = user_doc.to_dict() or {}
         user_id = user_doc.id
 
+        # ✅ FIXED: Look for the actual fields saved by onboarding_router
         bank_code = (
-            user.get("bank_code")
+            user.get("payout_bank")
+            or user.get("bank_code")
             or user.get("payout_bank_code")
         )
         account_number = (
-            user.get("account_number")
-            or user.get("payout_account_number")
+            user.get("payout_account_number")
+            or user.get("account_number")
         )
 
         if not bank_code or not account_number:
             # No account on file — cannot resolve. Leave status
             # as-is so the user still sees a tenure mark.
+            logger.debug(
+                "Skipping user %s: missing bank_code or account_number", 
+                user_id
+            )
             continue
 
         # Skip if we already tried very recently
@@ -123,8 +129,10 @@ async def retry_bank_confirmation():
         if attempted and (now - attempted) < timedelta(
             hours=RETRY_INTERVAL_HOURS
         ):
+            logger.debug("Skipping user %s: attempted recently", user_id)
             continue
 
+        logger.info("Attempting resolve for user %s...", user_id)
         resolved = await _resolve_account(bank_code, account_number)
 
         updates = {
