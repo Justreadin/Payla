@@ -54,7 +54,7 @@ def send_email(data: EmailData):
 
 
 # ========================================
-# 1. VERIFICATION EMAIL
+# 1. VERIFICATION EMAIL (AUTH)
 # ========================================
 
 def send_verification_email(email: str, token: str):
@@ -144,13 +144,9 @@ def send_presell_reward_email(email: str, full_name: str, username: str):
             callout(
                 f'<p style="margin:0;">{mono(f"payla.ng/@{username}", size="22px")}</p>'
             ),
-            eyebrow("Your eternal rewards"),
             paragraph(
-                "One year of Payla Silver, complimentary.<br>"
-                "Founding Creator badge.<br>"
-                "Lifetime price protection.<br>"
-                "Direct line to support.",
-                color="#FDFDFD",
+                "Your link is yours to share with clients whenever "
+                "you&rsquo;re ready to get paid."
             ),
             paragraph(
                 "This is only the beginning. I&rsquo;ll be in touch as we "
@@ -172,26 +168,20 @@ def send_presell_reward_email(email: str, full_name: str, username: str):
 # ========================================
 
 def send_founding_verification_email(email: str, token: str, username: str = None):
-    """
-    Verification for founding members with 1-year free Silver access.
-    Rebuilt to match the design system. Previously a completely different
-    visual language; now consistent with every other email.
-    """
     if not username:
         username = email.split("@")[0]
 
     verify_url = f"{settings.APP_BASE_URL}api/founding/verify-email?token={token}"
 
     html_content = render_email(
-        title="Verify your email to activate your Founding Creator access",
+        title=f"@{username} is yours. One click to activate.",
         blocks=[
-            eyebrow("Founding Creator"),
-            heading("One step away."),
+            eyebrow("Your payment identity"),
+            heading(f"@{username} is yours."),
             paragraph(
-                "You&rsquo;ve secured your place as a "
-                "<strong style=\"color:#FDFDFD;\">Founding Creator</strong>. "
-                "One click to activate your one year of complimentary "
-                "Payla Silver."
+                f"You&rsquo;ve claimed <strong style=\"color:#FDFDFD;\">@{username}</strong> "
+                f"on Payla. It&rsquo;s the link you&rsquo;ll share with clients "
+                f"when you want to get paid."
             ),
             callout(
                 f'<p style="font-family:\'Inter\',sans-serif; font-size:13px; '
@@ -199,17 +189,12 @@ def send_founding_verification_email(email: str, token: str, username: str = Non
                 f'color:#B8B8B8; margin:0 0 12px 0;">Your payment identity</p>'
                 f'<p style="margin:0;">{mono(f"payla.ng/@{username}", size="24px")}</p>'
             ),
-            button("Verify email and activate", verify_url),
-            divider(),
-            eyebrow("What you&rsquo;ll unlock"),
             paragraph(
-                "Your unique Payla link.<br>"
-                "One year of Payla Silver, complimentary.<br>"
-                "Branded invoices and receipts.<br>"
-                "Automated reminders from Layla.<br>"
-                "Zero transaction fees from Payla.",
-                color="#FDFDFD",
+                "One click to activate it. After that, your link is live, "
+                "and clients can pay you directly."
             ),
+            button(f"Activate @{username}", verify_url),
+            divider(),
             paragraph(
                 "If you didn&rsquo;t sign up for Payla, please ignore "
                 "this email.",
@@ -233,7 +218,7 @@ def send_founding_verification_email(email: str, token: str, username: str = Non
 
     send_email(EmailData(
         to=email,
-        subject="Verify your email to activate your Founding Creator access",
+        subject=f"@{username} is yours. One click to activate.",
         html_content=html_content,
     ))
 
@@ -243,24 +228,20 @@ def send_founding_verification_email(email: str, token: str, username: str = Non
 # ========================================
 
 def send_founding_claim_reminder(email: str, token: str, username: str = None):
-    """
-    Reminder for abandoned founding claims. The user reserved a username
-    and was promised a year of Silver but never verified. Mentions the
-    username and the Silver. No expiry claim, no urgency.
-    """
     if not username:
         username = email.split("@")[0]
 
     verify_url = f"{settings.APP_BASE_URL}api/founding/verify-email?token={token}"
 
     html_content = render_email(
-        title=f"@{username} is still reserved for you",
+        title=f"@{username} is still yours",
         blocks=[
             eyebrow("Still yours"),
-            heading(f"@{username} is still reserved."),
+            heading(f"@{username} is still yours."),
             paragraph(
-                "A few days ago you claimed this username on Payla. "
-                "It&rsquo;s still yours, but it isn&rsquo;t active yet."
+                f"You claimed <strong style=\"color:#FDFDFD;\">@{username}</strong> "
+                f"on Payla three days ago. It&rsquo;s still yours, but it "
+                f"isn&rsquo;t active yet."
             ),
             callout(
                 f'<p style="font-family:\'Inter\',sans-serif; font-size:13px; '
@@ -269,14 +250,14 @@ def send_founding_claim_reminder(email: str, token: str, username: str = None):
                 f'<p style="margin:0;">{mono(f"payla.ng/@{username}", size="24px")}</p>'
             ),
             paragraph(
-                "One click to activate it, and your year of "
-                "complimentary Payla Silver starts."
+                "One click to activate it. After that, your link is live, "
+                "and clients can pay you directly."
             ),
-            button("Activate my username", verify_url),
+            button(f"Activate @{username}", verify_url),
             divider(),
             paragraph(
-                "If you&rsquo;d rather not continue, you can ignore this "
-                "email. Your username will stay reserved.",
+                f"If you don&rsquo;t want @{username}, ignore this email. "
+                f"It will stay reserved until you decide.",
                 color="#7A7A7A",
                 size="13px",
             ),
@@ -286,34 +267,31 @@ def send_founding_claim_reminder(email: str, token: str, username: str = None):
 
     send_email(EmailData(
         to=email,
-        subject=f"@{username} is still reserved for you",
+        subject=f"@{username} is still yours",
         html_content=html_content,
     ))
 
 
 # ========================================
-# 6. ACCOUNT VERIFICATION REMINDER
+# 6. ACCOUNT VERIFICATION REMINDER (AUTH)
 # ========================================
 
 def send_account_verification_reminder(email: str, token: str):
-    """
-    Reminder for abandoned auth signups. No username, no Silver.
-    Just: your account is waiting, verify to use it.
-    """
     verify_url = f"{settings.APP_BASE_URL}api/auth/verify-email?token={token}"
 
     html_content = render_email(
-        title="Your Payla account is waiting",
+        title="Your Payla account is ready",
         blocks=[
-            heading("Your account is waiting."),
+            heading("Your Payla account is ready."),
             paragraph(
-                "A few days ago you signed up for Payla. "
-                "The account is ready. It just needs a quick confirmation."
+                "You signed up for Payla three days ago. "
+                "Your account is ready. It just needs one click."
             ),
             paragraph(
-                "One click to verify your email and continue."
+                "After that, you can claim your payla.ng handle and start "
+                "sharing your payment link."
             ),
-            button("Verify my email", verify_url),
+            button("Finish setting up", verify_url),
             divider(),
             paragraph(
                 "If you didn&rsquo;t sign up for Payla, you can ignore "
@@ -327,6 +305,6 @@ def send_account_verification_reminder(email: str, token: str):
 
     send_email(EmailData(
         to=email,
-        subject="Your Payla account is waiting",
+        subject="Your Payla account is ready",
         html_content=html_content,
     ))
