@@ -704,7 +704,7 @@ async function completeOnboarding() {
             plan: FREE_PLAN
         };
 
-        const response = await authFetch(`${BACKEND_URL}/api/onboarding/`, {
+        const response = await authFetch(`${BACKEND_URL}/api/onboarding`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

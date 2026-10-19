@@ -14,7 +14,7 @@ from app.models.user_model import User
 from app.routers.payout_router import resolve_account_name
 from app.services.layla_service import LaylaOnboardingService
 from app.core.constants import USERNAME_PATTERN
-from app.core.payla_urls import paylink_url as _paylink_url
+from app.core.payla_urls import paylink_url
 
 
 logger = logging.getLogger("payla")
