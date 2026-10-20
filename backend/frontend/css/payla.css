@@ -2107,8 +2107,7 @@ body.menu-open {
 }
 
 .pricing__toggle {
-  display: flex;
-  width: fit-content;
+  display: inline-flex;
   padding: 4px;
   background: var(--glass-bg-soft);
   border: 1px solid var(--glass-border-soft);
