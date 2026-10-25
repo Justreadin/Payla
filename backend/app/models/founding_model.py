@@ -18,6 +18,7 @@ class FoundingSignupRequest(BaseModel):
     username: str
     email: EmailStr
     password: str
+    referred_by: Optional[str] = None
 
     @validator("username")
     def validate_username(cls, v):

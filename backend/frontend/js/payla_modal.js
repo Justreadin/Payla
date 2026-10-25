@@ -286,10 +286,19 @@ class PaylaClaimModal {
     claimBtn.disabled = true;
 
     try {
+      // Extract referral code from URL (e.g., payla.ng/?ref=lyriqonia)
+      const urlParams = new URLSearchParams(window.location.search);
+      const referredBy = urlParams.get('ref') || null;
+
       const res = await fetch(`${BACKEND_BASE}/api/founding/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ 
+          username, 
+          email, 
+          password,
+          referred_by: referredBy 
+        }),
       });
       const data = await res.json();
 

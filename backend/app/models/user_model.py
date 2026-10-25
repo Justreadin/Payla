@@ -24,6 +24,7 @@ class User(BaseModel):
     verify_token: Optional[str] = None
     email_verified_reminder_sent_at: Optional[datetime] = None
     signup_source: Literal["auth", "founding", None] = None
+    referred_by: Optional[str] = None 
 
     # Payout and banking
     payout_bank: Optional[str] = None
