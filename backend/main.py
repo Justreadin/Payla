@@ -146,7 +146,6 @@ app.add_middleware(SecurityHeadersMiddleware)
 origins = [
     "http://127.0.0.1:5500",
     "http://127.0.0.1:8000",
-    "https://payla.vercel.app",
     "https://app.payla.ng",
     "https://payla.ng",
     "https://payla.vip",
@@ -222,7 +221,7 @@ app.include_router(receipt_router.router, prefix="/api", tags=["Receipt"])
 #app.include_router(presell_router.router, prefix="/api", tags=["Presell"])
 app.include_router(token_gate.router, prefix="/api", tags=["Token Gate"])
 app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
-app.include_router(marketing_router.router, tags=["Marketing"])
+#app.include_router(marketing_router.router, tags=["Marketing"])
 app.include_router(
     founding_router.router,
     prefix="/api",
@@ -427,39 +426,72 @@ async def me(user=Depends(get_current_user)):
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    path = FRONTEND_DIR / "assets" / "favicon.ico"
-    if path.is_file():
-        return FileResponse(
-            path,
-            media_type="image/x-icon",
-            headers={"X-Content-Type-Options": "nosniff"},
-        )
-    raise HTTPException(status_code=404, detail="Favicon not found")
-
+    # ... existing code ...
 
 @app.get("/site.webmanifest", include_in_schema=False)
 async def site_manifest():
-    path = FRONTEND_DIR / "assets" / "site.webmanifest"
-    if path.is_file():
-        return FileResponse(
-            path,
-            media_type="application/manifest+json",
-            headers={"X-Content-Type-Options": "nosniff"},
-        )
-    raise HTTPException(status_code=404, detail="Manifest not found")
-
+    # ... existing code ...
 
 @app.get("/og-image.jpg", include_in_schema=False)
 async def serve_og_image():
-    path = FRONTEND_DIR / "assets" / "og-image.jpg"
-    if path.is_file():
-        return FileResponse(
-            path,
-            media_type="image/jpeg",
-            headers={"X-Content-Type-Options": "nosniff"},
-        )
-    raise HTTPException(status_code=404, detail="Image not found")
+    # ... existing code ...
 
+# 👇 ADD THESE NEW ROUTES HERE 👇
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots():
+    base_url = settings.BACKEND_URL.rstrip('/')
+    content = f"""User-agent: *
+Allow: /
+
+Sitemap: {base_url}/sitemap.xml
+"""
+    return Response(content=content, media_type="text/plain")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap():
+    base_url = settings.BACKEND_URL.rstrip('/')
+    
+    # 1. Static pages
+    urls = [
+        f"{base_url}/",
+        f"{base_url}/entry",
+        f"{base_url}/privacy",
+        f"{base_url}/terms"
+    ]
+    
+    # 2. Dynamic pages (Active Paylinks)
+    try:
+        # Query only active paylinks to protect privacy and save reads
+        paylinks = db.collection("paylinks").where(
+            filter=FieldFilter("active", "==", True)
+        ).stream()
+        
+        for doc in paylinks:
+            data = doc.to_dict()
+            username = data.get("username")
+            if username:
+                urls.append(f"{base_url}/@{username}")
+                
+    except Exception as e:
+        logger.error(f"Failed to generate sitemap dynamic routes: {e}")
+
+    # 3. Build the XML
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    
+    for url in urls:
+        xml += "  <url>\n"
+        xml += f"    <loc>{url}</loc>\n"
+        # Tell Google to check the homepage daily, but paylinks weekly
+        changefreq = "daily" if url == f"{base_url}/" else "weekly"
+        xml += f"    <changefreq>{changefreq}</changefreq>\n"
+        xml += "  </url>\n"
+        
+    xml += '</urlset>'
+    
+    return Response(content=xml, media_type="application/xml")
 
 # ------------------------------------------------------------
 # 12. DEVELOPMENT-ONLY FRONTEND RELOAD
@@ -614,7 +646,7 @@ async def serve_paylink_page(username: str, request: Request):
         if redirect_to:
             return RedirectResponse(
                 url=redirect_to,
-                status_code=301,
+                status_code=302,
             )
 
     # ── Serve the HTML shell ──

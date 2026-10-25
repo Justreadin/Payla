@@ -8,40 +8,28 @@
   <title>Payla — Your Payment Identity</title>
   <meta name="description" content="Beautiful payment pages. Professional invoices. Payment reminders that follow through. Get paid without the chasing." />
   <meta name="author" content="Payla Signature Ltd" />
-  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
 
+  <!-- Open Graph / Facebook -->
   <meta property="og:title" content="Payla — Your Payment Identity" />
   <meta property="og:description" content="Get paid. Without the chasing." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://payla.ng" />
-  <meta property="og:image" content="https://payla.ng/og-image.jpg" />
+  <meta property="og:image" content="https://payla.ng/assets/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="Payla" />
 
+  <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@payla_opal" />
   <meta name="twitter:title" content="Payla — Your Payment Identity" />
   <meta name="twitter:description" content="Get paid. Without the chasing." />
-  <meta name="twitter:image" content="https://payla.ng/og-image.jpg" />
+  <meta name="twitter:image" content="https://payla.ng/assets/og-image.jpg" />
 
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Payla",
-    "description": "Payment identity platform for creators and freelancers. Branded payment links, professional invoices, and automated payment reminders.",
-    "applicationCategory": "FinanceApplication",
-    "operatingSystem": "Web",
-    "provider": { "@type": "Organization", "name": "Payla" },
-    "offers": [
-      { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "NGN" },
-      { "@type": "Offer", "name": "Silver Monthly", "price": "7500", "priceCurrency": "NGN" },
-      { "@type": "Offer", "name": "Silver Yearly", "price": "75000", "priceCurrency": "NGN" }
-    ]
-  }
-  </script>
+  <link rel="canonical" href="https://payla.ng/" />
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
 
-  <link rel="canonical" href="https://payla.ng" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon.png" />
@@ -65,6 +53,100 @@
 
   <link rel="stylesheet" href="/css/payla.css" />
   <link rel="stylesheet" href="/css/payla_modal.css" />
+
+  <!-- ============================================================
+       ELITE SEO, AEO & GEO STRUCTURED DATA
+       ============================================================ -->
+  
+  <!-- 1. WebSite Schema (Prompts Google Sitelinks) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Payla",
+    "url": "https://payla.ng/",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://payla.ng/search?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+
+  <!-- 2. Organization Schema (Establishes Brand Identity for GEO) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Payla",
+    "url": "https://payla.ng/",
+    "logo": "https://payla.ng/assets/favicon.png",
+    "description": "Payment identity platform for creators and freelancers. Branded payment links, professional invoices, and automated payment reminders.",
+    "sameAs": [
+      "https://twitter.com/payla_opal"
+    ]
+  }
+  </script>
+
+  <!-- 3. SoftwareApplication Schema (Defines the Product) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Payla",
+    "description": "Payment identity platform for creators and freelancers. Branded payment links, professional invoices, and automated payment reminders.",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "Web",
+    "provider": { "@type": "Organization", "name": "Payla" },
+    "offers": [
+      { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "NGN" },
+      { "@type": "Offer", "name": "Silver Monthly", "price": "7500", "priceCurrency": "NGN" },
+      { "@type": "Offer", "name": "Silver Yearly", "price": "75000", "priceCurrency": "NGN" }
+    ]
+  }
+  </script>
+
+  <!-- 4. FAQPage Schema (AEO - Gets your Q&As into Google Search) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Is Payla free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. You can claim your personal Payla username and link without paying a subscription fee. Your link becomes functional for payments after you add your name and receiving bank details to activate it."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I need to subscribe to receive payments?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. You can use the free plan to receive payments through your personal Payla link. Silver adds branded invoices, Layla's automated reminders, payment tracking, analytics, receipts, and other payment-management features."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Payla hold my money?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Payments are processed through Paystack and sent to your connected bank account. Payla does not hold your funds."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What is the founding offer?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The first 200 customers who upgrade to Silver lock in the founding price. Your founding price stays with your account. If you cancel and later resubscribe, you keep the founding rate."
+        }
+      }
+    ]
+  }
+  </script>
 
   <script>
     !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
@@ -990,8 +1072,8 @@
     </div>
   </footer>
 
-
-  <script type="module" src="js/payla_modal.js"></script>
-  <script type="module" src="js/payla.js"></script>
+  <!-- FIXED PATHS FOR JAVASCRIPT -->
+  <script type="module" src="/js/payla_modal.js"></script>
+  <script type="module" src="/js/payla.js"></script>
 </body>
 </html>
