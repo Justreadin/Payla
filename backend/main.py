@@ -426,17 +426,39 @@ async def me(user=Depends(get_current_user)):
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    # ... existing code ...
+    path = FRONTEND_DIR / "assets" / "favicon.ico"
+    if path.is_file():
+        return FileResponse(
+            path,
+            media_type="image/x-icon",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
+    raise HTTPException(status_code=404, detail="Favicon not found")
+
 
 @app.get("/site.webmanifest", include_in_schema=False)
 async def site_manifest():
-    # ... existing code ...
+    path = FRONTEND_DIR / "assets" / "site.webmanifest"
+    if path.is_file():
+        return FileResponse(
+            path,
+            media_type="application/manifest+json",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
+    raise HTTPException(status_code=404, detail="Manifest not found")
+
 
 @app.get("/og-image.jpg", include_in_schema=False)
 async def serve_og_image():
-    # ... existing code ...
+    path = FRONTEND_DIR / "assets" / "og-image.jpg"
+    if path.is_file():
+        return FileResponse(
+            path,
+            media_type="image/jpeg",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
+    raise HTTPException(status_code=404, detail="Image not found")
 
-# 👇 ADD THESE NEW ROUTES HERE 👇
 
 @app.get("/robots.txt", include_in_schema=False)
 async def robots():
@@ -463,7 +485,6 @@ async def sitemap():
     
     # 2. Dynamic pages (Active Paylinks)
     try:
-        # Query only active paylinks to protect privacy and save reads
         paylinks = db.collection("paylinks").where(
             filter=FieldFilter("active", "==", True)
         ).stream()
@@ -484,7 +505,6 @@ async def sitemap():
     for url in urls:
         xml += "  <url>\n"
         xml += f"    <loc>{url}</loc>\n"
-        # Tell Google to check the homepage daily, but paylinks weekly
         changefreq = "daily" if url == f"{base_url}/" else "weekly"
         xml += f"    <changefreq>{changefreq}</changefreq>\n"
         xml += "  </url>\n"
