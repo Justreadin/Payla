@@ -23,7 +23,7 @@ class User(BaseModel):
     preferred_domain: Literal["ng", "vip"] = "ng"
     verify_token: Optional[str] = None
     email_verified_reminder_sent_at: Optional[datetime] = None
-    signup_source: Literal["auth", "founding", None] = None
+    signup_source: Literal["auth", "founding", "landing", None] = None
     referred_by: Optional[str] = None 
 
     # Payout and banking

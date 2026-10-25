@@ -290,6 +290,43 @@
           </div>
         </div>
 
+                <!-- 👇 REFERRAL CARD 👇 -->
+        <div class="referral-card" id="referral-card" style="display: none;">
+          <div class="referral-card__header">
+            <div>
+              <h3 class="referral-card__title">Invite & Earn</h3>
+              <p class="referral-card__desc">Share your link. Earn ₦200 when a friend activates their Payla link, and another ₦200 when they receive their first payment.</p>
+            </div>
+            <span class="referral-card__badge">₦400 per referral</span>
+          </div>
+
+          <div class="referral-card__link-box">
+            <span class="referral-card__link-text" id="my-referral-link">Loading...</span>
+            <button id="copy-referral-btn" class="btn btn--outline btn--sm" style="padding: 6px 12px; border-color: var(--glass-border);">
+              <i class="fas fa-copy"></i> Copy
+            </button>
+          </div>
+
+          <div class="referral-card__stats">
+            <div class="referral-stat">
+              <span class="referral-stat__label">Links Live</span>
+              <strong class="referral-stat__value" id="ref-live" style="color: var(--verified-green);">0</strong>
+            </div>
+            <div class="referral-stat">
+              <span class="referral-stat__label">Transactions</span>
+              <strong class="referral-stat__value" id="ref-qualified" style="color: var(--rose-gold);">0</strong>
+            </div>
+            <div class="referral-stat">
+              <span class="referral-stat__label">Reward</span>
+              <strong class="referral-stat__value" id="ref-reward">₦0</strong>
+            </div>
+          </div>
+          
+          <!-- Payout logic gets injected here -->
+          <div class="referral-card__payout" id="referral-payout-area"></div>
+        </div>
+        <!-- 👆 END REFERRAL CARD 👆 -->
+  
         <!-- Plan -->
         <div class="plan-card">
           <div class="plan-card__glow" aria-hidden="true"></div>

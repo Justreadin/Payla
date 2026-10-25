@@ -240,3 +240,39 @@ async def get_dashboard_data(current_user: Optional[User] = Depends(get_current_
             "success_rate": paylink_success_rate,
         }
     }
+
+
+@router.get("/referrals")
+async def get_my_referrals(
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.username:
+        return {"live_referred": 0, "qualified_referred": 0, "reward_owed": 0}
+
+    # Query the database for people this user referred
+    referrals = db.collection("users").where(
+        filter=FieldFilter("referred_by", "==", current_user.username)
+    ).stream()
+
+    live_referred = 0
+    qualified_referred = 0
+
+    for doc in referrals:
+        data = doc.to_dict()
+        
+        # Only count them if their onboarding is complete (link is live)
+        if data.get("onboarding_complete") is True:
+            live_referred += 1
+            
+            # Check if they have received a payment
+            if data.get("total_earned", 0) > 0:
+                qualified_referred += 1
+
+    # Math: ₦200 for a live link + ₦200 for a transaction = ₦400 max per user
+    reward_owed = (live_referred * 200) + (qualified_referred * 200)
+
+    return {
+        "live_referred": live_referred,
+        "qualified_referred": qualified_referred,
+        "reward_owed": reward_owed,
+    }

@@ -1530,3 +1530,140 @@ ol { list-style: none; }
 .domain-upsell .btn {
   align-self: flex-start;
 }
+/* ============================================================
+   REFERRAL CARD
+   ============================================================ */
+.referral-card {
+  position: relative;
+  padding: var(--space-6);
+  background: linear-gradient(155deg, rgba(28, 22, 25, 0.7) 0%, rgba(18, 15, 17, 0.85) 100%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow: hidden;
+  margin-top: var(--space-4);
+}
+
+.referral-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 25%;
+  right: 25%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
+  opacity: 0.5;
+}
+
+.referral-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.referral-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.referral-card__desc {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 480px;
+}
+
+.referral-card__badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: var(--rose-wash);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--rose-gold);
+  text-transform: uppercase;
+}
+
+.referral-card__link-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(10, 10, 10, 0.6);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 6px 6px 6px 16px;
+}
+
+.referral-card__link-text {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.referral-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--glass-border-soft);
+}
+
+.referral-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.referral-stat__label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.referral-stat__value {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .referral-card__header {
+    flex-direction: column;
+  }
+  .referral-card__badge {
+    align-self: flex-start;
+  }
+  .referral-card__stats {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .referral-card__link-box {
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: 12px;
+  }
+  .referral-card__link-text {
+    width: 100%;
+    text-align: center;
+  }
+  .referral-card__link-box button {
+    width: 100%;
+  }
+}

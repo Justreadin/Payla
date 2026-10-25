@@ -988,9 +988,111 @@ profileForm?.addEventListener('submit', event => {
     event.preventDefault();
 });
 
-// ── Initialize ──
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadProfile();
+
+// ── Load Referral Data ──
+
+async function loadReferralData() {
+    const token = getToken();
+    if (!token) return;
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/profile/referrals`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!response.ok) return;
+        const data = await readResponse(response);
+
+        // We only show the card if the user has a username
+        const currentUsername = usernameInput.value.trim();
+        if (!currentUsername) return;
+
+        const refCard = document.getElementById("referral-card");
+        if (!refCard) return;
+        
+        refCard.style.display = "flex";
+
+        // Set the link text
+        const linkText = document.getElementById("my-referral-link");
+        const fullLink = `https://payla.ng/?ref=${currentUsername}`;
+        if (linkText) linkText.textContent = fullLink;
+
+        // Set the stats
+        const liveEl = document.getElementById("ref-live");
+        const qualifiedEl = document.getElementById("ref-qualified");
+        const rewardEl = document.getElementById("ref-reward");
+
+        const reward = data.reward_owed || 0;
+
+        if (liveEl) liveEl.textContent = data.live_referred || 0;
+        if (qualifiedEl) qualifiedEl.textContent = data.qualified_referred || 0;
+        if (rewardEl) rewardEl.textContent = `₦${reward.toLocaleString()}`;
+
+        // Handle the Payout Logic
+        const payoutArea = document.getElementById("referral-payout-area");
+        if (payoutArea) {
+            if (reward >= 1000) {
+                // User has reached the limit
+                const waMessage = encodeURIComponent(`Hi! I just reached ₦1,000 in referral rewards on Payla. My username is @${currentUsername}. Please send the payout to my paylink!`);
+                const waLink = `https://wa.me/2349041385402?text=${waMessage}`;
+                
+                payoutArea.innerHTML = `
+                    <div style="background: rgba(74, 222, 128, 0.08); border: 1px solid rgba(74, 222, 128, 0.2); padding: 16px; border-radius: var(--radius-md); text-align: center; margin-top: 10px;">
+                        <p style="font-size: 13px; color: var(--verified-green); margin-bottom: 12px; font-weight: 600;">
+                            <i class="fas fa-check-circle"></i> You've unlocked your payout!
+                        </p>
+                        <a href="${waLink}" target="_blank" class="btn btn--primary btn--sm" style="width: 100%;">
+                            Claim ₦${reward.toLocaleString()} on WhatsApp
+                        </a>
+                    </div>
+                `;
+            } else {
+                // User hasn't reached the limit
+                const remaining = 1000 - reward;
+                payoutArea.innerHTML = `
+                    <p style="font-size: 12px; color: var(--text-tertiary); text-align: center; margin-top: 10px;">
+                        <i class="fas fa-lock"></i> You need ₦${remaining.toLocaleString()} more to withdraw. Minimum payout is ₦1,000.
+                    </p>
+                `;
+            }
+        }
+
+        // Copy button
+        const copyBtn = document.getElementById("copy-referral-btn");
+        if (copyBtn) {
+            // Remove old listeners to prevent duplicates if function is re-run
+            const newCopyBtn = copyBtn.cloneNode(true);
+            copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn);
+            
+            newCopyBtn.addEventListener("click", async () => {
+                try {
+                    await navigator.clipboard.writeText(fullLink);
+                    const originalHTML = newCopyBtn.innerHTML;
+                    
+                    newCopyBtn.innerHTML = '<i class="fas fa-check"></i> Copied';
+                    newCopyBtn.style.borderColor = 'var(--verified-green)';
+                    newCopyBtn.style.color = 'var(--verified-green)';
+                    
+                    setTimeout(() => { 
+                        newCopyBtn.innerHTML = originalHTML;
+                        newCopyBtn.style.borderColor = '';
+                        newCopyBtn.style.color = '';
+                    }, 2000);
+                } catch (err) {
+                    console.error("Failed to copy", err);
+                }
+            });
+        }
+
+    } catch (err) {
+        console.error("Failed to load referral data:", err);
+    }
+}
+
+// ── Initialize ──
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadProfile();       // Wait for profile to load first
+    loadReferralData();        // Then load referrals
     loadBankConfirmation();
 });
