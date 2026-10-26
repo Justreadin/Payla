@@ -412,7 +412,6 @@ async def upload_logo(
     finally:
         await file.close()
 
-
 # =============================
 # GET REFERRAL STATS
 # =============================
@@ -447,8 +446,10 @@ async def get_my_referrals(
         # 3. ANTI-CHEAT: If bank names match, they are likely the same person.
         # We skip them entirely (they don't count towards live or qualified).
         if my_bank_name and referred_bank_name and my_bank_name == referred_bank_name:
-            # We log this so you can see who is trying to cheat in your backend logs
-            logger.warning(f"Blocked self-referral: {current_user.username} and {data.get('username')} share the same payout account name.")
+            logger.warning(
+                f"Blocked self-referral: {current_user.username} and "
+                f"{data.get('username')} share the same payout account name."
+            )
             continue
 
         # 4. Normal counting logic
