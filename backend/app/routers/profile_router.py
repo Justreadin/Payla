@@ -425,8 +425,7 @@ async def get_my_referrals(
     if not current_user.username:
         return {"live_referred": 0, "qualified_referred": 0, "reward_owed": 0}
 
-    # 1. Get the referrer's verified bank name
-    # We use payout_account_name because it is saved immediately during onboarding
+    # 1. Get the referrer's verified bank name for the self-referral check
     my_bank_name = (current_user.payout_account_name or "").strip().lower()
 
     # 2. Query for all users referred by this person
@@ -436,30 +435,57 @@ async def get_my_referrals(
 
     live_referred = 0
     qualified_referred = 0
+    payer_counts = {} # Tracks how many times each email has been used
 
     for doc in referrals:
         data = doc.to_dict()
         
-        # Use payout_account_name here as well
+        # Anti-cheat 1: Block self-referrals (same bank name)
         referred_bank_name = (data.get("payout_account_name") or "").strip().lower()
-        
-        # 3. ANTI-CHEAT: If bank names match, they are likely the same person.
-        # We skip them entirely (they don't count towards live or qualified).
         if my_bank_name and referred_bank_name and my_bank_name == referred_bank_name:
-            logger.warning(
-                f"Blocked self-referral: {current_user.username} and "
-                f"{data.get('username')} share the same payout account name."
-            )
+            logger.warning(f"Blocked self-referral: {current_user.username} and {data.get('username')} share the same payout account name.")
             continue
 
-        # 4. Normal counting logic
+        # Count Live Links
         if data.get("onboarding_complete") is True:
             live_referred += 1
             
+            # Anti-cheat 2: Unique Payer Check with Max Limit
             if data.get("total_earned", 0) > 0:
-                qualified_referred += 1
+                try:
+                    # Query the payments collection using the user's document ID
+                    payments = db.collection("payments").where(
+                        filter=FieldFilter("paylink_id", "==", doc.id)
+                    ).where(
+                        filter=FieldFilter("status", "==", "success")
+                    ).order_by("created_at", direction="DESCENDING").limit(1).stream()
+                    
+                    payment_list = list(payments)
+                    if payment_list:
+                        payment_data = payment_list[0].to_dict()
+                        # This matches the field in your screenshot
+                        payer_email = payment_data.get("client_email")
+                        
+                        if payer_email:
+                            current_count = payer_counts.get(payer_email, 0)
+                            
+                            # If this email has already been used 4 times, block the bonus
+                            if current_count >= 4:
+                                logger.warning(f"Blocked reward: {payer_email} reached the max limit of 4 payments for referrer {current_user.username}.")
+                                continue
+                                
+                            # Record the payer email usage
+                            payer_counts[payer_email] = current_count + 1
+                            
+                    # If they made it past the check, they count
+                    qualified_referred += 1
+                    
+                except Exception as e:
+                    logger.error(f"Failed to check payments for {doc.id}: {e}")
+                    # If the check fails, we don't count the bonus to be safe
+                    continue
 
-    # Math: ₦200 for a live link + ₦200 for a transaction = ₦400 max per user
+    # Math: ₦200 for a live link + ₦200 for a transaction
     reward_owed = (live_referred * 200) + (qualified_referred * 200)
 
     return {
