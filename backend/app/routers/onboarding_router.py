@@ -139,6 +139,30 @@ async def complete_onboarding(
 
     account_name = resolved["account_name"]
 
+    # ── ANTI-CHEAT: DUPLICATE BANK CHECK ──
+    # Check if this account number OR account name is already used by someone else.
+    # We do this before creating the Paystack subaccount to save API calls.
+    existing_account = db.collection("users").where(
+        filter=FieldFilter("payout_account_number", "==", payload.payout_account_number)
+    ).limit(1).stream()
+
+    existing_name = db.collection("users").where(
+        filter=FieldFilter("payout_account_name", "==", account_name)
+    ).limit(1).stream()
+
+    if list(existing_account) or list(existing_name):
+        logger.warning(
+            f"Duplicate bank details blocked for user {user.id}. Name: {account_name}"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This bank account or name is already linked to another Payla "
+                "account. Please use a different account or contact support."
+            )
+        )
+    # ── END ANTI-CHEAT ──
+
     # 4. Create the Paystack subaccount.
     # The helper returns None on failure, so check its result.
     try:
