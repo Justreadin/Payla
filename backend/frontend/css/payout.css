@@ -270,7 +270,7 @@ ol {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.375rem;
-  color: var(--text-primary);
+  color: var(--rose-gold);
   letter-spacing: var(--ls-tight);
   transition: color var(--duration-fast) var(--ease-out);
 }
@@ -524,12 +524,17 @@ ol {
 
 
 /* ============================================================
-   07. ACCOUNT HERO CARD
+   07. ACCOUNT HERO CARD & SETTLEMENT STRIP
    ============================================================ */
+
+/* The Main Card */
 .account-hero {
-  padding: var(--space-8) var(--space-6);
+  padding: var(--space-6);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5); /* Space between header, strip, details, footer */
 }
 
 .account-hero::before {
@@ -543,12 +548,12 @@ ol {
   opacity: 0.6;
 }
 
+/* Header */
 .account-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-6);
-  gap: var(--space-4);
+  margin-bottom: calc(var(--space-1) * -1);
 }
 
 .account-title {
@@ -580,48 +585,115 @@ ol {
   border-color: var(--rose-gold);
 }
 
-/* Verification pill */
-.verified-status {
+/* ============================================================
+   SECONDARY: Settlement Strip (Responsive & Aligned)
+   ============================================================ */
+.settlement-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(232, 180, 184, 0.03);
+  border: 1px solid var(--glass-border-soft);
+  border-radius: var(--radius-md);
+  gap: var(--space-4);
+}
+
+.settlement-strip__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1; /* Pushes button to the right */
+}
+
+.settlement-strip__left i {
+  color: var(--rose-gold);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.settlement-strip__left span {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+}
+
+.settlement-strip__btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 5px 12px;
-  background: var(--verified-green-soft);
-  border: 1px solid var(--verified-green-border);
-  border-radius: var(--radius-full);
-  margin-bottom: var(--space-5);
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--verified-green);
-  text-transform: uppercase;
-}
-
-.verified-status i {
   font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  transition: all var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.verified-status.unverified {
-  background: var(--pending-amber-soft);
-  border-color: rgba(240, 183, 104, 0.25);
-  color: var(--pending-amber);
+.settlement-strip__btn:hover {
+  background: var(--rose-wash);
+  border-color: var(--rose-gold);
+  color: var(--rose-gold);
 }
 
-/* Account details */
+.settlement-strip__btn i {
+  font-size: 9px;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.settlement-strip__btn:hover i {
+  transform: translateX(2px);
+}
+
+/* Mobile Adjustments */
+@media (max-width: 580px) {
+  .settlement-strip {
+    flex-direction: column;
+    align-items: stretch; /* Stretches children to full width */
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .settlement-strip__left {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .settlement-strip__left i {
+    margin-top: 2px; /* Slight optical alignment with text */
+  }
+
+  .settlement-strip__btn {
+    align-self: flex-start; /* Aligns button to the left on mobile */
+    width: auto;
+  }
+}
+
+/* PRIMARY: Bank Details */
 .account-details {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding-bottom: var(--space-2);
 }
 
 .account-name {
   font-family: var(--font-cormorant);
-  font-size: clamp(1.375rem, 3vw, 1.75rem);
+  font-size: clamp(1.5rem, 3vw, 2rem);
   font-weight: 600;
   letter-spacing: 0.005em;
   color: var(--text-primary);
-  line-height: var(--lh-snug);
+  line-height: 1.2;
 }
 
 .account-info {
@@ -631,12 +703,12 @@ ol {
   letter-spacing: 0.03em;
 }
 
+/* Footer (Verified) */
 .verification-footer {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-top: var(--space-6);
-  padding-top: var(--space-5);
+  padding-top: var(--space-4);
   border-top: 1px solid var(--glass-border-soft);
   font-family: var(--font-lora);
   font-style: italic;
@@ -648,6 +720,21 @@ ol {
   color: var(--verified-green);
   font-size: 13px;
   font-style: normal;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 480px) {
+  .settlement-strip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  
+  .settlement-strip__btn {
+    align-self: flex-end;
+    margin-top: -4px;
+  }
 }
 
 
@@ -1517,4 +1604,200 @@ ol {
   background: var(--glass-border-soft);
   vertical-align: middle;
   margin: 0 var(--space-3);
+}
+
+
+
+/* ============================================================
+   SETTLEMENT BANNER & MODAL
+   ============================================================ */
+
+/* Banner Container */
+.settlement-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  background: linear-gradient(155deg, rgba(28, 22, 25, 0.6) 0%, rgba(18, 15, 17, 0.8) 100%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  position: relative;
+  overflow: hidden;
+}
+
+.settlement-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rose-gold), transparent);
+  opacity: 0.6;
+}
+
+.settlement-banner__content {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.settlement-banner__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(232, 180, 184, 0.08);
+  border: 1px solid var(--rose-hairline);
+  color: var(--rose-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.settlement-banner__text {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.settlement-banner__text strong {
+  font-family: var(--font-body);
+  font-style: normal;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.settlement-banner__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border-soft);
+  color: var(--rose-gold);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  align-self: flex-start;
+  transition: all var(--duration-base) var(--ease-out);
+  width: 100%;
+}
+
+.settlement-banner__btn:hover {
+  background: var(--rose-wash);
+  border-color: var(--glass-border);
+  color: var(--text-primary);
+}
+
+.settlement-banner__btn i {
+  font-size: 10px;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.settlement-banner__btn:hover i {
+  transform: translateX(2px);
+}
+
+/* Modal specific overrides */
+.settlement-modal-content {
+  max-width: 480px;
+  width: 100%;
+}
+
+.settlement-modal-content .modal-body {
+  padding-bottom: var(--space-4);
+}
+
+.settlement-modal-footer {
+  border-top: 1px solid var(--glass-border-soft);
+  padding-top: var(--space-5);
+  margin-top: var(--space-2);
+  display: flex;
+  justify-content: stretch;
+}
+
+.settlement-modal-footer .instant-payout-small {
+  width: 100%;
+}
+
+/* Modal Steps */
+.settlement-step {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--glass-border-soft);
+  margin-bottom: var(--space-5);
+}
+
+.settlement-step:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.settlement-step__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--rose-wash);
+  border: 1px solid var(--rose-hairline);
+  color: var(--rose-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.settlement-step__text {
+  min-width: 0;
+}
+
+.settlement-step__text h4 {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  letter-spacing: 0.01em;
+}
+
+.settlement-step__text p {
+  font-family: var(--font-lora);
+  font-style: italic;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Responsive Adjustments */
+@media (min-width: 480px) {
+  .settlement-banner__btn {
+    width: auto;
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .settlement-banner__content {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  
+  .settlement-step {
+    gap: var(--space-3);
+  }
 }

@@ -1146,7 +1146,6 @@ class PayoutManager {
     /* ---------------------------------------------------------
        PAYOUT PROGRESS
        --------------------------------------------------------- */
-
     updatePayoutProgress() {
         const percentElement = document.getElementById('progress-percent');
         const countdownElement = document.getElementById('countdown-text');
@@ -1157,12 +1156,35 @@ class PayoutManager {
         circle.classList.remove('pulse-active');
         circle.style.setProperty('--progress', '0');
 
+        // 1. If no payout account is set up
         if (!this.currentAccount) {
             percentElement.textContent = '—';
-            countdownElement.textContent =
-                'Add a payout account to configure payouts.';
+            countdownElement.textContent = 'Add a payout account to configure payouts.';
             return;
         }
+
+        // 2. If there are no transactions at all yet
+        if (!this.payouts || this.payouts.length === 0) {
+            percentElement.textContent = '—';
+            countdownElement.textContent = 'Awaiting your first payment.';
+            return;
+        }
+
+        // Helper to calculate the next working day (T+1)
+        const getNextWorkingDay = () => {
+            const today = new Date();
+            let daysToAdd = 1;
+            
+            // Friday (5) -> Monday, Saturday (6) -> Monday, Sunday (0) -> Monday
+            if (today.getDay() === 5) daysToAdd = 3;
+            if (today.getDay() === 6) daysToAdd = 2;
+            if (today.getDay() === 0) daysToAdd = 1;
+
+            const nextDay = new Date(today);
+            nextDay.setDate(today.getDate() + daysToAdd);
+            
+            return nextDay.toLocaleDateString('en-NG', { weekday: 'long' });
+        };
 
         const settlementStatuses = this.payouts
             .map(transaction =>
@@ -1170,6 +1192,7 @@ class PayoutManager {
             )
             .filter(Boolean);
 
+        // 3. If there are pending transactions
         if (
             settlementStatuses.some(status =>
                 ['pending', 'processing', 'pending_settlement'].includes(status)
@@ -1177,11 +1200,13 @@ class PayoutManager {
         ) {
             circle.classList.add('pulse-active');
             percentElement.textContent = '…';
-            countdownElement.textContent =
-                'Settlement status is being processed.';
+            
+            const nextDay = getNextWorkingDay();
+            countdownElement.textContent = `Processing. Expected to arrive on ${nextDay}.`;
             return;
         }
 
+        // 4. If there are failed transactions
         if (settlementStatuses.includes('failed')) {
             circle.style.setProperty('--progress', '100');
             percentElement.textContent = '!';
@@ -1190,6 +1215,7 @@ class PayoutManager {
             return;
         }
 
+        // 5. If there are successful settlements (and no pending)
         if (
             settlementStatuses.some(status =>
                 ['success', 'successful', 'settled'].includes(status)
@@ -1202,11 +1228,11 @@ class PayoutManager {
             return;
         }
 
+        // 6. Fallback state
         percentElement.textContent = '—';
-        countdownElement.textContent =
-            'No confirmed settlement update is available yet.';
+        const nextDay = getNextWorkingDay();
+        countdownElement.textContent = `Next expected payout: ${nextDay}.`;
     }
-
     /* ---------------------------------------------------------
        MODALS — ACCOUNT
        --------------------------------------------------------- */
@@ -1280,6 +1306,11 @@ class PayoutManager {
         const accountInput = document.getElementById('account-number');
         const saveButton = document.getElementById('save-account-btn');
         const viewHistoryButton = document.getElementById('view-history-btn');
+          // Settlement Modal
+        const settlementModal = document.getElementById('settlement-modal');
+        const openSettlementBtn = document.getElementById('open-settlement-info');
+        const closeSettlementBtn = document.getElementById('settlement-modal-close');
+        const settlementBtn = document.getElementById('settlement-modal-btn');
         const historyCloseButton =
             document.getElementById('history-modal-close');
 
@@ -1341,6 +1372,26 @@ class PayoutManager {
             if (event.key === 'Escape') {
                 this.closeModal();
                 this.closeHistoryModal();
+            }
+        });
+
+
+         const openSettlement = () => settlementModal?.classList.add('active');
+        const closeSettlement = () => settlementModal?.classList.remove('active');
+
+        openSettlementBtn?.addEventListener('click', openSettlement);
+        closeSettlementBtn?.addEventListener('click', closeSettlement);
+        settlementBtn?.addEventListener('click', closeSettlement);
+
+        // Click outside to close
+        settlementModal?.addEventListener('click', (event) => {
+            if (event.target === settlementModal) closeSettlement();
+        });
+
+        // Escape key to close
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeSettlement();
             }
         });
     }

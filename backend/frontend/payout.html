@@ -58,8 +58,6 @@
                     <span class="earnings-label">Automated payouts</span>
                     <span class="available-earnings" id="available-earnings">Loading…</span>
                 </div>
-
-                <p class="payout-instruction-text" id="payout-instruction"></p>
             </div>
         </section>
 
@@ -77,26 +75,34 @@
             </div>
         </section>
 
-        <!-- Current Payout Account -->
+                <!-- Current Payout Account -->
         <section class="account-hero ultra-glass" id="account-card" aria-labelledby="account-heading">
             <div class="account-header">
                 <h2 class="account-title" id="account-heading">Current Payout Account</h2>
                 <button class="ghost-edit" id="edit-account-btn" type="button">Edit</button>
             </div>
 
-            <div class="verified-status" id="verified-status" style="display: none;">
-                <i class="fas fa-shield-alt" aria-hidden="true"></i>
-                <span>Verified</span>
+            <!-- SECONDARY: Settlement Strip (Moved to top) -->
+            <div class="settlement-strip">
+                <div class="settlement-strip__left">
+                    <i class="fas fa-clock" aria-hidden="true"></i>
+                    <span>Settles next working day.</span>
+                </div>
+                <button class="settlement-strip__btn" id="open-settlement-info" type="button">
+                    Details <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
 
+            <!-- PRIMARY: Bank Details -->
             <div class="account-details">
                 <div class="account-name" id="account-name">No payout account set up</div>
                 <div class="account-info" id="account-info">Add your bank account to receive payments</div>
             </div>
 
+            <!-- KEPT: Verified Footer -->
             <div class="verification-footer" id="verification-footer" style="display: none;">
                 <i class="fas fa-circle-check" aria-hidden="true"></i>
-                <span>Verified with Paystack</span>
+                <span></span>
             </div>
         </section>
 
@@ -134,7 +140,6 @@
 
     <!-- ============================================================
          STICKY MOBILE ACTIONS
-         Single contextual button: Edit if an account exists, Add if not.
     ============================================================ -->
     <div class="sticky-actions" aria-label="Account actions">
         <button class="action-btn action-primary" id="mobile-account-btn" type="button">
@@ -222,6 +227,58 @@
             </div>
             <div class="modal-body" id="history-modal-body">
                 <!-- Payout items injected by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         SETTLEMENT INFO MODAL (BEAUTIFULLY DESIGNED)
+    ============================================================ -->
+    <div
+        class="modal-overlay"
+        id="settlement-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settlement-modal-title"
+    >
+        <div class="modal-content settlement-modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="settlement-modal-title">How settlements work</h3>
+                <button class="modal-close" id="settlement-modal-close" type="button" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="settlement-step">
+                    <div class="settlement-step__icon"><i class="fas fa-bolt"></i></div>
+                    <div class="settlement-step__text">
+                        <h4>Instant Verification</h4>
+                        <p>When you add a new payout account, Payla verifies it instantly to ensure the money goes to the right person.</p>
+                    </div>
+                </div>
+                
+                <div class="settlement-step">
+                    <div class="settlement-step__icon"><i class="fas fa-hourglass-half"></i></div>
+                    <div class="settlement-step__text">
+                        <h4>Next Working Day (T+1)</h4>
+                        <p>Payments are automatically settled to your bank account the next working day. If a client pays today, the money arrives the next working day.</p>
+                    </div>
+                </div>
+
+                <div class="settlement-step">
+                    <div class="settlement-step__icon"><i class="fas fa-umbrella-beach"></i></div>
+                    <div class="settlement-step__text">
+                        <h4>Weekends & Holidays</h4>
+                        <p>Transfers are not processed on weekends or public holidays. Payments made during these times will be processed the next working day.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer settlement-modal-footer">
+                <button class="instant-payout-small" id="settlement-modal-btn" type="button">
+                    Understood
+                </button>
             </div>
         </div>
     </div>

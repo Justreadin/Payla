@@ -426,7 +426,11 @@ async def get_my_referrals(
     if not current_user.username:
         return {"live_referred": 0, "qualified_referred": 0, "reward_owed": 0}
 
-    # Query the database for people this user referred
+    # 1. Get the referrer's verified bank name
+    # We use payout_account_name because it is saved immediately during onboarding
+    my_bank_name = (current_user.payout_account_name or "").strip().lower()
+
+    # 2. Query for all users referred by this person
     referrals = db.collection("users").where(
         filter=FieldFilter("referred_by", "==", current_user.username)
     ).stream()
@@ -437,11 +441,20 @@ async def get_my_referrals(
     for doc in referrals:
         data = doc.to_dict()
         
-        # Only count them if their onboarding is complete (link is live)
+        # Use payout_account_name here as well
+        referred_bank_name = (data.get("payout_account_name") or "").strip().lower()
+        
+        # 3. ANTI-CHEAT: If bank names match, they are likely the same person.
+        # We skip them entirely (they don't count towards live or qualified).
+        if my_bank_name and referred_bank_name and my_bank_name == referred_bank_name:
+            # We log this so you can see who is trying to cheat in your backend logs
+            logger.warning(f"Blocked self-referral: {current_user.username} and {data.get('username')} share the same payout account name.")
+            continue
+
+        # 4. Normal counting logic
         if data.get("onboarding_complete") is True:
             live_referred += 1
             
-            # Check if they have received a payment
             if data.get("total_earned", 0) > 0:
                 qualified_referred += 1
 
@@ -453,4 +466,3 @@ async def get_my_referrals(
         "qualified_referred": qualified_referred,
         "reward_owed": reward_owed,
     }
-
